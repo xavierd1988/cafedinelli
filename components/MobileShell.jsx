@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNickname } from "./NicknameContext.jsx";
+import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
 
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
 const RECENT_LOCAL_TTL_MS = 6000;
@@ -49,6 +50,13 @@ export default function MobileShell() {
 
   // Météo (Open-Meteo, géolocalisée, fallback NYC)
   const [weather, setWeather] = useState(null);
+
+  // Mute du son d'ambiance (chimes seats + Mike). Persistant via localStorage.
+  const [muted, setMutedState] = useState(false);
+  useEffect(() => {
+    setMutedState(isMuted());
+    return subscribeMuted(setMutedState);
+  }, []);
 
   useEffect(() => {
     setNickDraft(nickname);
@@ -302,6 +310,15 @@ export default function MobileShell() {
             title={radioPlaying ? "Pause" : "Play FIP — Radio France"}
           >
             {radioPlaying ? "⏸" : "▶"}
+          </button>
+          <button
+            type="button"
+            className={`m-mute-btn${muted ? " is-muted" : ""}`}
+            onClick={() => setMuted(!muted)}
+            aria-label={muted ? "Unmute café sounds" : "Mute café sounds"}
+            title={muted ? "Sound off" : "Mute café sounds"}
+          >
+            {muted ? "🔇" : "🔊"}
           </button>
           <input
             className="m-nick-input"

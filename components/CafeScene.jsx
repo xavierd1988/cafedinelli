@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
 import Mike from "./Mike.jsx";
@@ -221,6 +222,12 @@ function RadioCabinet() {
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
   const [track, setTrack] = useState(null);
+  const [muted, setMutedState] = useState(false);
+
+  useEffect(() => {
+    setMutedState(isMuted());
+    return subscribeMuted(setMutedState);
+  }, []);
 
   // Diffuse l'état radio à toute l'app
   function broadcast(payload) {
@@ -336,6 +343,20 @@ function RadioCabinet() {
         title={playing ? "Pause" : "Play FIP — Radio France"}
       >
         {playing ? "⏸" : "▶"}
+      </button>
+      {/* Mute du son d'ambiance (chimes seats + Mike), à côté du play */}
+      <button
+        type="button"
+        className={`rc-mute-btn${muted ? " is-muted" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setMuted(!muted);
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        aria-label={muted ? "Unmute café sounds" : "Mute café sounds"}
+        title={muted ? "Bar sound off" : "Mute bar sound"}
+      >
+        {muted ? "🔇" : "🔊"}
       </button>
 
       <span

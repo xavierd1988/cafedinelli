@@ -10,6 +10,7 @@ import NicknameTag from "./NicknameTag.jsx";
 import PositionExporter from "./PositionExporter.jsx";
 import Receipt from "./Receipt.jsx";
 import SeatsPoller from "./SeatsPoller.jsx";
+import SoundManager from "./SoundManager.jsx";
 import WeatherClock from "./WeatherClock.jsx";
 
 function computeMode() {
@@ -68,6 +69,7 @@ export default function Homepage() {
         {/* Vue mobile : newsletter / chat / mike empilés. Masquée sur desktop via CSS. */}
         <MobileShell />
         <SeatsPoller />
+        <SoundManager />
         {isDev && <ModuleNameBadge />}
         {isDev && <PositionExporter />}
       </main>
