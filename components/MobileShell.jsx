@@ -69,10 +69,8 @@ export default function MobileShell() {
       const incomingMike = e.detail?.mike;
       if (incomingMike && (incomingMike.expiresAt || 0) > Date.now()) {
         setMikeThread(incomingMike);
-        // Auto-open sauf si l'user a explicitement caché ce thread précis.
-        if (incomingMike.id !== dismissedThreadIdRef.current) {
-          setMikeOpen((prev) => prev || incomingMike.turns?.length > 0);
-        }
+        // Plus d'auto-open : un mini-ping signale juste l'activité, l'utilisateur
+        // décide de l'ouvrir s'il veut suivre la conversation.
       } else {
         setMikeThread(null);
       }
@@ -387,6 +385,33 @@ export default function MobileShell() {
         ))}
       </div>
 
+      {/* MINI PING : signale qu'une conversation Mike est active sans
+          l'ouvrir d'office. Tap pour voir la conv complète. */}
+      {mikeThread && mikeThread.turns?.length > 0 && !mikeOpen && (
+        <button
+          type="button"
+          className="m-mike-ping"
+          onClick={() => setMikeOpen(true)}
+          aria-label="Open Mike conversation"
+        >
+          <span className="m-mike-ping-pulse" aria-hidden="true" />
+          <span className="m-mike-ping-text">
+            mike is talking
+            {(() => {
+              const askers = new Set(
+                mikeThread.turns
+                  .filter((t) => t.role === "user" && t.asker)
+                  .map((t) => t.asker)
+              );
+              if (askers.size > 0) {
+                return ` with ${Array.from(askers).slice(0, 2).join(", ")}${askers.size > 2 ? "…" : ""}`;
+              }
+              return "";
+            })()}
+          </span>
+        </button>
+      )}
+
       {/* CHAT INPUT FIXE BAS — Send + bouton Mike qui ouvre la sheet */}
       <form
         className="m-chat-bar"
@@ -415,15 +440,12 @@ export default function MobileShell() {
         </button>
       </form>
 
-      {/* BOTTOM SHEET MIKE — affiche le thread partagé en temps réel */}
+      {/* BOTTOM SHEET MIKE — affiche le thread partagé en temps réel.
+          Pas de backdrop assombrissant : le report newsletter reste lisible
+          et interactif derrière. Fermeture via ×. */}
       {mikeOpen && (
-        <div
-          className="m-mike-sheet-backdrop"
-          onClick={() => setMikeOpen(false)}
-        >
           <div
             className="m-mike-sheet"
-            onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-label="Mike the bartender"
           >
@@ -492,7 +514,6 @@ export default function MobileShell() {
               </button>
             </form>
           </div>
-        </div>
       )}
     </div>
   );
