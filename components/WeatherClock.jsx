@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDraggable } from "./useDraggable.js";
+import { useDragScale } from "./useDragScale.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -43,10 +44,12 @@ export default function WeatherClock() {
   const [time, setTime] = useState(() => new Date());
   const [weather, setWeather] = useState(null);
   const [error, setError] = useState(null);
-  const { offset, dragging, handleDragStart } = useDraggable({
+  const init = getModulePosition("WeatherClock");
+  const ds = useDragScale({
     scaled: false,
     name: "WeatherClock",
-    initialOffset: { x: -11, y: -9 }
+    initialOffset: init.offset,
+    initialScale: init.scale || { x: 1, y: 1 }
   });
 
   // tick clock every 20s (avoid every-second re-render thrash)
@@ -124,11 +127,14 @@ export default function WeatherClock() {
 
   return (
     <div
-      className={`wclock is-draggable${dragging ? " is-dragging" : ""}`}
+      className={`wclock is-draggable${ds.interacting ? " is-dragging" : ""}`}
       aria-label="Local time and weather"
       data-file="WeatherClock.jsx"
-      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
-      onMouseDown={handleDragStart}
+      style={{
+        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
+        transformOrigin: "top right"
+      }}
+      onPointerDown={ds.handleDragStart}
     >
       <div className="wclock-screen">
         {weather?.city && (
@@ -176,6 +182,12 @@ export default function WeatherClock() {
             : null}
         </div>
       </div>
+      <span
+        className="wclock-resize"
+        onPointerDown={ds.handleResizeStart}
+        title="Resize"
+        aria-label="Resize"
+      >⤡</span>
     </div>
   );
 }

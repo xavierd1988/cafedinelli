@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getDeviceClass } from "../lib/modulePositions.js";
 
 // Liste des modules à inspecter — selecteur DOM + nom de fichier
 const MODULES = [
@@ -41,7 +42,8 @@ export default function PositionExporter() {
   const [status, setStatus] = useState("");
 
   function exportPositions() {
-    const positions = {};
+    const deviceClass = getDeviceClass();
+    const positions = { __deviceClass: deviceClass };
     MODULES.forEach(({ selector, file }) => {
       const el = document.querySelector(selector);
       if (!el) {
@@ -78,7 +80,7 @@ export default function PositionExporter() {
   return (
     <div className="position-exporter">
       <button type="button" onClick={exportPositions}>
-        📋 Export positions
+        📋 Export positions ({getDeviceClass()})
       </button>
       {status && <span className="position-exporter-status">{status}</span>}
     </div>

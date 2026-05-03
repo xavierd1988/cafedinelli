@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDraggable } from "./useDraggable.js";
+import { useDragScale } from "./useDragScale.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 // Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
 const MODE_META = {
@@ -12,10 +13,12 @@ const MODE_META = {
 
 export default function Receipt({ forceMode = null, onCycleForceMode }) {
   const meta = MODE_META[forceMode] || MODE_META.null;
-  const { offset, dragging, handleDragStart } = useDraggable({
+  const init = getModulePosition("Receipt");
+  const ds = useDragScale({
     scaled: false,
     name: "Receipt",
-    initialOffset: { x: -19, y: -18 }
+    initialOffset: init.offset,
+    initialScale: init.scale || { x: 1, y: 1 }
   });
 
   const [radio, setRadio] = useState({ playing: false, track: null });
@@ -30,18 +33,21 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
 
   return (
     <section
-      className={`receipt is-draggable${dragging ? " is-dragging" : ""}`}
+      className={`receipt is-draggable${ds.interacting ? " is-dragging" : ""}`}
       id="subscribe"
       aria-label="Newsletter signup"
       data-file="Receipt.jsx"
-      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
-      onMouseDown={handleDragStart}
+      style={{
+        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
+        transformOrigin: "bottom left"
+      }}
+      onPointerDown={ds.handleDragStart}
     >
       <button
         type="button"
         className={`receipt-night-toggle${forceMode ? " is-on" : ""}`}
         onClick={onCycleForceMode}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         title={meta.title}
         aria-pressed={forceMode !== null}
         aria-label="Cycle day/night mode"
@@ -67,6 +73,12 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
         <input aria-label="Email address" placeholder="name@example.com" type="email" />
         <button type="submit">Get tomorrow’s paper</button>
       </form>
+      <span
+        className="receipt-resize"
+        onPointerDown={ds.handleResizeStart}
+        title="Resize"
+        aria-label="Resize"
+      >⤡</span>
     </section>
   );
 }

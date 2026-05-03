@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -268,8 +269,9 @@ const MIN_WIDTH = 360;
 const MIN_HEIGHT = 280;
 
 export default function PaperPanel() {
-  const [offset, setOffset] = useState({ x: 53.3, y: -116.4 });
-  const [size, setSize] = useState({ width: 522.6, height: 842.1 });
+  const init = getModulePosition("PaperPanel");
+  const [offset, setOffset] = useState(init.offset);
+  const [size, setSize] = useState(init.size);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [newsletter, setNewsletter] = useState(null);
@@ -312,12 +314,12 @@ export default function PaperPanel() {
 
     function handleUp() {
       setDragging(false);
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
     }
 
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
   }
 
   function handleResizeStart(e) {
@@ -341,12 +343,12 @@ export default function PaperPanel() {
 
     function handleUp() {
       setResizing(false);
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleUp);
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
     }
 
-    window.addEventListener("mousemove", handleMove);
-    window.addEventListener("mouseup", handleUp);
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
   }
 
   return (
@@ -363,7 +365,7 @@ export default function PaperPanel() {
     >
       <header
         className={`paper-masthead paper-drag-handle${dragging ? " is-dragging" : ""}`}
-        onMouseDown={handleDragStart}
+        onPointerDown={handleDragStart}
       >
         <div className="paper-masthead-capsule">
           <span className="paper-masthead-emoji">📊</span>
@@ -438,7 +440,7 @@ export default function PaperPanel() {
       </div>
       <div
         className="paper-resize-handle"
-        onMouseDown={handleResizeStart}
+        onPointerDown={handleResizeStart}
         aria-label="Redimensionner"
         role="button"
       />

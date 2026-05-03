@@ -34,7 +34,7 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
     >
       <div
         className={`counter-copy is-drag-handle${isDragging ? " is-dragging" : ""}`}
-        onMouseDown={onDragStart}
+        onPointerDown={onDragStart}
       >
         <p id="counter-title">At the Counter</p>
         <strong>
@@ -48,7 +48,7 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
         {onResizeStart && (
           <span
             className="cafe-resize-handle counter-resize-handle"
-            onMouseDown={onResizeStart}
+            onPointerDown={onResizeStart}
             title="Resize"
             aria-label="Resize counter"
           >⤡</span>

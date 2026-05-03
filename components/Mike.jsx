@@ -223,7 +223,7 @@ export default function Mike() {
               onBlur={commit}
               placeholder="Say something to Mike…"
               maxLength={200}
-              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
             />
           ) : (
             <button

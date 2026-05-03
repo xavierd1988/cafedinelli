@@ -42,11 +42,11 @@ export default function SeatModal({ seatNumber, onClose, onSubmit }) {
   }
 
   return (
-    <div className="modal-layer" role="presentation" onMouseDown={onClose}>
+    <div className="modal-layer" role="presentation" onPointerDown={onClose}>
       <form
         className="seat-modal"
         aria-label={`Take seat ${seatNumber}`}
-        onMouseDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
         onSubmit={handleSubmit}
       >
         <button className="modal-close" type="button" onClick={onClose} aria-label="Close">

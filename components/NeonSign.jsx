@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { useDraggable } from "./useDraggable.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 const MIN_SCALE = 0.35;
 const MAX_SCALE = 2.5;
 
 export default function NeonSign() {
+  const init = getModulePosition("NeonSign");
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: false,
     name: "NeonSign (Cafe Dinelli)",
-    initialOffset: { x: 746, y: 297 }
+    initialOffset: init.offset
   });
-  const [scale, setScale] = useState(0.43);
-  const [rotation, setRotation] = useState(-3);
+  const [scale, setScale] = useState(init.scale);
+  const [rotation, setRotation] = useState(init.rotation);
   const [resizing, setResizing] = useState(false);
   const [rotating, setRotating] = useState(false);
 
@@ -32,11 +34,11 @@ export default function NeonSign() {
     }
     function up() {
       setResizing(false);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     }
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   function handleRotateStart(e) {
@@ -53,11 +55,11 @@ export default function NeonSign() {
     }
     function up() {
       setRotating(false);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     }
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   const interacting = dragging || resizing || rotating;
@@ -65,7 +67,7 @@ export default function NeonSign() {
   return (
     <div
       className={`neon-sign is-draggable${interacting ? " is-dragging" : ""}`}
-      onMouseDown={handleDragStart}
+      onPointerDown={handleDragStart}
       data-file="NeonSign.jsx"
       style={{
         transform: `translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${scale})`,
@@ -102,7 +104,7 @@ export default function NeonSign() {
 
       <div
         className="neon-rotate-handle"
-        onMouseDown={handleRotateStart}
+        onPointerDown={handleRotateStart}
         title="Rotation (drag horizontal)"
         aria-label="Rotate sign"
       >
@@ -110,7 +112,7 @@ export default function NeonSign() {
       </div>
       <div
         className="neon-resize-handle"
-        onMouseDown={handleResizeStart}
+        onPointerDown={handleResizeStart}
         title="Taille (drag vertical)"
         aria-label="Resize sign"
       >

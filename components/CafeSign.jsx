@@ -1,13 +1,15 @@
 "use client";
 
 import { useDragScale } from "./useDragScale.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 export default function CafeSign() {
+  const init = getModulePosition("CafeSign");
   const ds = useDragScale({
     scaled: true,
     name: "CafeSign.jsx",
-    initialOffset: { x: 154.7, y: 118 },
-    initialScale: { x: 1.141, y: 1.141 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
 
   return (
@@ -25,13 +27,13 @@ export default function CafeSign() {
       </div>
       <span
         className={`cafe-drag-knob${ds.interacting ? " is-dragging" : ""}`}
-        onMouseDown={ds.handleDragStart}
+        onPointerDown={ds.handleDragStart}
         title="Drag CafeSign"
         aria-label="Drag CafeSign"
       >✥</span>
       <span
         className="cafe-resize-handle"
-        onMouseDown={ds.handleResizeStart}
+        onPointerDown={ds.handleResizeStart}
         title="Resize"
         aria-label="Resize"
       >⤡</span>

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
 import Mike from "./Mike.jsx";
@@ -8,22 +9,22 @@ import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
 
-function CafeChildResize({ onMouseDown }) {
+function CafeChildResize({ onPointerDown }) {
   return (
     <span
       className="cafe-resize-handle"
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       title="Resize (drag vertical)"
       aria-label="Resize"
     >⤡</span>
   );
 }
 
-function CafeDragKnob({ onMouseDown, dragging, label }) {
+function CafeDragKnob({ onPointerDown, dragging, label }) {
   return (
     <span
       className={`cafe-drag-knob${dragging ? " is-dragging" : ""}`}
-      onMouseDown={onMouseDown}
+      onPointerDown={onPointerDown}
       title={`Drag ${label}`}
       aria-label={`Drag ${label}`}
     >✥</span>
@@ -93,11 +94,12 @@ function DistantSkyline() {
 // donc soumis au même scale du wrapper. 2 étages de fenêtres alignés sur
 // les meneaux 2, 4, 6, 8 du cafe-glass (en coords pré-scale).
 function CafeUpperFloor() {
+  const init = getModulePosition("CafeUpperFloor");
   const ds = useDragScale({
     scaled: true,
     name: "CafeScene.jsx::CafeUpperFloor",
-    initialOffset: { x: 443.6, y: -464 },
-    initialScale: { x: 1.065, y: 1.065 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
   const lefts = [117, 337, 557, 777];
   const floors = [
@@ -114,7 +116,7 @@ function CafeUpperFloor() {
         transformOrigin: "center center"
       }}
     >
-      <CafeDragKnob onMouseDown={ds.handleDragStart} dragging={ds.interacting} label="CafeUpperFloor" />
+      <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.interacting} label="CafeUpperFloor" />
       <div className="cafe-upper-cornice" />
       {floors.flatMap((floor, fi) =>
         lefts.map((left, wi) => (
@@ -129,7 +131,7 @@ function CafeUpperFloor() {
           />
         ))
       )}
-      <CafeChildResize onMouseDown={ds.handleResizeStart} />
+      <CafeChildResize onPointerDown={ds.handleResizeStart} />
     </section>
   );
 }
@@ -213,11 +215,12 @@ function LeftBuilding() {
 }
 
 function RadioCabinet() {
+  const init = getModulePosition("RadioCabinet");
   const ds = useDragScale({
     scaled: true,
     name: "RadioCabinet (CafeScene.jsx)",
-    initialOffset: { x: 322.6, y: 89.8 },
-    initialScale: { x: 0.585, y: 0.585 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);
@@ -304,7 +307,7 @@ function RadioCabinet() {
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
         transformOrigin: "center center"
       }}
-      onMouseDown={ds.handleDragStart}
+      onPointerDown={ds.handleDragStart}
     >
       {/* Audio FIP (Radio France) — src + listeners attachés via ref pour
           ne pas être ré-instanciés à chaque render (sinon le stream se coupe). */}
@@ -338,7 +341,7 @@ function RadioCabinet() {
         type="button"
         className={`rc-play-btn${playing ? " is-playing" : ""}`}
         onClick={togglePlay}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         aria-label={playing ? "Pause FIP" : "Play FIP"}
         title={playing ? "Pause" : "Play FIP — Radio France"}
       >
@@ -352,7 +355,7 @@ function RadioCabinet() {
           e.stopPropagation();
           setMuted(!muted);
         }}
-        onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         aria-label={muted ? "Unmute café sounds" : "Mute café sounds"}
         title={muted ? "Bar sound off" : "Mute bar sound"}
       >
@@ -361,7 +364,7 @@ function RadioCabinet() {
 
       <span
         className="cafe-resize-handle"
-        onMouseDown={ds.handleResizeStart}
+        onPointerDown={ds.handleResizeStart}
         title="Resize"
         aria-label="Resize"
       >⤡</span>
@@ -370,11 +373,12 @@ function RadioCabinet() {
 }
 
 function CashRegister() {
+  const init = getModulePosition("CashRegister");
   const ds = useDragScale({
     scaled: true,
     name: "CashRegister (CafeScene.jsx)",
-    initialOffset: { x: 448, y: 90.7 },
-    initialScale: { x: 0.485, y: 0.485 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
 
   return (
@@ -385,7 +389,7 @@ function CashRegister() {
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
         transformOrigin: "center center"
       }}
-      onMouseDown={ds.handleDragStart}
+      onPointerDown={ds.handleDragStart}
     >
       {/* Meuble en bois (base) */}
       <div className="cr-cabinet">
@@ -406,7 +410,7 @@ function CashRegister() {
       </div>
       <span
         className="cafe-resize-handle"
-        onMouseDown={ds.handleResizeStart}
+        onPointerDown={ds.handleResizeStart}
         title="Resize"
         aria-label="Resize"
       >⤡</span>
@@ -415,12 +419,13 @@ function CashRegister() {
 }
 
 function CornerCurve() {
+  const init = getModulePosition("CornerCurve");
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: true,
     name: "CornerCurve (CafeScene.jsx)",
-    initialOffset: { x: -84.5, y: 103 }
+    initialOffset: init.offset
   });
-  const [scale, setScale] = useState({ x: 0.743, y: 0.99 });
+  const [scale, setScale] = useState(init.scale);
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
@@ -441,11 +446,11 @@ function CornerCurve() {
     }
     function up() {
       setResizing(false);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     }
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   const interacting = dragging || resizing;
@@ -457,14 +462,14 @@ function CornerCurve() {
       style={{
         transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale.x}, ${scale.y})`
       }}
-      onMouseDown={handleDragStart}
+      onPointerDown={handleDragStart}
     >
       <span className="corner-line corner-line-top" />
       <span className="corner-line corner-line-mid" />
       <span className="corner-line corner-line-low" />
       <span
         className="corner-resize-handle"
-        onMouseDown={handleResizeStart}
+        onPointerDown={handleResizeStart}
         title="Resize (drag vertical)"
         aria-label="Resize"
       >
@@ -475,12 +480,13 @@ function CornerCurve() {
 }
 
 function CornerCurve2() {
+  const init = getModulePosition("CornerCurve2");
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: true,
     name: "CornerCurve2 (CafeScene.jsx)",
-    initialOffset: { x: -450.8, y: 360.9 }
+    initialOffset: init.offset
   });
-  const [scale, setScale] = useState({ x: 0.504, y: 0.537 });
+  const [scale, setScale] = useState(init.scale);
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
@@ -501,11 +507,11 @@ function CornerCurve2() {
     }
     function up() {
       setResizing(false);
-      window.removeEventListener("mousemove", move);
-      window.removeEventListener("mouseup", up);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
     }
-    window.addEventListener("mousemove", move);
-    window.addEventListener("mouseup", up);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
   }
 
   const interacting = dragging || resizing;
@@ -517,7 +523,7 @@ function CornerCurve2() {
       style={{
         transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale.x}, ${scale.y})`
       }}
-      onMouseDown={handleDragStart}
+      onPointerDown={handleDragStart}
     >
       <span className="corner-curve-2-fill" />
       <span className="corner-line corner-line-top" />
@@ -525,7 +531,7 @@ function CornerCurve2() {
       <span className="corner-line corner-line-low" />
       <span
         className="corner-resize-handle"
-        onMouseDown={handleResizeStart}
+        onPointerDown={handleResizeStart}
         title="Resize (drag vertical)"
         aria-label="Resize"
       >
@@ -536,11 +542,12 @@ function CornerCurve2() {
 }
 
 function CafeGlass() {
+  const init = getModulePosition("CafeGlass");
   const ds = useDragScale({
     scaled: true,
     name: "CafeScene.jsx::CafeGlass",
-    initialOffset: { x: 55.1, y: 64 },
-    initialScale: { x: 1.015, y: 1.015 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
   const mullions = [
     { x: 680, top: 365, bottom: 610 },
@@ -561,7 +568,7 @@ function CafeGlass() {
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`
       }}
     >
-      <CafeDragKnob onMouseDown={ds.handleDragStart} dragging={ds.interacting} label="CafeGlass" />
+      <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.interacting} label="CafeGlass" />
       <div className="interior-ceiling" />
       <div className="interior-floor" />
       <div className="interior-glow glow-left" />
@@ -586,17 +593,18 @@ function CafeGlass() {
           }}
         />
       ))}
-      <CafeChildResize onMouseDown={ds.handleResizeStart} />
+      <CafeChildResize onPointerDown={ds.handleResizeStart} />
     </section>
   );
 }
 
 function CounterModule({ seats }) {
+  const init = getModulePosition("Counter");
   const ds = useDragScale({
     scaled: true,
     name: "Counter.jsx",
-    initialOffset: { x: 49.7, y: 41.8 },
-    initialScale: { x: 1.117, y: 1.117 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
   return (
     <Counter

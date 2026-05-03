@@ -3,16 +3,18 @@
 import { useEffect, useState } from "react";
 import { useDragScale } from "./useDragScale.js";
 import { useNickname } from "./NicknameContext.jsx";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 export default function NicknameTag() {
   const { nickname, setNickname, loading } = useNickname();
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
+  const init = getModulePosition("NicknameTag");
   const ds = useDragScale({
     scaled: false,
     name: "NicknameTag",
-    initialOffset: { x: 1657, y: 907 },
-    initialScale: { x: 1, y: 1 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
 
   // Resync brouillon quand le nom serveur arrive.
@@ -52,7 +54,7 @@ export default function NicknameTag() {
     >
       <header
         className="name-tag-header"
-        onMouseDown={ds.handleDragStart}
+        onPointerDown={ds.handleDragStart}
       >
         <span className="name-tag-sub">my name is</span>
       </header>
@@ -69,7 +71,7 @@ export default function NicknameTag() {
             onChange={(e) => setDraft(e.target.value.slice(0, 40))}
             onKeyDown={handleKeyDown}
             onBlur={commit}
-            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             placeholder="?"
             maxLength={40}
             aria-label="Your nickname"
@@ -82,7 +84,7 @@ export default function NicknameTag() {
       </div>
       <span
         className="name-tag-resize"
-        onMouseDown={ds.handleResizeStart}
+        onPointerDown={ds.handleResizeStart}
         title="Resize"
         aria-label="Resize"
       >⤡</span>

@@ -115,8 +115,12 @@ export default function Seat({ seat }) {
   }, [editing]);
 
   function handleClick(e) {
-    if (editing || activeMessage) return;
+    if (editing) return;
     e.stopPropagation();
+    // Re-cliquer sur le seat (ou sa bulle) interrompt le message en cours et
+    // ouvre tout de suite un nouvel input — pas besoin d'attendre les 15s.
+    clearTimeout(messageTimerRef.current);
+    setActiveMessage("");
     setEditing(true);
     setDraft("");
   }
@@ -193,7 +197,17 @@ export default function Seat({ seat }) {
     <span
       ref={bubbleRef}
       className={`speech-bubble bubble-shape-${(id % 5) + 1}${isLatest ? " is-latest-bubble" : ""}`}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        // Si on n'est pas déjà en édition, un clic sur la bulle relance un
+        // nouvel input — interrompt le message courant.
+        if (!editing) {
+          clearTimeout(messageTimerRef.current);
+          setActiveMessage("");
+          setEditing(true);
+          setDraft("");
+        }
+      }}
     >
       {editing ? (
         <input
@@ -205,7 +219,7 @@ export default function Seat({ seat }) {
           onBlur={commit}
           placeholder="Say something…"
           maxLength={140}
-          onMouseDown={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         />
       ) : (
         <>

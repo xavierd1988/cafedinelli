@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useDragScale } from "./useDragScale.js";
+import { getModulePosition } from "../lib/modulePositions.js";
 
 function formatStamp(ts) {
   const d = new Date(ts);
@@ -15,11 +16,12 @@ function formatStamp(ts) {
 }
 
 export default function ShelfPanel() {
+  const init = getModulePosition("ShelfPanel");
   const ds = useDragScale({
     scaled: true,
     name: "ShelfPanel (To Go Counter)",
-    initialOffset: { x: 196.4, y: 32.9 },
-    initialScale: { x: 0.727, y: 0.727 }
+    initialOffset: init.offset,
+    initialScale: init.scale
   });
 
   // Compteur global et derniers entrants viennent du serveur (Redis), partagés
@@ -72,7 +74,7 @@ export default function ShelfPanel() {
       style={{
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`
       }}
-      onMouseDown={ds.handleDragStart}
+      onPointerDown={ds.handleDragStart}
     >
       <div className="shelf-head">
         <h2 id="shelf-title">To Go Counter</h2>
@@ -100,7 +102,7 @@ export default function ShelfPanel() {
       </div>
       <span
         className="shelf-resize-handle"
-        onMouseDown={ds.handleResizeStart}
+        onPointerDown={ds.handleResizeStart}
         title="Resize"
         aria-label="Resize"
       >⤡</span>

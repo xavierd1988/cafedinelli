@@ -52,7 +52,7 @@ button {
    Les deux trees existent côté React mais un seul est visible. */
 .m-shell { display: none; }
 
-@media (max-width: 1024px) {
+@media (max-width: 767px) {
   /* Sur mobile on laisse le body scroller naturellement → position:sticky
      du header fonctionne de manière fiable sur iOS. */
   html, body { overflow: visible; height: auto; }
@@ -1135,6 +1135,99 @@ button {
 
 .is-draggable {
   cursor: grab;
+  /* Sur iPad/touch, sans ça le browser intercepte le geste pour scroller la
+     page au lieu de laisser pointermove fire. */
+  touch-action: none;
+}
+
+/* Les enfants interactifs (input, bouton, lien) gardent le comportement
+   tactile normal pour que les keyboards iOS et clics fonctionnent. */
+.is-draggable input,
+.is-draggable textarea,
+.is-draggable button,
+.is-draggable a,
+.is-draggable select {
+  touch-action: auto;
+}
+
+/* Poignées internes (resize, drag knob, rotate) : également touch-action:none
+   pour que pointermove fire au lieu d'un scroll iOS. */
+.cafe-drag-knob,
+.cafe-resize-handle,
+.shelf-resize-handle,
+.name-tag-resize,
+.neon-resize-handle,
+.neon-rotate-handle,
+.corner-resize-handle,
+.paper-resize-handle,
+.paper-masthead,
+.wclock-resize,
+.receipt-resize {
+  touch-action: none;
+}
+
+/* Poignée resize Receipt */
+.receipt-resize {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: rgba(255, 220, 170, 0.45);
+  cursor: nwse-resize;
+  border-radius: 4px;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+
+.receipt:hover .receipt-resize,
+.receipt.is-dragging .receipt-resize {
+  opacity: 1;
+}
+
+.receipt-resize:hover {
+  color: rgba(255, 220, 170, 0.9);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.is-frozen .receipt-resize {
+  display: none !important;
+}
+
+/* Poignée resize WeatherClock */
+.wclock-resize {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: rgba(245, 230, 197, 0.4);
+  cursor: nwse-resize;
+  border-radius: 4px;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+
+.wclock:hover .wclock-resize,
+.wclock.is-dragging .wclock-resize {
+  opacity: 1;
+}
+
+.wclock-resize:hover {
+  color: rgba(245, 230, 197, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.is-frozen .wclock-resize {
+  display: none !important;
 }
 
 .is-draggable.is-dragging {
