@@ -1160,74 +1160,8 @@ button {
 .neon-rotate-handle,
 .corner-resize-handle,
 .paper-resize-handle,
-.paper-masthead,
-.wclock-resize,
-.receipt-resize {
+.paper-masthead {
   touch-action: none;
-}
-
-/* Poignée resize Receipt */
-.receipt-resize {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: rgba(255, 220, 170, 0.45);
-  cursor: nwse-resize;
-  border-radius: 4px;
-  pointer-events: auto;
-  opacity: 0;
-  transition: opacity 160ms ease, color 160ms ease;
-}
-
-.receipt:hover .receipt-resize,
-.receipt.is-dragging .receipt-resize {
-  opacity: 1;
-}
-
-.receipt-resize:hover {
-  color: rgba(255, 220, 170, 0.9);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.is-frozen .receipt-resize {
-  display: none !important;
-}
-
-/* Poignée resize WeatherClock */
-.wclock-resize {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: rgba(245, 230, 197, 0.4);
-  cursor: nwse-resize;
-  border-radius: 4px;
-  pointer-events: auto;
-  opacity: 0;
-  transition: opacity 160ms ease, color 160ms ease;
-}
-
-.wclock:hover .wclock-resize,
-.wclock.is-dragging .wclock-resize {
-  opacity: 1;
-}
-
-.wclock-resize:hover {
-  color: rgba(245, 230, 197, 0.85);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.is-frozen .wclock-resize {
-  display: none !important;
 }
 
 .is-draggable.is-dragging {
@@ -2084,37 +2018,6 @@ button {
   100% { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
 }
 
-/* Bouton mute du son d'ambiance (chimes seats + Mike), à droite du play */
-.rc-mute-btn {
-  position: absolute;
-  top: 50%;
-  left: calc(50% + 42px);
-  transform: translate(-50%, -50%);
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(20, 12, 10, 0.85);
-  color: #f5e6c5;
-  border: 1.5px solid rgba(245, 230, 197, 0.4);
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  user-select: none;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-}
-.rc-mute-btn:hover {
-  background: rgba(40, 24, 18, 0.95);
-  border-color: #e3a656;
-}
-.rc-mute-btn.is-muted {
-  color: #888;
-  border-color: rgba(245, 230, 197, 0.2);
-}
-
 /* Indicateur "on air" : pulse sur l'aiguille quand la radio joue */
 .radio-cabinet.is-playing .rc-display-needle {
   animation: rc-needle-pulse 1.4s ease-in-out infinite;
@@ -2648,18 +2551,8 @@ button {
   width: 200px !important;
   height: 990px !important;
   top: -227px !important;
-  /* Le fond du parent devient le contour : 2px noir le long du polygone clippé.
-     Le vrai fond brun est repris par le .corner-curve-2-fill enfant inset:2px. */
-  background: #000 !important;
+  background: #3a2218 !important;
   border-left-color: #8a5a3a !important;
-}
-
-.corner-curve-2 .corner-curve-2-fill {
-  position: absolute;
-  inset: 2px;
-  clip-path: polygon(40% 0, 100% 0, 100% 100%, 43% 100%, 9% 95%, 1% 13%);
-  background: #3a2218;
-  pointer-events: none;
 }
 
 .corner-curve-2::after {
@@ -2722,14 +2615,6 @@ button {
 /* Contour du panneau "CAFÉ DINELLI" : impossible avec un border (la forme est
    clippée) ni un filter (clip-path masque les drop-shadows). On peint un
    pseudo-élément légèrement plus grand DERRIÈRE, avec le même clip-path. */
-.cafe-sign::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  clip-path: polygon(0 16%, 100% 0, 100% 70%, 0 86%);
-  background: #000;
-  pointer-events: none;
-}
 
 .sign-face::before {
   content: "";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDragScale } from "./useDragScale.js";
+import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
 
 // Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
@@ -14,11 +14,10 @@ const MODE_META = {
 export default function Receipt({ forceMode = null, onCycleForceMode }) {
   const meta = MODE_META[forceMode] || MODE_META.null;
   const init = getModulePosition("Receipt");
-  const ds = useDragScale({
+  const { offset, dragging, handleDragStart } = useDraggable({
     scaled: false,
     name: "Receipt",
-    initialOffset: init.offset,
-    initialScale: init.scale || { x: 1, y: 1 }
+    initialOffset: init.offset
   });
 
   const [radio, setRadio] = useState({ playing: false, track: null });
@@ -33,15 +32,12 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
 
   return (
     <section
-      className={`receipt is-draggable${ds.interacting ? " is-dragging" : ""}`}
+      className={`receipt is-draggable${dragging ? " is-dragging" : ""}`}
       id="subscribe"
       aria-label="Newsletter signup"
       data-file="Receipt.jsx"
-      style={{
-        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
-        transformOrigin: "bottom left"
-      }}
-      onPointerDown={ds.handleDragStart}
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      onPointerDown={handleDragStart}
     >
       <button
         type="button"
@@ -73,12 +69,6 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
         <input aria-label="Email address" placeholder="name@example.com" type="email" />
         <button type="submit">Get tomorrow’s paper</button>
       </form>
-      <span
-        className="receipt-resize"
-        onPointerDown={ds.handleResizeStart}
-        title="Resize"
-        aria-label="Resize"
-      >⤡</span>
     </section>
   );
 }
