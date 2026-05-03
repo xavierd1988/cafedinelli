@@ -18,6 +18,7 @@ export default function NeonSign() {
   const [rotating, setRotating] = useState(false);
 
   function handleResizeStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
@@ -39,6 +40,7 @@ export default function NeonSign() {
   }
 
   function handleRotateStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;

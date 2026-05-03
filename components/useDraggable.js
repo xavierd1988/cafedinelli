@@ -10,6 +10,8 @@ export function useDraggable({ scaled = false, name = null, initialOffset = { x:
   const [dragging, setDragging] = useState(false);
 
   function handleDragStart(e) {
+    // En prod, les modules sont figés à leurs positions bakées : aucun drag possible.
+    if (process.env.NODE_ENV !== "development") return;
     // ignore les clics sur des contrôles interactifs
     const tag = (e.target.tagName || "").toLowerCase();
     if (["input", "button", "textarea", "select", "a", "label"].includes(tag)) return;

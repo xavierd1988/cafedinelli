@@ -47,7 +47,11 @@ export default function Homepage() {
 
   return (
     <NicknameProvider>
-      <main className={`homepage is-${mode}`} aria-label="Dinelli's Cafe homepage" data-file="Homepage.jsx">
+      <main
+        className={`homepage is-${mode}${isDev ? "" : " is-frozen"}`}
+        aria-label="Dinelli's Cafe homepage"
+        data-file="Homepage.jsx"
+      >
         <CafeScene seats={seatPositions} />
         <Receipt forceNight={forceNight} onToggleForceNight={() => setForceNight((v) => !v)} />
         <WeatherClock />

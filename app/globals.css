@@ -556,6 +556,31 @@ button {
   user-select: none;
 }
 
+/* Mode "figé" en prod : aucune indication de drag/resize, curseur normal,
+   poignées masquées. Les modules restent à leurs positions bakées et les
+   éléments réellement interactifs (seats, Mike, name tag, receipt toggle)
+   gardent leurs propres curseurs/comportements. */
+.is-frozen .is-draggable {
+  cursor: default;
+}
+.is-frozen .name-tag-header,
+.is-frozen .counter-copy.is-drag-handle,
+.is-frozen .paper-masthead {
+  cursor: default;
+}
+.is-frozen .cafe-drag-knob,
+.is-frozen .cafe-resize-handle,
+.is-frozen .shelf-resize-handle,
+.is-frozen .name-tag-resize,
+.is-frozen .neon-resize-handle,
+.is-frozen .neon-rotate-handle,
+.is-frozen .corner-resize-handle,
+.is-frozen .paper-resize-handle,
+.is-frozen .paper-drag-hint,
+.is-frozen .counter-resize-handle {
+  display: none !important;
+}
+
 /* Les inputs/boutons à l'intérieur d'un draggable gardent leur curseur */
 .is-draggable input,
 .is-draggable textarea,

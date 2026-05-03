@@ -412,6 +412,7 @@ function CornerCurve() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
@@ -471,6 +472,7 @@ function CornerCurve2() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;

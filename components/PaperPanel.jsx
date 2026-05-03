@@ -293,6 +293,7 @@ export default function PaperPanel() {
   }
 
   function handleDragStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("module-click", { detail: "PaperPanel (Résumé Tendances)" }));
@@ -321,6 +322,7 @@ export default function PaperPanel() {
   }
 
   function handleResizeStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;

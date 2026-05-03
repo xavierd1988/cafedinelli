@@ -18,6 +18,7 @@ export function useDragScale({
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
+    if (process.env.NODE_ENV !== "development") return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
