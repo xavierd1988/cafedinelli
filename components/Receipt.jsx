@@ -3,7 +3,15 @@
 import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 
-export default function Receipt({ forceNight = false, onToggleForceNight }) {
+// Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
+const MODE_META = {
+  null: { icon: "🌗", label: "AUTO", title: "Auto — follow local time. Click to force night." },
+  night: { icon: "🌙", label: "NIGHT ON", title: "Forcing night. Click to force day." },
+  day: { icon: "☀️", label: "DAY ON", title: "Forcing day. Click to return to auto." }
+};
+
+export default function Receipt({ forceMode = null, onCycleForceMode }) {
+  const meta = MODE_META[forceMode] || MODE_META.null;
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: false,
     name: "Receipt",
@@ -31,15 +39,15 @@ export default function Receipt({ forceNight = false, onToggleForceNight }) {
     >
       <button
         type="button"
-        className={`receipt-night-toggle${forceNight ? " is-on" : ""}`}
-        onClick={onToggleForceNight}
+        className={`receipt-night-toggle${forceMode ? " is-on" : ""}`}
+        onClick={onCycleForceMode}
         onMouseDown={(e) => e.stopPropagation()}
-        title={forceNight ? "Force night ON — click to disable" : "Force night mode"}
-        aria-pressed={forceNight}
-        aria-label="Toggle forced night mode"
+        title={meta.title}
+        aria-pressed={forceMode !== null}
+        aria-label="Cycle day/night mode"
       >
-        <span className="night-toggle-icon">{forceNight ? "🌙" : "🌗"}</span>
-        <span className="night-toggle-label">{forceNight ? "NIGHT ON" : "AUTO"}</span>
+        <span className="night-toggle-icon">{meta.icon}</span>
+        <span className="night-toggle-label">{meta.label}</span>
       </button>
       {radio.playing && (
         <div className="receipt-now-playing" aria-live="polite">

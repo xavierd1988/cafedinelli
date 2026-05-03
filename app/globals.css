@@ -564,8 +564,7 @@ button {
   cursor: default;
 }
 .is-frozen .name-tag-header,
-.is-frozen .counter-copy.is-drag-handle,
-.is-frozen .paper-masthead {
+.is-frozen .counter-copy.is-drag-handle {
   cursor: default;
 }
 .is-frozen .cafe-drag-knob,
@@ -575,10 +574,20 @@ button {
 .is-frozen .neon-resize-handle,
 .is-frozen .neon-rotate-handle,
 .is-frozen .corner-resize-handle,
-.is-frozen .paper-resize-handle,
-.is-frozen .paper-drag-hint,
 .is-frozen .counter-resize-handle {
   display: none !important;
+}
+/* Le PaperPanel reste manipulable même en prod : il contient la newsletter
+   du jour, les visiteurs ont besoin de le repositionner et le redimensionner
+   pour lire confortablement. */
+.is-frozen .paper-panel.is-draggable {
+  cursor: default;
+}
+.is-frozen .paper-masthead {
+  cursor: grab;
+}
+.is-frozen .paper-masthead.is-dragging {
+  cursor: grabbing;
 }
 
 /* Les inputs/boutons à l'intérieur d'un draggable gardent leur curseur */

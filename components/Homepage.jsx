@@ -31,16 +31,20 @@ const seatPositions = [
 
 export default function Homepage() {
   const [autoMode, setAutoMode] = useState("night");
-  const [forceNight, setForceNight] = useState(false);
+  // null = AUTO (suit l'heure), "night" = forcé nuit, "day" = forcé jour
+  const [forceMode, setForceMode] = useState(null);
 
   useEffect(() => {
-    if (forceNight) return; // pas la peine de poll si overridé
     setAutoMode(computeMode());
     const id = setInterval(() => setAutoMode(computeMode()), 5 * 60 * 1000);
     return () => clearInterval(id);
-  }, [forceNight]);
+  }, []);
 
-  const mode = forceNight ? "night" : autoMode;
+  function cycleForceMode() {
+    setForceMode((m) => (m === null ? "night" : m === "night" ? "day" : null));
+  }
+
+  const mode = forceMode || autoMode;
   // Outils de dev (badge "fichier au clic" + bouton export positions) :
   // visibles uniquement avec `npm run dev`. Strippés du bundle prod par Next.
   const isDev = process.env.NODE_ENV === "development";
@@ -53,7 +57,7 @@ export default function Homepage() {
         data-file="Homepage.jsx"
       >
         <CafeScene seats={seatPositions} />
-        <Receipt forceNight={forceNight} onToggleForceNight={() => setForceNight((v) => !v)} />
+        <Receipt forceMode={forceMode} onCycleForceMode={cycleForceMode} />
         <WeatherClock />
         <NeonSign />
         <NicknameTag />
