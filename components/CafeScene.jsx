@@ -498,6 +498,7 @@ function CornerCurve2() {
       }}
       onMouseDown={handleDragStart}
     >
+      <span className="corner-curve-2-fill" />
       <span className="corner-line corner-line-top" />
       <span className="corner-line corner-line-mid" />
       <span className="corner-line corner-line-low" />

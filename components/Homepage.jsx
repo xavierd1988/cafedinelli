@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import CafeScene from "./CafeScene.jsx";
+import MobileShell from "./MobileShell.jsx";
 import ModuleNameBadge from "./ModuleNameBadge.jsx";
 import NeonSign from "./NeonSign.jsx";
 import { NicknameProvider } from "./NicknameContext.jsx";
@@ -56,11 +57,16 @@ export default function Homepage() {
         aria-label="Dinelli's Cafe homepage"
         data-file="Homepage.jsx"
       >
-        <CafeScene seats={seatPositions} />
-        <Receipt forceMode={forceMode} onCycleForceMode={cycleForceMode} />
-        <WeatherClock />
-        <NeonSign />
-        <NicknameTag />
+        {/* Vue desktop : scène complète + modules flottants. Masquée sur mobile via CSS. */}
+        <div className="desktop-shell">
+          <CafeScene seats={seatPositions} />
+          <Receipt forceMode={forceMode} onCycleForceMode={cycleForceMode} />
+          <WeatherClock />
+          <NeonSign />
+          <NicknameTag />
+        </div>
+        {/* Vue mobile : newsletter / chat / mike empilés. Masquée sur desktop via CSS. */}
+        <MobileShell />
         <SeatsPoller />
         {isDev && <ModuleNameBadge />}
         {isDev && <PositionExporter />}
