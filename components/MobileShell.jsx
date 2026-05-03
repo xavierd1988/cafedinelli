@@ -4,7 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { useNickname } from "./NicknameContext.jsx";
 
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
-const BALLOON_DURATION_MS = 11000;
+const RECENT_LOCAL_TTL_MS = 6000;
+
+// Codes météo WMO → icône emoji
+const WMO_ICONS = {
+  0: "☀", 1: "🌤", 2: "⛅", 3: "☁",
+  45: "🌫", 48: "🌫",
+  51: "🌦", 53: "🌦", 55: "🌦",
+  61: "🌧", 63: "🌧", 65: "🌧",
+  71: "❄", 73: "❄", 75: "❄", 77: "❄",
+  80: "🌧", 81: "🌧", 82: "⛈",
+  95: "⛈", 96: "⛈", 99: "⛈"
+};
 
 export default function MobileShell() {
   const { nickname, setNickname } = useNickname();
@@ -26,6 +37,13 @@ export default function MobileShell() {
   // (sinon une montgolfière par message historique = bordel visuel).
   const seenTimestampsRef = useRef(new Set());
   const initializedRef = useRef(false);
+  // Dédup par contenu pour les messages qu'on vient d'envoyer localement :
+  // le serveur leur donne un timestamp légèrement différent du Date.now()
+  // client, donc le poll les redétecterait sinon comme nouveaux.
+  const recentLocalRef = useRef(new Map()); // `${nick}|${msg}` → ts
+
+  // Météo (Open-Meteo, géolocalisée, fallback NYC)
+  const [weather, setWeather] = useState(null);
 
   useEffect(() => {
     setNickDraft(nickname);
@@ -49,9 +67,22 @@ export default function MobileShell() {
         initializedRef.current = true;
         return;
       }
+      const now = Date.now();
       // recent est newest-first ; on inverse pour spawn dans l'ordre chronologique
       const fresh = recent
         .filter((r) => !seenTimestampsRef.current.has(r.timestamp))
+        .filter((r) => {
+          // Dédup contenu : si on vient de poster localement le même message,
+          // on a déjà spawn la bulle, on saute celle du serveur.
+          const key = `${r.nickname || "anonymous"}|${r.message}`;
+          const localTs = recentLocalRef.current.get(key);
+          if (localTs && now - localTs < RECENT_LOCAL_TTL_MS) {
+            recentLocalRef.current.delete(key);
+            seenTimestampsRef.current.add(r.timestamp);
+            return false;
+          }
+          return true;
+        })
         .reverse();
       fresh.forEach((r) => {
         seenTimestampsRef.current.add(r.timestamp);
@@ -93,24 +124,24 @@ export default function MobileShell() {
     if (!trimmed || chatBusy) return;
     setChatBusy(true);
     const seatId = Math.floor(Math.random() * 6) + 1;
-    // spawn local immédiat pour feedback
-    const localEntry = {
-      nickname: nickname || "anonymous",
-      message: trimmed,
-      timestamp: Date.now()
-    };
+    const speaker = nickname || "anonymous";
+    // spawn local immédiat pour feedback + marque le contenu pour la dédup poll
+    const localEntry = { nickname: speaker, message: trimmed, timestamp: Date.now() };
     seenTimestampsRef.current.add(localEntry.timestamp);
+    recentLocalRef.current.set(`${speaker}|${trimmed}`, Date.now());
     spawnBalloon(localEntry);
     try {
-      await fetch("/api/seats", {
+      const res = await fetch("/api/seats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: seatId,
-          nickname: localEntry.nickname,
-          message: trimmed
-        })
+        body: JSON.stringify({ id: seatId, nickname: speaker, message: trimmed })
       });
+      const data = await res.json().catch(() => null);
+      // Marque AUSSI le timestamp serveur comme déjà vu : ceinture+bretelles
+      // si le poll arrive avant que la dédup contenu expire.
+      if (data?.entry?.timestamp) {
+        seenTimestampsRef.current.add(data.entry.timestamp);
+      }
       setChatDraft("");
       if (MIKE_MENTION.test(trimmed)) {
         askMikeWith(trimmed);
@@ -195,6 +226,39 @@ export default function MobileShell() {
     }
   }
 
+  // Météo : géolocation puis fetch Open-Meteo, fallback NYC.
+  useEffect(() => {
+    let cancelled = false;
+    function fetchAt(lat, lon) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&timezone=auto&temperature_unit=fahrenheit`;
+      fetch(url)
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return;
+          const cw = data?.current_weather;
+          if (!cw) return;
+          const tz = data?.timezone || "";
+          const city = tz.split("/").pop()?.replace(/_/g, " ") || "";
+          setWeather({
+            temp: Math.round(cw.temperature),
+            icon: WMO_ICONS[cw.weathercode] || "🌡",
+            city
+          });
+        })
+        .catch(() => {});
+    }
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchAt(pos.coords.latitude, pos.coords.longitude),
+        () => fetchAt(40.71, -74.0), // NYC fallback
+        { timeout: 8000, maximumAge: 30 * 60 * 1000 }
+      );
+    } else {
+      fetchAt(40.71, -74.0);
+    }
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="m-shell" data-file="MobileShell.jsx">
       {/* HEADER STICKY HAUT — brand + radio + nickname */}
@@ -226,20 +290,31 @@ export default function MobileShell() {
             maxLength={40}
           />
         </div>
-        {radioPlaying && (
-          <div className="m-radio-track" aria-live="polite">
-            <span className="m-radio-pulse" aria-hidden="true" />
-            <span className="m-radio-station">FIP</span>
-            {radioTrack ? (
-              <span className="m-radio-title">
-                {radioTrack.title}
-                {radioTrack.artist && ` — ${radioTrack.artist}`}
-              </span>
-            ) : (
-              <span className="m-radio-title m-radio-title-live">Live broadcast</span>
-            )}
-          </div>
-        )}
+        <div className="m-meta-row">
+          {weather && (
+            <div className="m-weather" aria-label="Local weather">
+              <span className="m-weather-icon" aria-hidden="true">{weather.icon}</span>
+              <span className="m-weather-temp">{weather.temp}°F</span>
+              {weather.city && (
+                <span className="m-weather-city"> · {weather.city}</span>
+              )}
+            </div>
+          )}
+          {radioPlaying && (
+            <div className="m-radio-track" aria-live="polite">
+              <span className="m-radio-pulse" aria-hidden="true" />
+              <span className="m-radio-station">FIP</span>
+              {radioTrack ? (
+                <span className="m-radio-title">
+                  {radioTrack.title}
+                  {radioTrack.artist && ` — ${radioTrack.artist}`}
+                </span>
+              ) : (
+                <span className="m-radio-title m-radio-title-live">Live</span>
+              )}
+            </div>
+          )}
+        </div>
         <audio ref={audioRef} preload="none" />
       </header>
 
