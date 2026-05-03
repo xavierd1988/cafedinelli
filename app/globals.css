@@ -436,6 +436,91 @@ button {
 }
 .m-chat-bar button:disabled { opacity: 0.4; cursor: default; }
 
+.m-chat-mike-btn {
+  background: rgba(245, 230, 197, 0.1) !important;
+  background-image: none !important;
+  color: #e3a656 !important;
+  border: 1px solid rgba(227, 166, 86, 0.5) !important;
+}
+.m-chat-mike-btn:hover {
+  background: rgba(245, 230, 197, 0.18) !important;
+}
+
+/* === BOTTOM SHEET MIKE === */
+.m-mike-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  animation: m-sheet-fade 200ms ease;
+}
+
+@keyframes m-sheet-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.m-mike-sheet {
+  width: 100%;
+  max-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  background: #1a0f0c;
+  color: #f5e6c5;
+  border-radius: 16px 16px 0 0;
+  border-top: 1px solid rgba(245, 230, 197, 0.15);
+  padding: 14px 14px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  animation: m-sheet-up 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes m-sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.m-mike-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.m-mike-sheet-head h3 {
+  margin: 0;
+  font-family: Georgia, serif;
+  font-size: 12px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #e3a656;
+  font-weight: 600;
+}
+
+.m-mike-sheet-close {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f5e6c5;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.m-mike-sheet-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  min-height: 80px;
+}
+
 /* === NAME TAG — "Hello My Name Is" sticker, top-left corner ================ */
 
 .name-tag {

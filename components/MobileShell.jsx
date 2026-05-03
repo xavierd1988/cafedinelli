@@ -26,6 +26,7 @@ export default function MobileShell() {
   const [mikeQ, setMikeQ] = useState("");
   const [mikeA, setMikeA] = useState("");
   const [mikeBusy, setMikeBusy] = useState(false);
+  const [mikeOpen, setMikeOpen] = useState(false);
   const [balloons, setBalloons] = useState([]);
 
   // Radio FIP
@@ -153,6 +154,7 @@ export default function MobileShell() {
   }
 
   async function askMikeWith(question) {
+    setMikeOpen(true); // ouvre la sheet pour montrer la réponse
     setMikeBusy(true);
     setMikeA("…");
     try {
@@ -334,34 +336,6 @@ export default function MobileShell() {
           )}
         </section>
 
-        <section className="m-section m-mike">
-          <h2 className="m-section-title">Mike (the barman)</h2>
-          {mikeA && (
-            <div className="m-mike-answer">
-              <em>mike</em>
-              <span>{mikeA}</span>
-            </div>
-          )}
-          <form
-            className="m-inline-input"
-            onSubmit={(e) => {
-              e.preventDefault();
-              askMike();
-            }}
-          >
-            <input
-              placeholder="Ask the bartender…"
-              value={mikeQ}
-              onChange={(e) => setMikeQ(e.target.value.slice(0, 200))}
-              maxLength={200}
-              disabled={mikeBusy}
-            />
-            <button type="submit" disabled={!mikeQ.trim() || mikeBusy}>
-              Ask
-            </button>
-          </form>
-        </section>
-
         {/* Espace pour que le contenu ne soit pas mangé par la barre chat */}
         <div className="m-bottom-spacer" aria-hidden="true" />
       </main>
@@ -384,7 +358,7 @@ export default function MobileShell() {
         ))}
       </div>
 
-      {/* CHAT INPUT FIXE BAS */}
+      {/* CHAT INPUT FIXE BAS — Send + bouton Mike qui ouvre la sheet */}
       <form
         className="m-chat-bar"
         onSubmit={(e) => {
@@ -402,7 +376,71 @@ export default function MobileShell() {
         <button type="submit" disabled={!chatDraft.trim() || chatBusy}>
           Send
         </button>
+        <button
+          type="button"
+          className="m-chat-mike-btn"
+          onClick={() => setMikeOpen(true)}
+          aria-label="Open Mike conversation"
+        >
+          Mike
+        </button>
       </form>
+
+      {/* BOTTOM SHEET MIKE */}
+      {mikeOpen && (
+        <div
+          className="m-mike-sheet-backdrop"
+          onClick={() => setMikeOpen(false)}
+        >
+          <div
+            className="m-mike-sheet"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Mike the bartender"
+          >
+            <div className="m-mike-sheet-head">
+              <h3>Mike — the bartender</h3>
+              <button
+                type="button"
+                className="m-mike-sheet-close"
+                onClick={() => setMikeOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="m-mike-sheet-body">
+              {mikeA ? (
+                <div className="m-mike-answer">
+                  <em>mike</em>
+                  <span>{mikeA}</span>
+                </div>
+              ) : (
+                <p className="m-empty">Ask Mike anything.</p>
+              )}
+            </div>
+            <form
+              className="m-inline-input"
+              onSubmit={(e) => {
+                e.preventDefault();
+                askMike();
+              }}
+            >
+              <input
+                autoFocus
+                placeholder="Ask the bartender…"
+                value={mikeQ}
+                onChange={(e) => setMikeQ(e.target.value.slice(0, 200))}
+                maxLength={200}
+                disabled={mikeBusy}
+              />
+              <button type="submit" disabled={!mikeQ.trim() || mikeBusy}>
+                Ask
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
