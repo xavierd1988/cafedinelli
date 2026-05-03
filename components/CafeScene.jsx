@@ -219,7 +219,6 @@ function RadioCabinet() {
     initialScale: { x: 0.585, y: 0.585 }
   });
   const audioRef = useRef(null);
-  const [showControls, setShowControls] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [track, setTrack] = useState(null);
 
@@ -271,11 +270,6 @@ function RadioCabinet() {
     return () => clearInterval(id);
   }, [playing]);
 
-  function handleClick(e) {
-    if (ds.dragging) return;
-    setShowControls((s) => !s);
-  }
-
   function togglePlay(e) {
     e.stopPropagation();
     if (!audioRef.current) return;
@@ -304,7 +298,6 @@ function RadioCabinet() {
         transformOrigin: "center center"
       }}
       onMouseDown={ds.handleDragStart}
-      onClick={handleClick}
     >
       {/* Audio FIP (Radio France) — src + listeners attachés via ref pour
           ne pas être ré-instanciés à chaque render (sinon le stream se coupe). */}
@@ -333,19 +326,17 @@ function RadioCabinet() {
         </div>
       </div>
 
-      {/* Bouton play/pause qui apparait au clic */}
-      {showControls && (
-        <button
-          type="button"
-          className={`rc-play-btn${playing ? " is-playing" : ""}`}
-          onClick={togglePlay}
-          onMouseDown={(e) => e.stopPropagation()}
-          aria-label={playing ? "Pause FIP" : "Play FIP"}
-          title={playing ? "Pause" : "Play FIP — Radio France"}
-        >
-          {playing ? "⏸" : "▶"}
-        </button>
-      )}
+      {/* Bouton play/pause toujours visible */}
+      <button
+        type="button"
+        className={`rc-play-btn${playing ? " is-playing" : ""}`}
+        onClick={togglePlay}
+        onMouseDown={(e) => e.stopPropagation()}
+        aria-label={playing ? "Pause FIP" : "Play FIP"}
+        title={playing ? "Pause" : "Play FIP — Radio France"}
+      >
+        {playing ? "⏸" : "▶"}
+      </button>
 
       <span
         className="cafe-resize-handle"
