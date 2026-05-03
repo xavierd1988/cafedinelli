@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useDragScale } from "./useDragScale.js";
 import { useNickname } from "./NicknameContext.jsx";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { useSceneScale } from "./useSceneScale.js";
 
 export default function NicknameTag() {
   const { nickname, setNickname, loading } = useNickname();
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
   const init = getModulePosition("NicknameTag");
+  const sceneScale = useSceneScale();
   const ds = useDragScale({
     scaled: false,
     name: "NicknameTag",
@@ -49,7 +51,7 @@ export default function NicknameTag() {
       data-file="NicknameTag.jsx"
       aria-label="Set your name"
       style={{
-        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y}) rotate(-1.4deg)`
+        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x * sceneScale}, ${ds.scale.y * sceneScale}) rotate(-1.4deg)`
       }}
     >
       <header

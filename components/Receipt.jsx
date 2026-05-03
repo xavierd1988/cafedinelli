@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { useSceneScale } from "./useSceneScale.js";
 
 // Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
 const MODE_META = {
@@ -14,6 +15,7 @@ const MODE_META = {
 export default function Receipt({ forceMode = null, onCycleForceMode }) {
   const meta = MODE_META[forceMode] || MODE_META.null;
   const init = getModulePosition("Receipt");
+  const sceneScale = useSceneScale();
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: false,
     name: "Receipt",
@@ -36,7 +38,10 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
       id="subscribe"
       aria-label="Newsletter signup"
       data-file="Receipt.jsx"
-      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      style={{
+        transform: `translate(${offset.x}px, ${offset.y}px) scale(${sceneScale})`,
+        transformOrigin: "bottom left"
+      }}
       onPointerDown={handleDragStart}
     >
       <button

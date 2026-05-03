@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { useSceneScale } from "./useSceneScale.js";
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
@@ -45,6 +46,7 @@ export default function WeatherClock() {
   const [weather, setWeather] = useState(null);
   const [error, setError] = useState(null);
   const init = getModulePosition("WeatherClock");
+  const sceneScale = useSceneScale();
   const { offset, dragging, handleDragStart } = useDraggable({
     scaled: false,
     name: "WeatherClock",
@@ -129,7 +131,10 @@ export default function WeatherClock() {
       className={`wclock is-draggable${dragging ? " is-dragging" : ""}`}
       aria-label="Local time and weather"
       data-file="WeatherClock.jsx"
-      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+      style={{
+        transform: `translate(${offset.x}px, ${offset.y}px) scale(${sceneScale})`,
+        transformOrigin: "top right"
+      }}
       onPointerDown={handleDragStart}
     >
       <div className="wclock-screen">

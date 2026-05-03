@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { useSceneScale } from "./useSceneScale.js";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
 import Mike from "./Mike.jsx";
@@ -30,21 +31,8 @@ function CafeDragKnob({ onPointerDown, dragging, label }) {
   );
 }
 
-function useSceneScale() {
-  const [scale, setScale] = useState(1);
-
-  useLayoutEffect(() => {
-    function updateScale() {
-      setScale(Math.min(window.innerWidth / 1600, window.innerHeight / 900));
-    }
-
-    updateScale();
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, []);
-
-  return scale;
-}
+// useSceneScale a été déplacé dans ./useSceneScale.js pour que les modules
+// flottants (Receipt, WeatherClock, NicknameTag) l'utilisent aussi.
 
 function DistantSkyline() {
   const lights = [
