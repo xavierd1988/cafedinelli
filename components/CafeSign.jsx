@@ -2,6 +2,7 @@
 
 import { useDragScale } from "./useDragScale.js";
 import { getModulePosition } from "../lib/modulePositions.js";
+import NeonSign from "./NeonSign.jsx";
 
 export default function CafeSign() {
   const init = getModulePosition("CafeSign");
@@ -25,6 +26,10 @@ export default function CafeSign() {
           <span className="sign-capsule">CAFÉ DINELLI</span>
         </h1>
       </div>
+      {/* Le néon "CAFE Dinelli" est rendu comme enfant de CafeSign : il hérite
+          du transform parent, donc il bouge/scale avec lui. NeonSign garde
+          son propre drag/scale/rotate par-dessus. */}
+      <NeonSign />
       <span
         className={`cafe-drag-knob${ds.interacting ? " is-dragging" : ""}`}
         onPointerDown={ds.handleDragStart}

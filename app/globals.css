@@ -1393,11 +1393,15 @@ button {
 
 /* === NEON SIGN — module style enseigne tube néon =========================== */
 .neon-sign {
-  position: fixed;
-  top: 120px;
-  left: 60px;
+  /* Rendu comme enfant de CafeSign : position absolute pour hériter du
+     transform parent. top/left positionnent le néon dans la boîte CafeSign
+     (738×214) ; tu peux le drag pour ajuster. */
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 360px;
-  z-index: 70;
+  z-index: 1;
+  pointer-events: auto;
 }
 
 .neon-frame {

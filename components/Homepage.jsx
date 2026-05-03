@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import CafeScene from "./CafeScene.jsx";
 import MobileShell from "./MobileShell.jsx";
 import ModuleNameBadge from "./ModuleNameBadge.jsx";
-import NeonSign from "./NeonSign.jsx";
 import { NicknameProvider } from "./NicknameContext.jsx";
 import NicknameTag from "./NicknameTag.jsx";
 import PositionExporter from "./PositionExporter.jsx";
@@ -63,7 +62,6 @@ export default function Homepage() {
           <CafeScene seats={seatPositions} />
           <Receipt forceMode={forceMode} onCycleForceMode={cycleForceMode} />
           <WeatherClock />
-          <NeonSign />
           <NicknameTag />
         </div>
         {/* Vue mobile : newsletter / chat / mike empilés. Masquée sur desktop via CSS. */}
