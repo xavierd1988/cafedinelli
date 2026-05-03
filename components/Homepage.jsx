@@ -8,6 +8,7 @@ import { NicknameProvider } from "./NicknameContext.jsx";
 import NicknameTag from "./NicknameTag.jsx";
 import PositionExporter from "./PositionExporter.jsx";
 import Receipt from "./Receipt.jsx";
+import SeatsPoller from "./SeatsPoller.jsx";
 import WeatherClock from "./WeatherClock.jsx";
 
 function computeMode() {
@@ -52,6 +53,7 @@ export default function Homepage() {
         <WeatherClock />
         <NeonSign />
         <NicknameTag />
+        <SeatsPoller />
         {isDev && <ModuleNameBadge />}
         {isDev && <PositionExporter />}
       </main>

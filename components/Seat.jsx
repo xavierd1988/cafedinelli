@@ -22,6 +22,11 @@ export default function Seat({ seat }) {
   const bubbleRef = useRef(null);
   const messageTimerRef = useRef(null);
   const personTimerRef = useRef(null);
+  // Timestamp du dernier message qu'on a appliqué (local ou remote) — sert
+  // à ignorer les ré-applications du même message lors du polling.
+  const lastSeenTimestampRef = useRef(0);
+  const editingRef = useRef(false);
+  useEffect(() => { editingRef.current = editing; }, [editing]);
 
   // Récupère l'élément hôte du portail des bulles (rendu par CafeScene).
   useEffect(() => {
@@ -36,6 +41,54 @@ export default function Seat({ seat }) {
     }
     window.addEventListener("seat-spoke", handler);
     return () => window.removeEventListener("seat-spoke", handler);
+  }, [id]);
+
+  // Écoute les updates remote (polling de SeatsPoller). Si un message plus
+  // récent que le dernier qu'on a appliqué arrive pour notre seat, on l'affiche
+  // avec des timers calés sur l'âge réel du message (pour qu'il disparaisse
+  // au bon moment, pas 15s après son arrivée tardive).
+  useEffect(() => {
+    function handler(e) {
+      if (editingRef.current) return; // ne pas écraser l'input en cours
+      const seats = Array.isArray(e.detail) ? e.detail : [];
+      const mine = seats.find((s) => Number(s.id) === id);
+      if (!mine || typeof mine.timestamp !== "number") return;
+      if (mine.timestamp <= lastSeenTimestampRef.current) return;
+
+      lastSeenTimestampRef.current = mine.timestamp;
+      const ageMs = Date.now() - mine.timestamp;
+      const messageRemaining = MESSAGE_MS - ageMs;
+      const personRemaining = PERSON_MS - ageMs;
+
+      clearTimeout(messageTimerRef.current);
+      clearTimeout(personTimerRef.current);
+
+      setActiveNickname(mine.nickname);
+      if (messageRemaining > 0) {
+        setActiveMessage(mine.message);
+        messageTimerRef.current = setTimeout(() => setActiveMessage(""), messageRemaining);
+        // Notifie ShelfPanel + Mike comme si l'événement local s'était produit.
+        window.dispatchEvent(
+          new CustomEvent("seat-spoke", {
+            detail: {
+              id,
+              nickname: mine.nickname,
+              message: mine.message,
+              timestamp: mine.timestamp
+            }
+          })
+        );
+      } else {
+        setActiveMessage("");
+      }
+      if (personRemaining > 0) {
+        personTimerRef.current = setTimeout(() => setActiveNickname(""), personRemaining);
+      } else {
+        setActiveNickname("");
+      }
+    }
+    window.addEventListener("seats-remote-update", handler);
+    return () => window.removeEventListener("seats-remote-update", handler);
   }, [id]);
 
   // Si le seat a un message seedé : message disparait à 15s, personnage à 60s
@@ -68,12 +121,16 @@ export default function Seat({ seat }) {
     if (!trimmed) return;
 
     const speaker = nickname || "anonymous";
+    const ts = Date.now();
+    // On marque la dernière timestamp vue à maintenant pour que le polling
+    // ne re-applique pas notre propre message dans 1-2s.
+    lastSeenTimestampRef.current = ts;
     setActiveMessage(trimmed);
     setActiveNickname(speaker);
 
     window.dispatchEvent(
       new CustomEvent("seat-spoke", {
-        detail: { id, nickname: speaker, message: trimmed, timestamp: Date.now() }
+        detail: { id, nickname: speaker, message: trimmed, timestamp: ts }
       })
     );
 
@@ -81,6 +138,14 @@ export default function Seat({ seat }) {
     clearTimeout(personTimerRef.current);
     messageTimerRef.current = setTimeout(() => setActiveMessage(""), MESSAGE_MS);
     personTimerRef.current = setTimeout(() => setActiveNickname(""), PERSON_MS);
+
+    // Partage avec les autres clients (les visiteurs qui regardent depuis
+    // ailleurs verront le message au prochain poll, sous ~3s).
+    fetch("/api/seats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, nickname: speaker, message: trimmed })
+    }).catch(() => {});
   }
 
   function cancel() {
