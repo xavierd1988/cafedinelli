@@ -217,20 +217,15 @@ export default function Seat({ seat }) {
   ) : null;
 
   return (
-    <button
+    <div
       ref={seatRef}
-      type="button"
       data-file="Seat.jsx"
-      className={`seat ${showPerson ? "is-occupied" : "is-empty"}${isLatest ? " is-latest" : ""}`}
+      className={`seat-cell ${showPerson ? "is-occupied" : "is-empty"}${isLatest ? " is-latest" : ""}`}
       style={{
         left: `${x - 58}px`,
         top: `${seatY - 132}px`,
         "--stool-height": `${footY - seatY}px`
       }}
-      aria-label={
-        activeMessage ? `Seat ${id}: ${activeMessage}` : `Take seat ${id}`
-      }
-      onClick={handleClick}
     >
       {bubbleHost && bubbleNode && createPortal(bubbleNode, bubbleHost)}
       {showPerson && (
@@ -239,12 +234,23 @@ export default function Seat({ seat }) {
           <span className="person-shoulders" />
         </span>
       )}
-      {!showBubble && <span className="take-seat-label">Take a seat</span>}
       <span className="stool" aria-hidden="true">
         <span className="stool-top" />
         <span className="stool-stem" />
         <span className="stool-foot" />
       </span>
-    </button>
+      {/* Le bouton .seat ne couvre plus que la zone du tabouret pour ne pas
+          bloquer les clics sur les éléments derrière (Mike notamment). */}
+      <button
+        type="button"
+        className="seat"
+        onClick={handleClick}
+        aria-label={
+          activeMessage ? `Seat ${id}: ${activeMessage}` : `Take seat ${id}`
+        }
+      >
+        {!showBubble && <span className="take-seat-label">Take a seat</span>}
+      </button>
+    </div>
   );
 }

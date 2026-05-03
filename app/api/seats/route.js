@@ -1,5 +1,6 @@
 import { recordSeatMessage, getActiveSeats } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
+import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -12,11 +13,12 @@ const lastPost = new Map();
 const COOLDOWN_MS = 1000;
 
 export async function GET() {
-  const [seats, regulars] = await Promise.all([
+  const [seats, regulars, mike] = await Promise.all([
     getActiveSeats(),
-    getRegulars()
+    getRegulars(),
+    getMikeThread()
   ]);
-  return Response.json({ seats, regulars });
+  return Response.json({ seats, regulars, mike });
 }
 
 export async function POST(request) {

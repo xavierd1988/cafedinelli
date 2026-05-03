@@ -5,27 +5,27 @@ import { createPortal } from "react-dom";
 import { registerBubble, unregisterBubble } from "./bubbleManager.js";
 import { useNickname } from "./NicknameContext.jsx";
 
-// Id réservé hors de la plage des seats (1..6) pour Mike dans bubbleManager.
 const MIKE_ID = -1;
-const RESPONSE_VISIBLE_MS = 22000;
-const THINKING_VISIBLE_MS = 30000; // garde-fou si la requête traîne
-
-// Détecte une mention "mike" / "@mike" dans un message d'un seat.
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
 
 export default function Mike() {
   const { nickname } = useNickname();
   const [bubbleHost, setBubbleHost] = useState(null);
-  const [phase, setPhase] = useState("idle"); // idle | thinking | speaking | error
-  const [text, setText] = useState("");
+  // Thread partagé reçu via le polling (/api/seats inclut .mike). null = pas
+  // de conversation active.
+  const [thread, setThread] = useState(null);
+  // Phase d'interaction locale.
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
+  const [thinking, setThinking] = useState(false);
+  // Greeting affiché au premier chargement quand il n'y a pas de conversation
+  // active. Disparaît quand quelqu'un démarre un thread, ou si on ferme.
+  const [showGreeting, setShowGreeting] = useState(true);
 
   const silhouetteRef = useRef(null);
   const bubbleRef = useRef(null);
   const inputRef = useRef(null);
-  const hideTimerRef = useRef(null);
-  const inFlightRef = useRef(false);
+  const expireTimerRef = useRef(null);
 
   useEffect(() => {
     setBubbleHost(document.getElementById("bubble-portal-host"));
@@ -35,14 +35,43 @@ export default function Mike() {
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
-  // Mike écoute les seats : si un message le mentionne, il répond.
+  // Réception du thread via le SeatsPoller global.
+  useEffect(() => {
+    function handler(e) {
+      const incoming = e.detail?.mike;
+      if (!incoming || (incoming.expiresAt || 0) < Date.now()) {
+        setThread(null);
+      } else {
+        setThread(incoming);
+        setShowGreeting(false); // un thread arrive → on cache le greeting
+      }
+    }
+    window.addEventListener("seats-remote-update", handler);
+    return () => window.removeEventListener("seats-remote-update", handler);
+  }, []);
+
+  // Auto-fermeture quand le thread expire (60s après le dernier turn).
+  useEffect(() => {
+    clearTimeout(expireTimerRef.current);
+    if (!thread) return;
+    const remaining = thread.expiresAt - Date.now();
+    if (remaining <= 0) {
+      setThread(null);
+      setEditing(false);
+      return;
+    }
+    expireTimerRef.current = setTimeout(() => {
+      setThread(null);
+      setEditing(false);
+    }, remaining);
+    return () => clearTimeout(expireTimerRef.current);
+  }, [thread]);
+
+  // Mention "mike" dans un seat-spoke local → on ouvre la bulle et on lance la question.
   useEffect(() => {
     function handler(e) {
       const detail = typeof e.detail === "object" ? e.detail : null;
-      if (!detail) return;
-      // Mike ne répond qu'aux mentions locales — éviter qu'un même message
-      // déclenche une réponse différente sur chaque device.
-      if (detail.source === "remote") return;
+      if (!detail || detail.source === "remote") return;
       const msg = (detail.message || "").trim();
       if (!msg || !MIKE_MENTION.test(msg)) return;
       ask(msg, detail.nickname);
@@ -52,65 +81,27 @@ export default function Mike() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Le panneau "ask a question to Mike" déclenche l'ouverture de son input.
-  useEffect(() => {
-    function handler() {
-      if (inFlightRef.current) return;
-      setEditing(true);
-      setDraft("");
-    }
-    window.addEventListener("open-mike-input", handler);
-    return () => window.removeEventListener("open-mike-input", handler);
-  }, []);
-
-  function scheduleHide(ms) {
-    clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => {
-      setPhase("idle");
-      setText("");
-    }, ms);
-  }
-
-  async function ask(question, speaker) {
-    if (inFlightRef.current) return; // une question à la fois
-    inFlightRef.current = true;
-    clearTimeout(hideTimerRef.current);
-    setPhase("thinking");
-    setText("");
-    scheduleHide(THINKING_VISIBLE_MS);
-
+  async function ask(question, asker) {
+    if (thinking) return;
+    setShowGreeting(false);
+    setThinking(true);
+    setEditing(false);
     try {
-      const res = await fetch("/api/mike", {
+      const res = await fetch("/api/mike-thread", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          speaker: speaker || nickname || ""
-        })
+        body: JSON.stringify({ question, asker: asker || nickname || "" })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.answer) {
-        const fallback = data?.error === "slow down"
-          ? "…laisse-moi finir mon café."
-          : "…";
-        setPhase("error");
-        setText(fallback);
-      } else {
-        setPhase("speaking");
-        setText(data.answer);
-      }
+      if (data?.thread) setThread(data.thread);
     } catch {
-      setPhase("error");
-      setText("…");
-    } finally {
-      inFlightRef.current = false;
-      scheduleHide(RESPONSE_VISIBLE_MS);
+      /* silencieux */
     }
+    setThinking(false);
   }
 
   function handleSilhouetteClick(e) {
     e.stopPropagation();
-    if (phase === "thinking") return;
     setEditing(true);
     setDraft("");
   }
@@ -119,6 +110,7 @@ export default function Mike() {
     const trimmed = draft.trim();
     setEditing(false);
     if (!trimmed) return;
+    setDraft("");
     ask(trimmed, nickname);
   }
 
@@ -137,11 +129,21 @@ export default function Mike() {
     }
   }
 
-  const showBubble =
-    editing || phase === "thinking" || phase === "speaking" || phase === "error";
+  async function closeThread(e) {
+    e.stopPropagation();
+    setEditing(false);
+    setShowGreeting(false);
+    setThread(null);
+    try {
+      await fetch("/api/mike-thread", { method: "DELETE" });
+    } catch {
+      /* silencieux */
+    }
+  }
 
-  // Enregistre auprès du bubbleManager pour bénéficier du placement
-  // anti-collision et de la couche portail au-dessus de tout.
+  const hasThread = !!(thread && thread.turns.length > 0);
+  const showBubble = editing || thinking || hasThread || showGreeting;
+
   useEffect(() => {
     if (!showBubble || !bubbleHost) return;
     registerBubble(MIKE_ID, {
@@ -167,23 +169,70 @@ export default function Mike() {
           className="speech-bubble bubble-shape-3 mike-bubble"
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            type="button"
+            className="mike-bubble-close"
+            onClick={closeThread}
+            aria-label="Close conversation"
+            title="Close"
+          >×</button>
+          {hasThread ? (
+            <div className="mike-thread">
+              {thread.turns.map((t) => (
+                <div
+                  key={t.timestamp}
+                  className={`mike-turn mike-turn-${t.role}`}
+                >
+                  <em>{t.role === "user" ? (t.asker || "anonymous") : "mike"}</em>
+                  <span>{t.message}</span>
+                </div>
+              ))}
+              {thinking && (
+                <div className="mike-turn mike-turn-mike mike-turn-thinking">
+                  <em>mike</em>
+                  <span>…</span>
+                </div>
+              )}
+            </div>
+          ) : thinking ? (
+            <div className="mike-thread">
+              <div className="mike-turn mike-turn-mike mike-turn-thinking">
+                <em>mike</em>
+                <span>…</span>
+              </div>
+            </div>
+          ) : showGreeting ? (
+            <div className="mike-thread">
+              <div className="mike-turn mike-turn-mike">
+                <em>mike</em>
+                <span>What can I do for you?</span>
+              </div>
+            </div>
+          ) : null}
           {editing ? (
             <input
               ref={inputRef}
-              className="bubble-input"
+              className="bubble-input mike-bubble-input"
               value={draft}
               onChange={(e) => setDraft(e.target.value.slice(0, 200))}
               onKeyDown={handleKeyDown}
               onBlur={commit}
-              placeholder="Demande à Mike…"
+              placeholder="Say something to Mike…"
               maxLength={200}
               onMouseDown={(e) => e.stopPropagation()}
             />
           ) : (
-            <>
-              <em>mike</em>
-              <span>{phase === "thinking" ? "…" : text}</span>
-            </>
+            <button
+              type="button"
+              className="mike-bubble-reply"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditing(true);
+                setDraft("");
+              }}
+            >
+              + reply
+            </button>
           )}
         </span>,
         bubbleHost

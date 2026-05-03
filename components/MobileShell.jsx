@@ -24,9 +24,9 @@ export default function MobileShell() {
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [mikeQ, setMikeQ] = useState("");
-  const [mikeA, setMikeA] = useState("");
   const [mikeBusy, setMikeBusy] = useState(false);
   const [mikeOpen, setMikeOpen] = useState(false);
+  const [mikeThread, setMikeThread] = useState(null);
   const [balloons, setBalloons] = useState([]);
 
   // Radio FIP
@@ -59,9 +59,17 @@ export default function MobileShell() {
   }, []);
 
   // Polling chat partagé : à chaque update, on spawn une montgolfière pour
-  // les nouveaux messages uniquement.
+  // les nouveaux messages uniquement, et on sync le thread Mike.
   useEffect(() => {
     function handler(e) {
+      const incomingMike = e.detail?.mike;
+      if (incomingMike && (incomingMike.expiresAt || 0) > Date.now()) {
+        setMikeThread(incomingMike);
+        // Si la sheet est fermée et qu'un nouveau turn arrive, on l'ouvre.
+        setMikeOpen((prev) => prev || incomingMike.turns?.length > 0);
+      } else {
+        setMikeThread(null);
+      }
       const recent = e.detail?.regulars?.recent || [];
       if (!initializedRef.current) {
         recent.forEach((r) => seenTimestampsRef.current.add(r.timestamp));
@@ -154,19 +162,18 @@ export default function MobileShell() {
   }
 
   async function askMikeWith(question) {
-    setMikeOpen(true); // ouvre la sheet pour montrer la réponse
+    setMikeOpen(true);
     setMikeBusy(true);
-    setMikeA("…");
     try {
-      const res = await fetch("/api/mike", {
+      const res = await fetch("/api/mike-thread", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, speaker: nickname || "" })
+        body: JSON.stringify({ question, asker: nickname || "" })
       });
       const data = await res.json().catch(() => ({}));
-      setMikeA(data?.answer || data?.error || "—");
+      if (data?.thread) setMikeThread(data.thread);
     } catch {
-      setMikeA("—");
+      /* silencieux */
     }
     setMikeBusy(false);
   }
@@ -176,6 +183,16 @@ export default function MobileShell() {
     if (!trimmed || mikeBusy) return;
     askMikeWith(trimmed);
     setMikeQ("");
+  }
+
+  async function closeMikeThread() {
+    setMikeOpen(false);
+    setMikeThread(null);
+    try {
+      await fetch("/api/mike-thread", { method: "DELETE" });
+    } catch {
+      /* silencieux */
+    }
   }
 
   // Setup radio audio + listeners (une fois)
@@ -386,7 +403,7 @@ export default function MobileShell() {
         </button>
       </form>
 
-      {/* BOTTOM SHEET MIKE */}
+      {/* BOTTOM SHEET MIKE — affiche le thread partagé en temps réel */}
       {mikeOpen && (
         <div
           className="m-mike-sheet-backdrop"
@@ -403,20 +420,35 @@ export default function MobileShell() {
               <button
                 type="button"
                 className="m-mike-sheet-close"
-                onClick={() => setMikeOpen(false)}
-                aria-label="Close"
+                onClick={closeMikeThread}
+                aria-label="Close conversation"
               >
                 ×
               </button>
             </div>
             <div className="m-mike-sheet-body">
-              {mikeA ? (
-                <div className="m-mike-answer">
-                  <em>mike</em>
-                  <span>{mikeA}</span>
+              {mikeThread && mikeThread.turns.length > 0 ? (
+                <div className="m-mike-thread">
+                  {mikeThread.turns.map((t) => (
+                    <div
+                      key={t.timestamp}
+                      className={`m-mike-turn m-mike-turn-${t.role}`}
+                    >
+                      <em>{t.role === "user" ? (t.asker || "anonymous") : "mike"}</em>
+                      <span>{t.message}</span>
+                    </div>
+                  ))}
+                  {mikeBusy && (
+                    <div className="m-mike-turn m-mike-turn-mike m-mike-turn-thinking">
+                      <em>mike</em>
+                      <span>…</span>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <p className="m-empty">Ask Mike anything.</p>
+                <p className="m-empty">
+                  {mikeBusy ? "Mike is thinking…" : "Ask Mike anything. Everyone in the café will see the conversation."}
+                </p>
               )}
             </div>
             <form

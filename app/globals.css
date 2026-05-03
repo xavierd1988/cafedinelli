@@ -521,6 +521,45 @@ button {
   min-height: 80px;
 }
 
+.m-mike-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.m-mike-turn {
+  background: rgba(245, 230, 197, 0.06);
+  border: 1px solid rgba(245, 230, 197, 0.1);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.45;
+  word-wrap: break-word;
+}
+
+.m-mike-turn em {
+  display: block;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.m-mike-turn span {
+  display: block;
+  color: #f5e6c5;
+}
+
+.m-mike-turn-user em { color: #e3a656; }
+.m-mike-turn-mike em { color: #ff8b5a; }
+.m-mike-turn-mike {
+  background: rgba(200, 38, 15, 0.08);
+  border-color: rgba(200, 38, 15, 0.25);
+}
+.m-mike-turn-thinking span { opacity: 0.55; font-style: italic; }
+
 /* === NAME TAG — "Hello My Name Is" sticker, top-left corner ================ */
 
 .name-tag {
@@ -2729,6 +2768,107 @@ button {
   transform: scale(0.88);
 }
 
+/* === BULLE CONVERSATION MIKE (desktop, partagée via Redis) === */
+.mike-bubble {
+  width: 320px !important;
+  min-height: auto !important;
+  padding: 26px 22px 18px !important;
+  text-align: left !important;
+  display: block !important;
+}
+
+.mike-bubble-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: rgba(60, 30, 18, 0.18);
+  color: #2a1812;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  z-index: 2;
+}
+.mike-bubble-close:hover {
+  background: rgba(60, 30, 18, 0.35);
+  color: #ffffff;
+}
+
+.mike-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+}
+
+.mike-turn {
+  display: block;
+}
+
+.mike-turn em {
+  display: block;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #7b3a1e;
+  margin-bottom: 2px;
+}
+
+.mike-turn span {
+  display: block;
+  font-size: 13px;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+.mike-turn-mike em {
+  color: #c8260f;
+}
+
+.mike-turn-thinking span {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.mike-bubble-input {
+  width: 100% !important;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.5) !important;
+  border: 1px solid rgba(60, 30, 18, 0.3) !important;
+  border-radius: 4px;
+  text-align: left !important;
+}
+
+.mike-bubble-reply {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 0;
+  background: transparent;
+  border: 1px dashed rgba(60, 30, 18, 0.35);
+  border-radius: 4px;
+  color: #7b3a1e;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.mike-bubble-reply:hover {
+  background: rgba(60, 30, 18, 0.06);
+  color: #2a1812;
+}
+
 .silhouette-c {
   left: 618px;
   width: 60px;
@@ -3384,17 +3524,30 @@ button {
   pointer-events: none;
 }
 
-.seat {
+.seat-cell {
   position: absolute;
   width: 116px;
   height: 226px;
+  pointer-events: none;
+  text-align: center;
+}
+
+/* .seat est désormais un petit bouton ancré sur le tabouret pour limiter
+   le hit-test à la zone "siège" (sinon il bloquerait les clics sur Mike
+   et autres silhouettes derrière). */
+.seat {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 78px;
+  height: calc(var(--stool-height, 60px) + 28px);
   border: 0;
   padding: 0;
-  color: #ffe6b8;
   background: transparent;
-  text-align: center;
-  transform-origin: center bottom;
+  color: #ffe6b8;
   pointer-events: auto;
+  cursor: pointer;
 }
 
 .seat:focus-visible {
@@ -3402,11 +3555,7 @@ button {
   outline-offset: 2px;
 }
 
-.seat:disabled {
-  cursor: default;
-}
-
-.seat.is-empty:hover .stool-top {
+.seat-cell.is-empty:hover .stool-top {
   background: linear-gradient(180deg, #e2b17b, #5d2a20);
   box-shadow: 0 0 18px rgba(255, 185, 89, 0.4);
 }
@@ -3517,11 +3666,11 @@ button {
 }
 
 /* Bulle du dernier seat à avoir parlé : plus grosse + premier plan */
-.seat.is-latest {
+.seat-cell.is-latest {
   z-index: 500;
 }
 
-.seat.is-latest .speech-bubble,
+.seat-cell.is-latest .speech-bubble,
 .speech-bubble.is-latest-bubble {
   width: 300px;
   min-height: 145px;
