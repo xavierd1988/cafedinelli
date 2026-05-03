@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import AskMikeSign from "./AskMikeSign.jsx";
 import CafeScene from "./CafeScene.jsx";
 import ModuleNameBadge from "./ModuleNameBadge.jsx";
 import NeonSign from "./NeonSign.jsx";
@@ -41,6 +40,9 @@ export default function Homepage() {
   }, [forceNight]);
 
   const mode = forceNight ? "night" : autoMode;
+  // Outils de dev (badge "fichier au clic" + bouton export positions) :
+  // visibles uniquement avec `npm run dev`. Strippés du bundle prod par Next.
+  const isDev = process.env.NODE_ENV === "development";
 
   return (
     <NicknameProvider>
@@ -50,9 +52,8 @@ export default function Homepage() {
         <WeatherClock />
         <NeonSign />
         <NicknameTag />
-        <AskMikeSign />
-        <ModuleNameBadge />
-        <PositionExporter />
+        {isDev && <ModuleNameBadge />}
+        {isDev && <PositionExporter />}
       </main>
     </NicknameProvider>
   );

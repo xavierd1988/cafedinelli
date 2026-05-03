@@ -269,7 +269,7 @@ const MIN_HEIGHT = 280;
 
 export default function PaperPanel() {
   const [offset, setOffset] = useState({ x: 53.3, y: -116.4 });
-  const [size, setSize] = useState({ width: 618, height: 826 });
+  const [size, setSize] = useState({ width: 522.6, height: 842.1 });
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
   const [newsletter, setNewsletter] = useState(null);

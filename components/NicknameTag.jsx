@@ -11,7 +11,7 @@ export default function NicknameTag() {
   const ds = useDragScale({
     scaled: false,
     name: "NicknameTag",
-    initialOffset: { x: 0, y: 0 },
+    initialOffset: { x: 1657, y: 907 },
     initialScale: { x: 1, y: 1 }
   });
 

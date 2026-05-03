@@ -7,7 +7,6 @@ const MODULES = [
   { selector: ".receipt",        file: "Receipt.jsx" },
   { selector: ".wclock",         file: "WeatherClock.jsx" },
   { selector: ".name-tag",       file: "NicknameTag.jsx" },
-  { selector: ".ask-mike",       file: "AskMikeSign.jsx" },
   { selector: ".shelf-panel",    file: "ShelfPanel.jsx" },
   { selector: ".paper-panel",    file: "PaperPanel.jsx" },
   { selector: ".neon-sign",      file: "NeonSign.jsx" },
