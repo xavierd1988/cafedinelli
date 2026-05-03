@@ -17,9 +17,15 @@ export default function SeatsPoller() {
         const res = await fetch("/api/seats", { cache: "no-store" });
         const data = await res.json();
         if (cancelled) return;
-        const seats = Array.isArray(data?.seats) ? data.seats : [];
+        const payload = {
+          seats: Array.isArray(data?.seats) ? data.seats : [],
+          regulars:
+            data?.regulars && typeof data.regulars === "object"
+              ? data.regulars
+              : { total: 0, recent: [] }
+        };
         window.dispatchEvent(
-          new CustomEvent("seats-remote-update", { detail: seats })
+          new CustomEvent("seats-remote-update", { detail: payload })
         );
       } catch {
         // silencieux : pas la peine de faire pleurer l'UI sur un blip réseau

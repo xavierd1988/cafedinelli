@@ -1,4 +1,5 @@
 import { recordSeatMessage, getActiveSeats } from "../../../lib/seatStore.js";
+import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -11,8 +12,11 @@ const lastPost = new Map();
 const COOLDOWN_MS = 1000;
 
 export async function GET() {
-  const seats = await getActiveSeats();
-  return Response.json({ seats });
+  const [seats, regulars] = await Promise.all([
+    getActiveSeats(),
+    getRegulars()
+  ]);
+  return Response.json({ seats, regulars });
 }
 
 export async function POST(request) {
@@ -39,6 +43,8 @@ export async function POST(request) {
   if (!message) {
     return Response.json({ error: "empty message" }, { status: 400 });
   }
+
   const entry = await recordSeatMessage({ id, nickname, message });
-  return Response.json({ ok: true, entry });
+  const regulars = await recordRegular({ id, nickname, message });
+  return Response.json({ ok: true, entry, regulars });
 }

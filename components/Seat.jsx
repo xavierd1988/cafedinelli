@@ -50,7 +50,12 @@ export default function Seat({ seat }) {
   useEffect(() => {
     function handler(e) {
       if (editingRef.current) return; // ne pas écraser l'input en cours
-      const seats = Array.isArray(e.detail) ? e.detail : [];
+      const payload = e.detail || {};
+      const seats = Array.isArray(payload.seats)
+        ? payload.seats
+        : Array.isArray(payload)
+        ? payload
+        : [];
       const mine = seats.find((s) => Number(s.id) === id);
       if (!mine || typeof mine.timestamp !== "number") return;
       if (mine.timestamp <= lastSeenTimestampRef.current) return;
@@ -74,7 +79,8 @@ export default function Seat({ seat }) {
               id,
               nickname: mine.nickname,
               message: mine.message,
-              timestamp: mine.timestamp
+              timestamp: mine.timestamp,
+              source: "remote"
             }
           })
         );
@@ -130,7 +136,7 @@ export default function Seat({ seat }) {
 
     window.dispatchEvent(
       new CustomEvent("seat-spoke", {
-        detail: { id, nickname: speaker, message: trimmed, timestamp: ts }
+        detail: { id, nickname: speaker, message: trimmed, timestamp: ts, source: "local" }
       })
     );
 

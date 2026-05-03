@@ -40,6 +40,9 @@ export default function Mike() {
     function handler(e) {
       const detail = typeof e.detail === "object" ? e.detail : null;
       if (!detail) return;
+      // Mike ne répond qu'aux mentions locales — éviter qu'un même message
+      // déclenche une réponse différente sur chaque device.
+      if (detail.source === "remote") return;
       const msg = (detail.message || "").trim();
       if (!msg || !MIKE_MENTION.test(msg)) return;
       ask(msg, detail.nickname);

@@ -22,23 +22,46 @@ export default function ShelfPanel() {
     initialScale: { x: 0.727, y: 0.727 }
   });
 
-  const [history, setHistory] = useState([]);
+  // Compteur global et derniers entrants viennent du serveur (Redis), partagés
+  // entre tous les visiteurs et persistés. Mis à jour via SeatsPoller (~3s)
+  // et bumpés instantanément au commit local pour un feedback immédiat.
+  const [total, setTotal] = useState(0);
+  const [recent, setRecent] = useState([]);
 
+  // Sync depuis le serveur via le polling.
+  useEffect(() => {
+    function handler(e) {
+      const r = e.detail?.regulars;
+      if (!r) return;
+      if (typeof r.total === "number") setTotal(r.total);
+      if (Array.isArray(r.recent)) setRecent(r.recent);
+    }
+    window.addEventListener("seats-remote-update", handler);
+    return () => window.removeEventListener("seats-remote-update", handler);
+  }, []);
+
+  // Bump optimiste au commit local : +1 et insert en tête, en attendant que
+  // le prochain poll vienne reconcilier avec la valeur serveur autoritative.
   useEffect(() => {
     function handler(e) {
       const detail = typeof e.detail === "object" ? e.detail : null;
       if (!detail) return;
-      setHistory((prev) => [
-        { id: detail.id, message: detail.message, timestamp: detail.timestamp },
-        ...prev
-      ]);
+      // Les seat-spoke "remote" viennent du polling — le serveur a déjà
+      // incrémenté le total et l'a mis à jour côté Redis. On évite le double comptage.
+      if (detail.source === "remote") return;
+      setTotal((t) => t + 1);
+      setRecent((prev) =>
+        [
+          { id: detail.id, nickname: detail.nickname, message: detail.message, timestamp: detail.timestamp },
+          ...prev
+        ].slice(0, 20)
+      );
     }
     window.addEventListener("seat-spoke", handler);
     return () => window.removeEventListener("seat-spoke", handler);
   }, []);
 
-  const lastThree = history.slice(0, 3);
-  const total = history.length;
+  const lastThree = recent.slice(0, 3);
 
   return (
     <section
