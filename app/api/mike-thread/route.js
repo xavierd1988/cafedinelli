@@ -77,11 +77,12 @@ export async function POST(request) {
     return Response.json({ error: "bad question" }, { status: 400 });
   }
 
-  // 1. on append le turn user
-  const afterUser = await appendMikeTurn("user", {
-    asker: asker || "anonymous",
-    message: question
-  });
+  // 1. on append le turn user (avec l'IP comme owner si premier turn)
+  const afterUser = await appendMikeTurn(
+    "user",
+    { asker: asker || "anonymous", message: question },
+    ip
+  );
 
   // 2. on construit l'historique pour Groq (alternance user/assistant)
   const messages = afterUser.turns.map((t) =>
@@ -115,7 +116,16 @@ export async function POST(request) {
   return Response.json({ thread: finalThread });
 }
 
-export async function DELETE() {
+export async function DELETE(request) {
+  const ip = getIp(request);
+  const thread = await getMikeThread();
+  // Seul le starter (même IP) peut clore la conversation.
+  if (thread && thread.ownerIp && thread.ownerIp !== ip) {
+    return Response.json(
+      { error: "only the person who started can close" },
+      { status: 403 }
+    );
+  }
   await clearMikeThread();
   return Response.json({ ok: true });
 }

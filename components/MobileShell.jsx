@@ -27,6 +27,10 @@ export default function MobileShell() {
   const [mikeBusy, setMikeBusy] = useState(false);
   const [mikeOpen, setMikeOpen] = useState(false);
   const [mikeThread, setMikeThread] = useState(null);
+  // Si l'utilisateur ferme une sheet d'un thread dont il n'est pas le starter,
+  // on retient l'id pour ne pas rouvrir auto à chaque poll. Reset quand un
+  // nouveau thread démarre (id différent).
+  const dismissedThreadIdRef = useRef(null);
   const [balloons, setBalloons] = useState([]);
 
   // Radio FIP
@@ -65,8 +69,10 @@ export default function MobileShell() {
       const incomingMike = e.detail?.mike;
       if (incomingMike && (incomingMike.expiresAt || 0) > Date.now()) {
         setMikeThread(incomingMike);
-        // Si la sheet est fermée et qu'un nouveau turn arrive, on l'ouvre.
-        setMikeOpen((prev) => prev || incomingMike.turns?.length > 0);
+        // Auto-open sauf si l'user a explicitement caché ce thread précis.
+        if (incomingMike.id !== dismissedThreadIdRef.current) {
+          setMikeOpen((prev) => prev || incomingMike.turns?.length > 0);
+        }
       } else {
         setMikeThread(null);
       }
@@ -187,11 +193,17 @@ export default function MobileShell() {
 
   async function closeMikeThread() {
     setMikeOpen(false);
-    setMikeThread(null);
-    try {
-      await fetch("/api/mike-thread", { method: "DELETE" });
-    } catch {
-      /* silencieux */
+    if (mikeThread?.isYours) {
+      // Owner : on supprime le thread pour tout le monde.
+      setMikeThread(null);
+      try {
+        await fetch("/api/mike-thread", { method: "DELETE" });
+      } catch {
+        /* silencieux */
+      }
+    } else if (mikeThread) {
+      // Non-owner : on cache localement, le thread reste actif côté serveur.
+      dismissedThreadIdRef.current = mikeThread.id;
     }
   }
 
@@ -421,7 +433,16 @@ export default function MobileShell() {
                 type="button"
                 className="m-mike-sheet-close"
                 onClick={closeMikeThread}
-                aria-label="Close conversation"
+                aria-label={
+                  !mikeThread || mikeThread.isYours
+                    ? "Close conversation"
+                    : "Hide"
+                }
+                title={
+                  !mikeThread || mikeThread.isYours
+                    ? "Close (everyone)"
+                    : "Hide (still open for everyone)"
+                }
               >
                 ×
               </button>

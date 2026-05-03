@@ -169,13 +169,17 @@ export default function Mike() {
           className="speech-bubble bubble-shape-3 mike-bubble"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            type="button"
-            className="mike-bubble-close"
-            onClick={closeThread}
-            aria-label="Close conversation"
-            title="Close"
-          >×</button>
+          {/* Seul le starter (isYours: true côté serveur, basé IP) peut fermer.
+              Sans thread on autorise quand même (greeting local). */}
+          {(!hasThread || thread?.isYours) && (
+            <button
+              type="button"
+              className="mike-bubble-close"
+              onClick={closeThread}
+              aria-label="Close conversation"
+              title="Close"
+            >×</button>
+          )}
           {hasThread ? (
             <div className="mike-thread">
               {thread.turns.map((t) => (

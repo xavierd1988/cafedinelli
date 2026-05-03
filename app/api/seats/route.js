@@ -12,12 +12,19 @@ function getIp(request) {
 const lastPost = new Map();
 const COOLDOWN_MS = 1000;
 
-export async function GET() {
-  const [seats, regulars, mike] = await Promise.all([
+export async function GET(request) {
+  const ip = getIp(request);
+  const [seats, regulars, mikeRaw] = await Promise.all([
     getActiveSeats(),
     getRegulars(),
     getMikeThread()
   ]);
+  let mike = null;
+  if (mikeRaw) {
+    // On expose isYours au client ; on ne renvoie pas l'IP brute.
+    const { ownerIp, ...rest } = mikeRaw;
+    mike = { ...rest, isYours: ownerIp ? ownerIp === ip : true };
+  }
   return Response.json({ seats, regulars, mike });
 }
 
