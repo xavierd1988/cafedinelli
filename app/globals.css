@@ -636,8 +636,11 @@ button {
 
 .name-tag {
   position: fixed;
-  top: 14px;
-  left: 14px;
+  /* Ancrée au centre du viewport — un offset (0, 0) = pile au milieu.
+     Le translate(-50%, -50%) du transform inline (cf JSX) recale l'élément
+     sur son ancrage, puis on applique offset, scale, rotate. */
+  top: 50%;
+  left: 50%;
   z-index: 60;
   width: 130px;
   border-radius: 4px;
@@ -645,11 +648,9 @@ button {
   box-shadow:
     0 8px 18px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(0, 0, 0, 0.3);
-  opacity: 0.55;
+  opacity: 0.85;
   transition: opacity 200ms ease;
-  /* le transform inline (translate + scale + rotate) est composé dans le JSX
-     pour rester compatible avec le drag/resize */
-  transform-origin: top left;
+  transform-origin: center center;
 }
 
 .name-tag:hover,
@@ -731,6 +732,263 @@ button {
   font-size: 11px;
   color: rgba(26, 26, 26, 0.4);
 }
+
+/* === PERSONA SETTINGS (cog menu sur NicknameTag, ouvre vers haut-gauche) === */
+.persona-settings {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.persona-cog {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1.5px solid #ffffff;
+  background: linear-gradient(180deg, #c8260f, #9c1a07);
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 200ms ease;
+}
+.persona-cog:hover {
+  background: linear-gradient(180deg, #e02a10, #b01e08);
+  transform: rotate(60deg);
+}
+
+.persona-pop {
+  position: absolute;
+  /* S'ouvre HAUT-GAUCHE du cog */
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  background: #1a0f0c;
+  color: #f5e6c5;
+  border: 1px solid rgba(245, 230, 197, 0.18);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.persona-pop-head {
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #e3a656;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+
+.persona-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.persona-row-label {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(245, 230, 197, 0.55);
+}
+
+.persona-segments {
+  display: flex;
+  gap: 4px;
+}
+
+.persona-seg {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f5e6c5;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.persona-seg.is-on {
+  background: linear-gradient(180deg, #c8260f, #9c1a07);
+  border-color: rgba(255, 200, 120, 0.4);
+}
+
+.persona-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.persona-tile {
+  position: relative;
+  aspect-ratio: 1;
+  background: rgba(245, 230, 197, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  --item: #888;
+  --item-2: var(--item);
+}
+.persona-tile.is-on {
+  border-color: #e3a656;
+  box-shadow: 0 0 0 2px rgba(227, 166, 86, 0.25) inset;
+}
+
+/* Vignette de preview à l'intérieur du tile */
+.persona-swatch {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  background: var(--item);
+  pointer-events: none;
+}
+.persona-swatch-wig    { width: 60%; height: 28%; bottom: 58%; border-radius: 50% 50% 30% 30%; }
+.persona-swatch-jacket { width: 70%; height: 30%; bottom: 28%; border-radius: 40% 40% 12% 12%; }
+.persona-swatch-pants  { width: 50%; height: 38%; bottom: 6%;  border-radius: 4px 4px 6px 6px; }
+.persona-swatch-shoes  { width: 60%; height: 16%; bottom: 8%;  border-radius: 50%; box-shadow: 0 0 0 0 var(--item); }
+
+/* === PALETTES — couleur principale par option, par gender =====
+   Tile preview ET silhouette utilisent la même couleur via classes. */
+
+/* HOMME — wigs */
+.persona-tile-wig-m-1 { --item: #1a0f0a; }   /* noir court */
+.persona-tile-wig-m-2 { --item: #d8a04a; }   /* blond punk */
+.persona-tile-wig-m-3 { --item: #4a2810; }   /* brun long */
+.persona-tile-wig-m-4 { --item: #d4b88a; }   /* blond rasé */
+/* HOMME — jackets */
+.persona-tile-jacket-m-1 { --item: #6a3018; }   /* veste cuir camel */
+.persona-tile-jacket-m-2 { --item: #1a2440; }   /* costume marine */
+.persona-tile-jacket-m-3 { --item: #a8281c; }   /* flannel rouge */
+.persona-tile-jacket-m-4 { --item: #4a5028; }   /* bomber olive */
+/* HOMME — pants */
+.persona-tile-pants-m-1 { --item: #2a3e5a; }   /* jeans bleu */
+.persona-tile-pants-m-2 { --item: #1a1a1a; }   /* slacks noirs */
+.persona-tile-pants-m-3 { --item: #c4a878; }   /* chino kaki */
+.persona-tile-pants-m-4 { --item: #5a3a1a; }   /* velours marron */
+/* HOMME — shoes */
+.persona-tile-shoes-m-1 { --item: #3a2010; }   /* derby cuir */
+.persona-tile-shoes-m-2 { --item: #f0e8da; }   /* sneakers blanches */
+.persona-tile-shoes-m-3 { --item: #0a0a0a; }   /* boots noires */
+.persona-tile-shoes-m-4 { --item: #c41818; }   /* sneakers rouges */
+
+/* FEMME — wigs */
+.persona-tile-wig-w-1 { --item: #1a1a1a; }   /* bob noir */
+.persona-tile-wig-w-2 { --item: #e8c878; }   /* longue blonde */
+.persona-tile-wig-w-3 { --item: #c43820; }   /* queue rousse */
+.persona-tile-wig-w-4 { --item: #5a3a1a; }   /* chignon brun */
+/* FEMME — tops */
+.persona-tile-jacket-w-1 { --item: #6a1a2a; }   /* blazer bordeaux */
+.persona-tile-jacket-w-2 { --item: #f0e8d8; }   /* blouse blanche */
+.persona-tile-jacket-w-3 { --item: #d878a0; }   /* robe rose */
+.persona-tile-jacket-w-4 { --item: #1a1a1a; }   /* cuir noir */
+/* FEMME — pants */
+.persona-tile-pants-w-1 { --item: #2a3e5a; }   /* jeans bleu */
+.persona-tile-pants-w-2 { --item: #1a1a1a; }   /* jupe noire */
+.persona-tile-pants-w-3 { --item: #8a4a5a; }   /* pantalon bordeaux */
+.persona-tile-pants-w-4 { --item: #f0e8da; }   /* pantalon blanc */
+/* FEMME — shoes */
+.persona-tile-shoes-w-1 { --item: #c81818; }   /* talons rouges */
+.persona-tile-shoes-w-2 { --item: #f0e8e0; }   /* sneakers blanches */
+.persona-tile-shoes-w-3 { --item: #1a1a1a; }   /* boots noires */
+.persona-tile-shoes-w-4 { --item: #8a6a4a; }   /* flats tan */
+
+/* === Silhouette (couches colorées) =========================== */
+.seat-person { isolation: isolate; }
+
+.seat-person .person-wig {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+}
+.seat-person .person-head { z-index: 2; }
+.seat-person .person-shoulders { z-index: 1; }
+.seat-person .person-pants {
+  position: absolute;
+  left: 50%;
+  bottom: -28px;
+  width: 30px;
+  height: 26px;
+  border-radius: 4px 4px 6px 6px;
+  transform: translateX(-50%);
+  z-index: 0;
+  pointer-events: none;
+}
+.seat-person .person-shoes {
+  position: absolute;
+  bottom: -34px;
+  width: 11px;
+  height: 7px;
+  border-radius: 50% 50% 30% 30%;
+  z-index: 0;
+  pointer-events: none;
+}
+.seat-person .person-shoes-l { left: calc(50% - 11px); }
+.seat-person .person-shoes-r { left: calc(50% + 1px); }
+
+/* === Variations silhouette — aplats simples (pas de détails dessinés) === */
+
+/* WIGS — homme */
+.wig-m-1 .person-wig { width: 28px; height: 10px; background: #1a0f0a; border-radius: 50% 50% 32% 32%; top: -4px; }
+.wig-m-2 .person-wig { width: 30px; height: 14px; background: #d8a04a; clip-path: polygon(0 100%, 12% 30%, 28% 92%, 42% 12%, 58% 92%, 72% 20%, 88% 88%, 100% 100%); top: -10px; }
+.wig-m-3 .person-wig { width: 32px; height: 38px; background: #4a2810; border-radius: 50% 50% 12% 12%; top: -5px; }
+.wig-m-4 .person-wig { width: 22px; height: 5px;  background: #d4b88a; border-radius: 50% 50% 30% 30%; top: -1px; }
+
+/* WIGS — femme */
+.wig-w-1 .person-wig { width: 34px; height: 28px; background: #1a1a1a; border-radius: 50% 50% 22% 22%; top: -5px; }
+.wig-w-2 .person-wig { width: 32px; height: 60px; background: #e8c878; border-radius: 38% 38% 45% 45%; top: -4px; }
+.wig-w-3 .person-wig { width: 28px; height: 18px; background: #c43820; border-radius: 50% 50% 30% 30%; top: -4px; box-shadow: 14px 22px 0 -2px #c43820; }
+.wig-w-4 .person-wig { width: 22px; height: 14px; background: #5a3a1a; border-radius: 50%; top: -10px; }
+
+/* JACKETS / TOPS — homme */
+.jacket-m-1 .person-shoulders { background: #6a3018; width: 62px; border-radius: 40px 40px 8px 8px; }
+.jacket-m-2 .person-shoulders { background: #1a2440; width: 64px; border-radius: 30% 30% 6px 6px; }
+.jacket-m-3 .person-shoulders { background: #a8281c; width: 60px; border-radius: 30px 30px 6px 6px; }
+.jacket-m-4 .person-shoulders { background: #4a5028; width: 66px; border-radius: 26px 26px 6px 6px; }
+
+/* JACKETS / TOPS — femme */
+.jacket-w-1 .person-shoulders { background: #6a1a2a; width: 50px; border-radius: 36px 36px 6px 6px; }
+.jacket-w-2 .person-shoulders { background: #f0e8d8; width: 50px; border-radius: 50% 50% 4px 4px; }
+.jacket-w-3 .person-shoulders { background: #d878a0; width: 54px; height: 52px; border-radius: 50% 50% 18px 18px; }
+.jacket-w-4 .person-shoulders { background: #1a1a1a; width: 48px; border-radius: 30px 30px 4px 4px; }
+
+/* PANTS — homme */
+.pants-m-1 .person-pants { background: #2a3e5a; width: 28px; height: 28px; }
+.pants-m-2 .person-pants { background: #1a1a1a; width: 28px; height: 28px; }
+.pants-m-3 .person-pants { background: #c4a878; width: 28px; height: 26px; }
+.pants-m-4 .person-pants { background: #5a3a1a; width: 28px; height: 28px; }
+
+/* PANTS / SKIRTS — femme */
+.pants-w-1 .person-pants { background: #2a3e5a; width: 28px; height: 26px; }
+.pants-w-2 .person-pants { background: #1a1a1a; width: 38px; height: 28px; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); border-radius: 6px 6px 0 0; }
+.pants-w-3 .person-pants { background: #8a4a5a; width: 32px; height: 28px; clip-path: polygon(15% 0, 85% 0, 95% 100%, 5% 100%); }
+.pants-w-4 .person-pants { background: #f0e8da; width: 24px; height: 28px; }
+
+/* SHOES — homme */
+.shoes-m-1 .person-shoes { background: #3a2010; height: 7px; border-radius: 50% 50% 20% 20%; }
+.shoes-m-2 .person-shoes { background: #f0e8da; height: 7px; border-radius: 50% 50% 30% 30%; }
+.shoes-m-3 .person-shoes { background: #0a0a0a; height: 12px; border-radius: 50% 50% 16% 16%; }
+.shoes-m-4 .person-shoes { background: #c41818; height: 8px; border-radius: 50% 50% 22% 22%; }
+
+/* SHOES — femme */
+.shoes-w-1 .person-shoes { background: #c81818; height: 11px; border-radius: 60% 60% 90% 10%; }
+.shoes-w-2 .person-shoes { background: #f0e8e0; height: 9px; border-radius: 50% 50% 30% 30%; }
+.shoes-w-3 .person-shoes { background: #1a1a1a; height: 12px; border-radius: 40% 40% 18% 18%; }
+.shoes-w-4 .person-shoes { background: #8a6a4a; height: 6px; border-radius: 50%; }
 
 .name-tag-resize {
   position: absolute;
@@ -1187,20 +1445,15 @@ button {
 .is-frozen .neon-resize-handle,
 .is-frozen .neon-rotate-handle,
 .is-frozen .corner-resize-handle,
-.is-frozen .counter-resize-handle {
+.is-frozen .counter-resize-handle,
+.is-frozen .paper-resize-handle,
+.is-frozen .paper-drag-hint {
   display: none !important;
 }
-/* Le PaperPanel reste manipulable même en prod : il contient la newsletter
-   du jour, les visiteurs ont besoin de le repositionner et le redimensionner
-   pour lire confortablement. */
+/* En mode figé, plus aucun curseur "grab" — y compris sur PaperPanel. */
+.is-frozen .paper-masthead,
 .is-frozen .paper-panel.is-draggable {
   cursor: default;
-}
-.is-frozen .paper-masthead {
-  cursor: grab;
-}
-.is-frozen .paper-masthead.is-dragging {
-  cursor: grabbing;
 }
 
 /* Les inputs/boutons à l'intérieur d'un draggable gardent leur curseur */
@@ -2885,42 +3138,70 @@ button {
   color: #ffffff;
 }
 
-.mike-thread {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  margin-bottom: 10px;
+/* Mini-bulle satellite avec la dernière question + nom du demandeur,
+   positionnée au-dessus de la bulle principale, attachée par une queue. */
+.mike-question-chip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 88%;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1.5px solid rgba(60, 30, 18, 0.55);
+  border-radius: 14px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #2a1812;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+  text-align: center;
 }
 
-.mike-turn {
-  display: block;
-}
-
-.mike-turn em {
-  display: block;
+.mike-question-chip em {
+  display: inline;
   font-style: normal;
   font-weight: 700;
   font-size: 9px;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: #7b3a1e;
-  margin-bottom: 2px;
+  margin-right: 6px;
 }
 
-.mike-turn span {
-  display: block;
-  font-size: 13px;
-  line-height: 1.4;
+.mike-question-chip span {
+  display: inline;
   word-wrap: break-word;
 }
 
-.mike-turn-mike em {
-  color: #c8260f;
+/* Petite queue qui relie la chip à la bulle principale */
+.mike-question-chip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 8px 6px 0 6px;
+  border-color: #ffffff transparent transparent transparent;
+  transform: translateX(-50%);
+  filter:
+    drop-shadow(1.5px 0 0 rgba(60, 30, 18, 0.55))
+    drop-shadow(-1.5px 0 0 rgba(60, 30, 18, 0.55))
+    drop-shadow(0 1.5px 0 rgba(60, 30, 18, 0.55));
 }
 
-.mike-turn-thinking span {
+/* Réponse de Mike : centrale et bien lisible */
+.mike-response {
+  text-align: center;
+  margin: 4px 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #2a1812;
+  word-wrap: break-word;
+}
+
+.mike-response-thinking {
   opacity: 0.55;
   font-style: italic;
 }
@@ -3649,24 +3930,22 @@ button {
   position: absolute;
   left: 50%;
   bottom: 152px;
-  width: 220px;
-  min-height: 110px;
+  width: 130px;
+  min-height: 56px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 26px 28px;
+  gap: 3px;
+  padding: 10px 12px;
   color: #2a1812;
-  font-size: 13px;
+  font-size: 10px;
   line-height: 1.3;
   text-align: center;
-  background: rgba(255, 235, 195, 0.55);
-  border: 1.5px solid rgba(60, 30, 18, 0.55);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  background: #ffffff;
+  border: 1.2px solid rgba(60, 30, 18, 0.55);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
   transform: translateX(-50%);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
   animation: bubble-pop 220ms ease;
 }
 
@@ -3714,8 +3993,10 @@ button {
   height: 0;
   border-style: solid;
   border-width: var(--tail-length, 14px) 7px 0 7px;
-  border-color: rgba(255, 235, 195, 0.55) transparent transparent transparent;
-  transform: translateX(-50%);
+  border-color: #ffffff transparent transparent transparent;
+  /* tail-shift compense le jitterX de la bulle pour que la pointe reste
+     plantée au-dessus de la tête de la silhouette. */
+  transform: translateX(calc(-50% + var(--tail-shift, 0px)));
   filter:
     drop-shadow(1.5px 0 0 rgba(60, 30, 18, 0.55))
     drop-shadow(-1.5px 0 0 rgba(60, 30, 18, 0.55))
@@ -3723,7 +4004,7 @@ button {
 }
 
 .speech-bubble.is-latest-bubble::after {
-  border-top-color: rgba(255, 240, 205, 0.82);
+  border-top-color: #ffffff;
   filter:
     drop-shadow(1.5px 0 0 rgba(60, 30, 18, 0.7))
     drop-shadow(-1.5px 0 0 rgba(60, 30, 18, 0.7))
@@ -3757,13 +4038,13 @@ button {
 
 .seat-cell.is-latest .speech-bubble,
 .speech-bubble.is-latest-bubble {
-  width: 300px;
-  min-height: 145px;
-  padding: 32px 32px;
-  font-size: 15px;
-  background: rgba(255, 240, 205, 0.82);
+  width: 170px;
+  min-height: 76px;
+  padding: 14px 16px;
+  font-size: 12px;
+  background: #ffffff;
   border-color: rgba(60, 30, 18, 0.7);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 200, 120, 0.28);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4), 0 0 22px rgba(255, 200, 120, 0.22);
   z-index: 500;
 }
 
@@ -3800,6 +4081,20 @@ button {
   height: 66px;
   transform: translateX(-50%);
   z-index: 2;
+}
+
+/* Quand un seat est occupé par TOI (local), sa silhouette est cliquable
+   pour rouvrir l'input. */
+.seat-person-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Tabouret occupé par quelqu'un d'autre : pas de curseur clickable, le clic
+   est silencieusement ignoré côté JS. */
+.seat-person.is-remote-occupied {
+  pointer-events: auto;
+  cursor: default;
 }
 
 .person-head {

@@ -62,9 +62,9 @@ function tick() {
     const bubbleW = bubbleRect.width / scale;
     const bubbleH = bubbleRect.height / scale;
 
-    // Position naturelle : bas de la bulle 18px au-dessus de la tête → queue
-    // de 18px qui touche bien le sommet de la tête.
-    let bubbleBottomFromTop = headTopFromTop - 18;
+    // Bulle 35px au-dessus de la tête (bien décolée mais tige courte).
+    const jitterY = info.jitterY || 0;
+    let bubbleBottomFromTop = headTopFromTop - 35 - jitterY;
 
     // Évitement des collisions : on repousse vers le haut au-dessus de toute
     // bulle déjà placée qui chevauche horizontalement.
@@ -81,20 +81,34 @@ function tick() {
 
     // Position appliquée : centerX (avec translateX(-50%) du CSS) + bottom
     // calculé pour retomber pile sur la cible.
-    bubbleEl.style.left = `${centerX}px`;
+    const jitterX = info.jitterX || 0;
+    const jitterRot = info.jitterRot || 0;
+    bubbleEl.style.left = `${centerX + jitterX}px`;
     bubbleEl.style.bottom = `${portalH - bubbleBottomFromTop}px`;
+    bubbleEl.style.transform = `translateX(-50%) rotate(${jitterRot}deg)`;
 
-    // Queue : du bas de la bulle jusqu'au haut de la tête. Min 10px pour
-    // garantir qu'elle reste visible même si la bulle est très basse.
-    const tailLength = Math.max(10, headTopFromTop - bubbleBottomFromTop);
+    // Queue : courte (max 24px) — la bulle est juste un peu au-dessus, pas
+    // reliée par une tige géante. tail-shift compense le décalage horizontal
+    // pour que la pointe reste alignée sur la tête de la silhouette.
+    const tailLength = Math.min(24, Math.max(10, headTopFromTop - bubbleBottomFromTop));
     bubbleEl.style.setProperty("--tail-length", `${tailLength}px`);
+    bubbleEl.style.setProperty("--tail-shift", `${-jitterX}px`);
   }
 
   rafId = requestAnimationFrame(tick);
 }
 
 export function registerBubble(id, getters) {
-  bubbles.set(id, getters);
+  // Petit jitter dynamique à chaque prise de parole : la bulle se décale
+  // légèrement et tilte un peu, sans partir loin (toujours bien au-dessus
+  // de la tête).
+  const enriched = {
+    ...getters,
+    jitterX: (Math.random() - 0.5) * 24,  // ±12 px
+    jitterY: Math.random() * 14,           // 0..14 px plus haut
+    jitterRot: (Math.random() - 0.5) * 4   // ±2°
+  };
+  bubbles.set(id, enriched);
   if (!rafId && typeof window !== "undefined") {
     rafId = requestAnimationFrame(tick);
   }

@@ -1,4 +1,4 @@
-import { recordSeatMessage, getActiveSeats } from "../../../lib/seatStore.js";
+import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 
@@ -53,7 +53,17 @@ export async function POST(request) {
     return Response.json({ error: "empty message" }, { status: 400 });
   }
 
-  const entry = await recordSeatMessage({ id, nickname, message });
+  // Une seule silhouette active par IP : si cette IP est déjà à un autre
+  // siège (encore "actif" = posté il y a < 60s), on refuse le nouveau post.
+  const existing = await findActiveSeatForIp(ip);
+  if (existing && existing.id !== id) {
+    return Response.json(
+      { error: "already seated", seatId: existing.id },
+      { status: 409 }
+    );
+  }
+
+  const entry = await recordSeatMessage({ id, ip, nickname, message });
   const regulars = await recordRegular({ id, nickname, message });
   return Response.json({ ok: true, entry, regulars });
 }

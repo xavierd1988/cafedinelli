@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { EDIT_MODE } from "../lib/editMode.js";
 
 // Drag handler partagé pour tous les modules.
 // - scaled: true si l'élément est dans .scene-stage (compense le scale de la stage).
@@ -10,8 +11,8 @@ export function useDraggable({ scaled = false, name = null, initialOffset = { x:
   const [dragging, setDragging] = useState(false);
 
   function handleDragStart(e) {
-    // En prod, les modules sont figés à leurs positions bakées : aucun drag possible.
-    if (process.env.NODE_ENV !== "development") return;
+    // Figé par défaut. EDIT_MODE = true uniquement quand on bouge des positions.
+    if (!EDIT_MODE) return;
     // ignore les clics sur des contrôles interactifs
     const tag = (e.target.tagName || "").toLowerCase();
     if (["input", "button", "textarea", "select", "a", "label"].includes(tag)) return;

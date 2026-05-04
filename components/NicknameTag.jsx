@@ -5,6 +5,7 @@ import { useDragScale } from "./useDragScale.js";
 import { useNickname } from "./NicknameContext.jsx";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { useSceneScale } from "./useSceneScale.js";
+import PersonaSettings from "./PersonaSettings.jsx";
 
 export default function NicknameTag() {
   const { nickname, setNickname, loading } = useNickname();
@@ -51,7 +52,7 @@ export default function NicknameTag() {
       data-file="NicknameTag.jsx"
       aria-label="Set your name"
       style={{
-        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x * sceneScale}, ${ds.scale.y * sceneScale}) rotate(-1.4deg)`
+        transform: `translate(-50%, -50%) translate(${ds.offset.x * sceneScale}px, ${ds.offset.y * sceneScale}px) scale(${ds.scale.x * sceneScale}, ${ds.scale.y * sceneScale}) rotate(-1.4deg)`
       }}
     >
       <header
@@ -84,6 +85,7 @@ export default function NicknameTag() {
           </span>
         )}
       </div>
+      <PersonaSettings />
       <span
         className="name-tag-resize"
         onPointerDown={ds.handleResizeStart}

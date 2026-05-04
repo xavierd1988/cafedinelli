@@ -39,7 +39,7 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
       aria-label="Newsletter signup"
       data-file="Receipt.jsx"
       style={{
-        transform: `translate(${offset.x}px, ${offset.y}px) scale(${sceneScale})`,
+        transform: `translate(${offset.x * sceneScale}px, ${offset.y * sceneScale}px) scale(${sceneScale})`,
         transformOrigin: "bottom left"
       }}
       onPointerDown={handleDragStart}

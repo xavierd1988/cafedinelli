@@ -132,7 +132,7 @@ export default function WeatherClock() {
       aria-label="Local time and weather"
       data-file="WeatherClock.jsx"
       style={{
-        transform: `translate(${offset.x}px, ${offset.y}px) scale(${sceneScale})`,
+        transform: `translate(${offset.x * sceneScale}px, ${offset.y * sceneScale}px) scale(${sceneScale})`,
         transformOrigin: "top right"
       }}
       onPointerDown={handleDragStart}

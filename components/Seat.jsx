@@ -4,13 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { registerBubble, unregisterBubble } from "./bubbleManager.js";
 import { useNickname } from "./NicknameContext.jsx";
+import { getPersona, subscribePersona } from "../lib/personaStore.js";
+import { getMySeat, setMySeat } from "../lib/mySeat.js";
 
-const MESSAGE_MS = 15000; // bulle conversation : 15s
-const PERSON_MS = 60000;  // personnage assis : 1 minute
+// Le seat est verrouillé 2 minutes (côté serveur ET client). Pendant tout
+// ce temps la bulle reste visible — elle ne disparaît qu'au départ de la
+// personne (= expiration des 2 min).
+const PERSON_MS = 120000;
+const MESSAGE_MS = PERSON_MS;
 
 export default function Seat({ seat }) {
   const { id, x, seatY, footY } = seat;
   const { nickname } = useNickname();
+  const [persona, setPersonaState] = useState(getPersona());
+  useEffect(() => {
+    setPersonaState(getPersona());
+    return subscribePersona(setPersonaState);
+  }, []);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [activeMessage, setActiveMessage] = useState(seat.message || "");
@@ -25,6 +35,9 @@ export default function Seat({ seat }) {
   // Timestamp du dernier message qu'on a appliqué (local ou remote) — sert
   // à ignorer les ré-applications du même message lors du polling.
   const lastSeenTimestampRef = useRef(0);
+  // Source du dernier message appliqué : "local" si c'est moi, "remote" si
+  // c'est un autre IP. Permet de bloquer les clics sur le tabouret de quelqu'un d'autre.
+  const lastSourceRef = useRef(null);
   const editingRef = useRef(false);
   useEffect(() => { editingRef.current = editing; }, [editing]);
 
@@ -61,6 +74,7 @@ export default function Seat({ seat }) {
       if (mine.timestamp <= lastSeenTimestampRef.current) return;
 
       lastSeenTimestampRef.current = mine.timestamp;
+      lastSourceRef.current = "remote";
       const ageMs = Date.now() - mine.timestamp;
       const messageRemaining = MESSAGE_MS - ageMs;
       const personRemaining = PERSON_MS - ageMs;
@@ -115,26 +129,46 @@ export default function Seat({ seat }) {
   }, [editing]);
 
   function handleClick(e) {
+    // Si je suis déjà assis ailleurs ou ici-occupé-par-un-autre : rien.
+    const mySeatId = getMySeat();
+    const isMine = mySeatId === id;
+    const isAnotherSeatTaken = mySeatId !== null && !isMine;
+    const isRemoteOccupied = showPerson && lastSourceRef.current === "remote";
+    if (isAnotherSeatTaken || isRemoteOccupied) {
+      e.stopPropagation();
+      return;
+    }
     if (editing) return;
     e.stopPropagation();
-    // Re-cliquer sur le seat (ou sa bulle) interrompt le message en cours et
-    // ouvre tout de suite un nouvel input — pas besoin d'attendre les 15s.
     clearTimeout(messageTimerRef.current);
     setActiveMessage("");
     setEditing(true);
     setDraft("");
+    // Silhouette apparaît immédiatement au clic sur le tabouret (avant
+    // même qu'un message soit envoyé). Si l'utilisateur annule, on la
+    // retire dans cancel()/commit() vide.
+    if (!activeNickname) {
+      setActiveNickname(nickname || "anonymous");
+    }
   }
 
   function commit() {
     const trimmed = draft.trim();
     setEditing(false);
-    if (!trimmed) return;
+    if (!trimmed) {
+      // Aucun message → on retire le silhouette qu'on avait fait apparaître
+      // au clic, sauf si une silhouette préexistait (message déjà actif).
+      if (!activeMessage) setActiveNickname("");
+      return;
+    }
 
     const speaker = nickname || "anonymous";
     const ts = Date.now();
     // On marque la dernière timestamp vue à maintenant pour que le polling
     // ne re-applique pas notre propre message dans 1-2s.
     lastSeenTimestampRef.current = ts;
+    lastSourceRef.current = "local";
+    setMySeat(id);
     setActiveMessage(trimmed);
     setActiveNickname(speaker);
 
@@ -155,12 +189,35 @@ export default function Seat({ seat }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, nickname: speaker, message: trimmed })
-    }).catch(() => {});
+    })
+      .then(async (res) => {
+        if (res.status === 409) {
+          // Cette IP est déjà à un autre siège — on annule l'UI locale et on
+          // libère mySeat pour que les autres tabourets restent "non-mine".
+          clearTimeout(messageTimerRef.current);
+          clearTimeout(personTimerRef.current);
+          setActiveMessage("");
+          setActiveNickname("");
+          if (getMySeat() === id) setMySeat(null);
+          lastSourceRef.current = null;
+          return;
+        }
+        // En cas de succès on récupère le timestamp serveur et on l'inscrit
+        // dans lastSeenTimestampRef. Sinon le prochain poll re-applique notre
+        // propre message comme "remote" (server.ts > client.ts par quelques ms).
+        const data = await res.json().catch(() => null);
+        if (data?.entry?.timestamp) {
+          lastSeenTimestampRef.current = data.entry.timestamp;
+        }
+      })
+      .catch(() => {});
   }
 
   function cancel() {
     setEditing(false);
     setDraft("");
+    // Idem cancel : retirer la silhouette si elle n'avait pas de message réel.
+    if (!activeMessage) setActiveNickname("");
   }
 
   function handleKeyDown(e) {
@@ -182,8 +239,20 @@ export default function Seat({ seat }) {
     );
   }, [id, showPerson]);
 
+  // Quand mon propre seat se vide, on libère mySeat pour que je puisse à
+  // nouveau cliquer ailleurs si je veux. Ne touche pas mySeat si quelqu'un
+  // d'autre est assis ici (lastSourceRef === "remote").
+  useEffect(() => {
+    if (!showPerson && lastSourceRef.current === "local") {
+      if (getMySeat() === id) setMySeat(null);
+      lastSourceRef.current = null;
+    }
+  }, [showPerson, id]);
+
   // Enregistre la bulle auprès du manager qui orchestre la position et
-  // l'évitement de collision via une seule boucle RAF.
+  // l'évitement de collision via une seule boucle RAF. On re-enregistre à
+  // chaque nouveau message pour que le manager regénère un jitter aléatoire :
+  // la bulle change de place à chaque prise de parole.
   useEffect(() => {
     if (!showBubble || !bubbleHost) return;
     registerBubble(id, {
@@ -191,7 +260,7 @@ export default function Seat({ seat }) {
       getBubbleEl: () => bubbleRef.current
     });
     return () => unregisterBubble(id);
-  }, [id, showBubble, bubbleHost]);
+  }, [id, showBubble, bubbleHost, activeMessage]);
 
   const bubbleNode = showBubble ? (
     <span
@@ -199,14 +268,13 @@ export default function Seat({ seat }) {
       className={`speech-bubble bubble-shape-${(id % 5) + 1}${isLatest ? " is-latest-bubble" : ""}`}
       onClick={(e) => {
         e.stopPropagation();
-        // Si on n'est pas déjà en édition, un clic sur la bulle relance un
-        // nouvel input — interrompt le message courant.
-        if (!editing) {
-          clearTimeout(messageTimerRef.current);
-          setActiveMessage("");
-          setEditing(true);
-          setDraft("");
-        }
+        // Bulle d'un autre IP : ne rien faire.
+        if (lastSourceRef.current === "remote") return;
+        if (editing) return;
+        clearTimeout(messageTimerRef.current);
+        setActiveMessage("");
+        setEditing(true);
+        setDraft("");
       }}
     >
       {editing ? (
@@ -243,9 +311,18 @@ export default function Seat({ seat }) {
     >
       {bubbleHost && bubbleNode && createPortal(bubbleNode, bubbleHost)}
       {showPerson && (
-        <span className="seat-person" aria-hidden="true">
+        <span
+          className={`seat-person${lastSourceRef.current === "remote" ? " is-remote-occupied" : " seat-person-clickable"} persona-${persona.gender} wig-${persona.gender}-${persona.wig} jacket-${persona.gender}-${persona.jacket} pants-${persona.gender}-${persona.pants} shoes-${persona.gender}-${persona.shoes}`}
+          aria-label={lastSourceRef.current === "remote" ? `Seat ${id} occupied` : `Talk as person at seat ${id}`}
+          role="button"
+          onClick={handleClick}
+        >
+          <span className="person-wig" />
           <span className="person-head" />
           <span className="person-shoulders" />
+          <span className="person-pants" />
+          <span className="person-shoes person-shoes-l" />
+          <span className="person-shoes person-shoes-r" />
         </span>
       )}
       <span className="stool" aria-hidden="true">

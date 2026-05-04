@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { EDIT_MODE } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
@@ -396,7 +397,7 @@ function CornerCurve() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (process.env.NODE_ENV !== "development") return;
+    if (!EDIT_MODE) return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
@@ -457,7 +458,7 @@ function CornerCurve2() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (process.env.NODE_ENV !== "development") return;
+    if (!EDIT_MODE) return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;

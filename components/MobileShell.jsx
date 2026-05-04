@@ -43,6 +43,10 @@ export default function MobileShell() {
   // (sinon une montgolfière par message historique = bordel visuel).
   const seenTimestampsRef = useRef(new Set());
   const initializedRef = useRef(false);
+  // Une seule silhouette par IP — on garde le siège attribué au premier post
+  // pour éviter des 409 sur les posts suivants (sinon le random pickerait
+  // un autre siège et le serveur refuserait).
+  const myStickySeatRef = useRef(null);
   // Dédup par contenu pour les messages qu'on vient d'envoyer localement :
   // le serveur leur donne un timestamp légèrement différent du Date.now()
   // client, donc le poll les redétecterait sinon comme nouveaux.
@@ -144,7 +148,8 @@ export default function MobileShell() {
     const trimmed = chatDraft.trim();
     if (!trimmed || chatBusy) return;
     setChatBusy(true);
-    const seatId = Math.floor(Math.random() * 6) + 1;
+    const seatId =
+      myStickySeatRef.current || Math.floor(Math.random() * 6) + 1;
     const speaker = nickname || "anonymous";
     // spawn local immédiat pour feedback + marque le contenu pour la dédup poll
     const localEntry = { nickname: speaker, message: trimmed, timestamp: Date.now() };
@@ -152,14 +157,29 @@ export default function MobileShell() {
     recentLocalRef.current.set(`${speaker}|${trimmed}`, Date.now());
     spawnBalloon(localEntry);
     try {
-      const res = await fetch("/api/seats", {
+      let res = await fetch("/api/seats", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: seatId, nickname: speaker, message: trimmed })
       });
-      const data = await res.json().catch(() => null);
-      // Marque AUSSI le timestamp serveur comme déjà vu : ceinture+bretelles
-      // si le poll arrive avant que la dédup contenu expire.
+      let data = await res.json().catch(() => null);
+      // Si 409 (cette IP est déjà à un autre siège), on retry sur ce siège-là.
+      if (res.status === 409 && data?.seatId) {
+        myStickySeatRef.current = data.seatId;
+        res = await fetch("/api/seats", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: data.seatId,
+            nickname: speaker,
+            message: trimmed
+          })
+        });
+        data = await res.json().catch(() => null);
+      }
+      if (res.ok && data?.entry?.id) {
+        myStickySeatRef.current = data.entry.id;
+      }
       if (data?.entry?.timestamp) {
         seenTimestampsRef.current.add(data.entry.timestamp);
       }

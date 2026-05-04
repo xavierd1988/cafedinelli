@@ -11,6 +11,7 @@ import Receipt from "./Receipt.jsx";
 import SeatsPoller from "./SeatsPoller.jsx";
 import SoundManager from "./SoundManager.jsx";
 import WeatherClock from "./WeatherClock.jsx";
+import { EDIT_MODE } from "../lib/editMode.js";
 
 function computeMode() {
   const now = new Date();
@@ -21,12 +22,10 @@ function computeMode() {
 
 const seatPositions = [
   { id: 1, x: 700, seatY: 655, footY: 715 },
-  { id: 2, x: 820, seatY: 650, footY: 708, nickname: "window seat",
-    message: "Searches are all recipes, rate cuts, and rain before 8." },
+  { id: 2, x: 820, seatY: 650, footY: 708 },
   { id: 3, x: 940, seatY: 646, footY: 702 },
   { id: 4, x: 1060, seatY: 642, footY: 697 },
-  { id: 5, x: 1180, seatY: 638, footY: 692, nickname: "early reader",
-    message: "Everyone is talking softly about the same three headlines." },
+  { id: 5, x: 1180, seatY: 638, footY: 692 },
   { id: 6, x: 1300, seatY: 634, footY: 688 }
 ];
 
@@ -46,14 +45,14 @@ export default function Homepage() {
   }
 
   const mode = forceMode || autoMode;
-  // Outils de dev (badge "fichier au clic" + bouton export positions) :
-  // visibles uniquement avec `npm run dev`. Strippés du bundle prod par Next.
-  const isDev = process.env.NODE_ENV === "development";
+  // Outils d'édition (badge fichier + export positions) visibles UNIQUEMENT
+  // quand EDIT_MODE est actif. Le reste du temps tout est figé partout
+  // (incluant iPad / touch).
 
   return (
     <NicknameProvider>
       <main
-        className={`homepage is-${mode}${isDev ? "" : " is-frozen"}`}
+        className={`homepage is-${mode}${EDIT_MODE ? "" : " is-frozen"}`}
         aria-label="Dinelli's Cafe homepage"
         data-file="Homepage.jsx"
       >
@@ -68,8 +67,8 @@ export default function Homepage() {
         <MobileShell />
         <SeatsPoller />
         <SoundManager />
-        {isDev && <ModuleNameBadge />}
-        {isDev && <PositionExporter />}
+        {EDIT_MODE && <ModuleNameBadge />}
+        {EDIT_MODE && <PositionExporter />}
       </main>
     </NicknameProvider>
   );

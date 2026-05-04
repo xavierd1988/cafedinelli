@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useDraggable } from "./useDraggable.js";
+import { EDIT_MODE } from "../lib/editMode.js";
 
 // Drag + scale (X et Y indépendants si voulu via le state).
 // Retourne offset, scale, et 2 handlers (drag + resize).
@@ -18,7 +19,7 @@ export function useDragScale({
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (process.env.NODE_ENV !== "development") return;
+    if (!EDIT_MODE) return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;

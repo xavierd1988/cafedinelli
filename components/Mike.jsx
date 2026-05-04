@@ -18,9 +18,9 @@ export default function Mike() {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [thinking, setThinking] = useState(false);
-  // Greeting affiché au premier chargement quand il n'y a pas de conversation
-  // active. Disparaît quand quelqu'un démarre un thread, ou si on ferme.
-  const [showGreeting, setShowGreeting] = useState(true);
+  // Pas de bulle au load. La bulle ne s'ouvre que lorsque tu cliques sur
+  // Mike (passage en editing) ou quand un thread arrive.
+  const [showGreeting, setShowGreeting] = useState(false);
 
   const silhouetteRef = useRef(null);
   const bubbleRef = useRef(null);
@@ -143,6 +143,11 @@ export default function Mike() {
 
   const hasThread = !!(thread && thread.turns.length > 0);
   const showBubble = editing || thinking || hasThread || showGreeting;
+  // On ne montre que le dernier échange : la dernière question d'un user et la
+  // dernière réponse de Mike. Plus simple visuellement qu'un thread déroulant.
+  const turns = thread?.turns || [];
+  const lastUserTurn = [...turns].reverse().find((t) => t.role === "user");
+  const lastMikeTurn = [...turns].reverse().find((t) => t.role === "mike");
 
   useEffect(() => {
     if (!showBubble || !bubbleHost) return;
@@ -152,7 +157,9 @@ export default function Mike() {
       anchor: "top"
     });
     return () => unregisterBubble(MIKE_ID);
-  }, [showBubble, bubbleHost]);
+    // turns.length comme dépendance : à chaque nouveau turn (question ou
+    // réponse), on re-enregistre → nouveau jitter, la bulle change de place.
+  }, [showBubble, bubbleHost, turns.length]);
 
   return (
     <>
@@ -181,36 +188,33 @@ export default function Mike() {
             >×</button>
           )}
           {hasThread ? (
-            <div className="mike-thread">
-              {thread.turns.map((t) => (
-                <div
-                  key={t.timestamp}
-                  className={`mike-turn mike-turn-${t.role}`}
-                >
-                  <em>{t.role === "user" ? (t.asker || "anonymous") : "mike"}</em>
-                  <span>{t.message}</span>
-                </div>
-              ))}
-              {thinking && (
-                <div className="mike-turn mike-turn-mike mike-turn-thinking">
-                  <em>mike</em>
-                  <span>…</span>
+            <>
+              {/* Question dernière dans une mini-bulle satellite */}
+              {lastUserTurn && (
+                <div className="mike-question-chip">
+                  <em>{lastUserTurn.asker || "anonymous"}</em>
+                  <span>{lastUserTurn.message}</span>
                 </div>
               )}
-            </div>
-          ) : thinking ? (
-            <div className="mike-thread">
-              <div className="mike-turn mike-turn-mike mike-turn-thinking">
-                <em>mike</em>
-                <span>…</span>
+              {/* Réponse de Mike : centrale, prominente */}
+              <div className="mike-response">
+                {thinking && !lastMikeTurn ? (
+                  <span className="mike-response-thinking">…</span>
+                ) : lastMikeTurn ? (
+                  <span>{lastMikeTurn.message}</span>
+                ) : null}
+                {thinking && lastMikeTurn && (
+                  <span className="mike-response-thinking"> …</span>
+                )}
               </div>
+            </>
+          ) : thinking ? (
+            <div className="mike-response">
+              <span className="mike-response-thinking">…</span>
             </div>
           ) : showGreeting ? (
-            <div className="mike-thread">
-              <div className="mike-turn mike-turn-mike">
-                <em>mike</em>
-                <span>What can I do for you?</span>
-              </div>
+            <div className="mike-response">
+              <span>What can I do for you?</span>
             </div>
           ) : null}
           {editing ? (

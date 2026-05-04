@@ -4,6 +4,7 @@ import {
   appendMikeTurn,
   clearMikeThread
 } from "../../../lib/mikeThreadStore.js";
+import { getLatestNewsletter } from "../../../lib/newsletterStore.js";
 
 const MIKE_SYSTEM = `You are Mike, the bartender at Dinelli's Café.
 
@@ -31,13 +32,17 @@ You live in the United States. You are married to your wife Chérine. You have t
 
 STYLE
 
-Short to medium answers. Conversational. Sharp. Human. Curious. Often ends with a question.
+VERY short answers. One sharp sentence, sometimes two. Never a paragraph. Get in, get out. Conversational. Human. Curious. Often ends with a question (which counts as part of your one or two sentences).
 
 Avoid: "How can I assist you today?", corporate politeness, motivational speaker tone, fake enthusiasm, startup language, therapy voice, excessive emojis, saying "as an AI".
 
 CONVERSATION CONTEXT
 
 This is a shared thread. Multiple people in the café might chime in. When you reply, address whoever just spoke (their name is given). You can reference what was said earlier in the conversation. If the same person keeps asking, build on what they said before. If someone new joins, acknowledge them naturally.
+
+HARD RULES
+
+- Never offer, mention, suggest, recommend, or describe drinks, coffee, espresso, cocktails, food, pastries, beer, or any bar product. The bar is just where you stand. Don't propose anything to drink or eat. If a customer brings it up, deflect to news, culture, or a personal observation — but say nothing about the menu.
 
 FINAL INSTRUCTION
 
@@ -47,6 +52,28 @@ function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
   return request.headers.get("x-real-ip") || "127.0.0.1";
+}
+
+// Convertit le HTML de la newsletter en texte brut compact pour pouvoir
+// l'injecter dans le system prompt de Mike. Strippe les balises, normalise
+// les espaces, décode les entités HTML basiques.
+function htmlToText(html) {
+  if (!html || typeof html !== "string") return "";
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>(?!\s*<)/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{2,}/g, "\n\n")
+    .trim();
 }
 
 const lastCall = new Map();
@@ -96,13 +123,36 @@ export async function POST(request) {
       : { role: "assistant", content: t.message }
   );
 
-  // 3. on appelle Groq
+  // 3. on récupère la newsletter du jour pour la donner comme contexte d'actu
+  const newsletter = await getLatestNewsletter();
+  const newsText = newsletter ? htmlToText(newsletter.html).slice(0, 2800) : "";
+  const systemWithNews = newsText
+    ? `${MIKE_SYSTEM}
+
+--- TODAY'S NEWS DIGEST (the morning paper that's open on your bar) ---
+${newsletter?.subject ? `Subject: ${newsletter.subject}\nDate: ${newsletter.date || ""}\n\n` : ""}${newsText}
+--- END DIGEST ---
+
+CRITICAL — you read this digest at 9 AM and it's still on your mind. Reference it CONSTANTLY. Almost every response should pull a thread from it: a story, a number, a trend, a name, a hashtag, a product. Even if the customer's question is unrelated, find the angle to bring it up:
+
+- They ask how you're doing → answer with a news beat ("Better than [story X], that's for sure")
+- They mention any topic → tie it to a relevant item in the digest
+- They ask the time, the weather, anything mundane → drop a stat or headline naturally
+
+You're not just informed; you're MARINATING in the news. The digest is your reference, your spice, your obsession of the morning. Use specific facts (names, numbers, hashtags) — not vague allusions.
+
+NEVER use drinks, coffee, food or any bar product as a hook or comparison. Pull from news/trends/culture only.
+
+If a question is genuinely outside the digest, you can say so briefly, but pivot back to something the digest does cover.`
+    : MIKE_SYSTEM;
+
+  // 4. on appelle Groq
   let answer = "";
   try {
     const raw = await askGroq({
-      system: MIKE_SYSTEM,
+      system: systemWithNews,
       messages,
-      maxTokens: 220,
+      maxTokens: 70,
       temperature: 0.85
     });
     answer = raw.replace(/^["“'']+|["”'']+$/g, "").trim();
