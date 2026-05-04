@@ -265,10 +265,50 @@ function UserAvatar() {
   );
 }
 
-// Écran mural au fond de la pièce.
-function WallScreen() {
+// Configuration de la vidéo qui joue sur l'écran mural. Mets l'ID YouTube
+// dans `id` et utilise `start`/`end` (en secondes) pour ne garder qu'un
+// passage. `loop: true` boucle indéfiniment. Le son démarre coupé pour
+// passer le blocage autoplay-with-audio des navigateurs ; un bouton "🔊
+// unmute" apparaît dans le coin pour activer le son d'un clic.
+const VIDEO = {
+  id: "dQw4w9WgXcQ",   // remplace par l'ID YouTube de ton choix
+  start: 0,             // début en secondes (0 = depuis le début)
+  end: null,            // fin en secondes (null = jusqu'à la fin)
+  loop: true            // boucler la vidéo (utile pour un clip court)
+};
+
+function buildVideoSrc({ muted }) {
+  const params = new URLSearchParams({
+    autoplay: "1",
+    mute: muted ? "1" : "0",
+    controls: "0",
+    rel: "0",
+    modestbranding: "1",
+    iv_load_policy: "3",
+    playsinline: "1",
+    start: String(VIDEO.start || 0)
+  });
+  if (VIDEO.end) params.set("end", String(VIDEO.end));
+  if (VIDEO.loop) {
+    params.set("loop", "1");
+    params.set("playlist", VIDEO.id);  // requis par YouTube pour le loop
+  }
+  return `https://www.youtube.com/embed/${VIDEO.id}?${params.toString()}`;
+}
+
+// Écran mural au fond de la pièce. La vidéo n'est mountée que quand
+// `open === true` → fermer la pièce démonte l'iframe et coupe l'audio.
+function WallScreen({ open }) {
+  const [unmuted, setUnmuted] = useState(false);
+
+  // Reset du flag à chaque ouverture (sinon une seconde ouverture
+  // rejouerait avec son sans que l'user ait recliqué unmute).
+  useEffect(() => {
+    if (!open) setUnmuted(false);
+  }, [open]);
+
   return (
-    <div className="sr-screen" aria-hidden="true">
+    <div className="sr-screen">
       <div className="sr-screen-frame" />
       <div className="sr-screen-glow" />
       <div className="sr-screen-content">
@@ -278,105 +318,31 @@ function WallScreen() {
           <span className="sr-screen-pill sr-screen-pill-warn">⚠ DO NOT PANIC</span>
         </header>
 
-        <svg
-          className="sr-screen-map"
-          viewBox="0 0 400 180"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <defs>
-            <radialGradient id="srGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="rgba(80,180,220,0.18)" />
-              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-            </radialGradient>
-          </defs>
-          <rect x="0" y="0" width="400" height="180" fill="url(#srGlow)" />
-
-          {/* "Continents" très approximatifs en blobs */}
-          <path
-            d="M 28 64 Q 56 38, 96 56 Q 132 70, 116 96 Q 92 116, 56 110 Q 22 100, 28 64 Z"
-            fill="rgba(120,200,210,0.26)"
-            stroke="rgba(180,220,230,0.6)"
-            strokeWidth="1"
-          />
-          <path
-            d="M 168 38 Q 220 24, 256 50 Q 280 70, 250 92 Q 210 110, 188 92 Q 158 70, 168 38 Z"
-            fill="rgba(120,200,210,0.26)"
-            stroke="rgba(180,220,230,0.6)"
-            strokeWidth="1"
-          />
-          <path
-            d="M 286 76 Q 322 60, 360 86 Q 380 110, 348 130 Q 314 142, 290 122 Q 268 102, 286 76 Z"
-            fill="rgba(120,200,210,0.26)"
-            stroke="rgba(180,220,230,0.6)"
-            strokeWidth="1"
-          />
-          <path
-            d="M 110 130 Q 130 120, 156 134 Q 168 148, 148 156 Q 122 160, 110 148 Z"
-            fill="rgba(120,200,210,0.26)"
-            stroke="rgba(180,220,230,0.6)"
-            strokeWidth="1"
-          />
-
-          {/* Lignes rouges en pointillés (trajectoires absurdes) */}
-          <path
-            d="M 70 80 Q 180 10, 230 70"
-            fill="none"
-            stroke="#ff3b3b"
-            strokeWidth="1.4"
-            strokeDasharray="4 3"
-          />
-          <path
-            d="M 230 70 Q 280 130, 330 100"
-            fill="none"
-            stroke="#ff3b3b"
-            strokeWidth="1.4"
-            strokeDasharray="4 3"
-          />
-          <path
-            d="M 330 100 Q 200 160, 70 80"
-            fill="none"
-            stroke="#ff3b3b"
-            strokeWidth="1.2"
-            strokeDasharray="2 4"
-            opacity="0.7"
-          />
-
-          {/* Cibles / marqueurs */}
-          <g className="sr-screen-target" transform="translate(70 80)">
-            <circle r="6" fill="none" stroke="#ff3b3b" strokeWidth="1" />
-            <circle r="2" fill="#ff3b3b" />
-          </g>
-          <g className="sr-screen-target" transform="translate(230 70)">
-            <circle r="6" fill="none" stroke="#ff3b3b" strokeWidth="1" />
-            <circle r="2" fill="#ff3b3b" />
-          </g>
-          <g className="sr-screen-target" transform="translate(330 100)">
-            <circle r="6" fill="none" stroke="#ff3b3b" strokeWidth="1" />
-            <circle r="2" fill="#ff3b3b" />
-          </g>
-
-          {/* Coordonnées factices */}
-          <text x="78" y="76" fill="rgba(255,220,200,0.7)" fontSize="6" fontFamily="monospace">
-            48.85N · 2.35E
-          </text>
-          <text x="240" y="66" fill="rgba(255,220,200,0.7)" fontSize="6" fontFamily="monospace">
-            ??.??N · ??.??E
-          </text>
-          <text x="335" y="100" fill="rgba(255,220,200,0.7)" fontSize="6" fontFamily="monospace">
-            MOON-04
-          </text>
-
-          {/* Diagramme "missile" totally fictional */}
-          <g transform="translate(316 24)">
-            <rect x="0" y="0" width="60" height="14" fill="rgba(20,30,40,0.65)" stroke="rgba(255,220,200,0.5)" strokeWidth="0.6" />
-            <line x1="0" y1="3" x2="60" y2="3" stroke="rgba(255,200,170,0.35)" strokeWidth="0.4" />
-            <line x1="0" y1="11" x2="60" y2="11" stroke="rgba(255,200,170,0.35)" strokeWidth="0.4" />
-            <text x="3" y="10" fill="#ffd6c8" fontSize="6" fontFamily="monospace">
-              NUCLEAR-ISH SKETCH
-            </text>
-          </g>
-        </svg>
+        {open && (
+          <>
+            <iframe
+              key={unmuted ? "audio" : "muted"}
+              className="sr-screen-video"
+              src={buildVideoSrc({ muted: !unmuted })}
+              title="Secret meeting briefing"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen={false}
+              loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+            {!unmuted && (
+              <button
+                type="button"
+                className="sr-screen-unmute"
+                onClick={() => setUnmuted(true)}
+                aria-label="Unmute video"
+                title="Unmute"
+              >
+                🔊 click to unmute
+              </button>
+            )}
+          </>
+        )}
 
         <footer className="sr-screen-footer">
           <span className="sr-screen-tag">PHASE 7</span>
@@ -445,7 +411,7 @@ export default function SecretRoom() {
       <div className="sr-stage">
         {/* Mur du fond avec écran encastré */}
         <div className="sr-wall-back" />
-        <WallScreen />
+        <WallScreen open={open} />
         <div className="sr-floor" />
         <div className="sr-haze sr-haze-1" />
         <div className="sr-haze sr-haze-2" />

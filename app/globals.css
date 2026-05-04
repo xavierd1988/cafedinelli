@@ -3308,6 +3308,44 @@ button {
   display: block;
 }
 
+/* Vidéo YouTube qui joue dans la TV. flex:1 prend toute la place entre
+   le header et le footer du screen-content. */
+.sr-screen-video {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: #000;
+}
+
+/* Bouton "🔊 unmute" : posé en overlay sur la vidéo en bas-droite tant
+   que le son n'a pas été activé. Au clic, l'iframe est remontée avec
+   mute=0 et l'audio joue. */
+.sr-screen-unmute {
+  position: absolute;
+  bottom: 38px;        /* au-dessus du footer */
+  right: 12px;
+  background: rgba(20, 6, 4, 0.85);
+  color: #ffe6cc;
+  border: 1px solid rgba(255, 200, 170, 0.5);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  cursor: pointer;
+  z-index: 10;
+  font-family: inherit;
+  animation: sr-pill-blink 1.6s ease-in-out infinite;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+}
+.sr-screen-unmute:hover {
+  background: rgba(80, 16, 10, 0.9);
+  color: #fff;
+  animation: none;
+}
+
 .sr-screen-target {
   animation: sr-target-pulse 1.6s ease-in-out infinite;
   transform-origin: center;

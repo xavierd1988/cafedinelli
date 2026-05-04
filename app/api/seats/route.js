@@ -56,6 +56,12 @@ export async function POST(request) {
   }
   const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
   const message = typeof body?.message === "string" ? body.message.trim() : "";
+  // Persona du visiteur (gender + wardrobe). Optionnel — sera sanitizé
+  // côté seatStore. Permet à chaque client de rendre la silhouette assise
+  // avec les habits de la personne qui parle, pas du visiteur qui regarde.
+  const persona = body?.persona && typeof body.persona === "object"
+    ? body.persona
+    : null;
   if (!message) {
     return Response.json({ error: "empty message" }, { status: 400 });
   }
@@ -70,7 +76,7 @@ export async function POST(request) {
     );
   }
 
-  const entry = await recordSeatMessage({ id, ip, nickname, message });
+  const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
   const regulars = await recordRegular({ id, nickname, message });
   return Response.json({ ok: true, entry, regulars });
 }

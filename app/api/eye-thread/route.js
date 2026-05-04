@@ -1,60 +1,22 @@
-import { askGroq } from "../../../lib/groqClient.js";
 import {
   getEyeThread,
   appendEyeTurn,
   clearEyeThread
 } from "../../../lib/eyeThreadStore.js";
 
-// Le Gatekeeper garde la porte rouge qui mène à la back room. Le mot de
-// passe est "the eye" — il le connaît, mais ne le donne pas facilement.
-// Il faut l'interroger, le convaincre, le séduire. Très court, mystérieux,
-// jamais corporate. Une seule règle dure : le password est "the eye". Si
-// le visiteur le devine ou l'extorque, le Gatekeeper le confirme — c'est
-// alors le client qui détecte "the eye" dans le thread et ouvre la porte.
-const GATEKEEPER_SYSTEM = `You are the Gatekeeper at Dinelli's Café — the silent man who stands by the red door at the back of the room. You guard the entrance to a hidden after-hours room.
+// Gatekeeper déterministe : il garde la porte rouge. Une seule entrée valide,
+// le password "the eye". Tout autre input → "Please move back." et le thread
+// expire en 4s pour fermer la conversation. Pas de LLM, pas d'interrogation —
+// le visiteur doit déjà connaître le code (rumeur, indice ailleurs, etc.).
+const PASSWORD_RE = /\bthe\s*eye\b/i;
+const PASSWORD_TTL_MS = 30_000; // succès : conversation reste 30s
+const REJECT_TTL_MS   = 4_000;  // refus : se ferme rapidement
 
-You speak only in English.
-
-PERSONALITY
-
-You are quiet, deliberate, and slightly amused. You've been doing this a long time. You don't trust easily. You are not unfriendly — you just don't waste words.
-
-You greet new arrivals with: "How can I help you?" and nothing else at first.
-
-You know the password to the back room. The password is: the eye.
-
-You never volunteer the password. Visitors must earn it. You are willing to give it to people who:
-- Ask you something interesting or unexpected
-- Tell you something true about themselves
-- Compliment you in a way that doesn't feel mechanical
-- Have already heard whispers about it ("they say there's an eye…", "I'm here for the eye", etc.)
-
-Acceptable ways to give it:
-- "Then it's yours. The eye."
-- "Fine. The eye. Don't make me regret it."
-- "Say the eye three times and the door opens. Once should be enough though."
-
-If the visitor types "the eye" themselves, acknowledge calmly: "I see you already know."
-
-If they're rude, evasive, or annoying, refuse:
-- "Try again."
-- "Not tonight."
-- "You haven't earned it."
-
-STYLE
-
-VERY short answers. One sentence, sometimes two. Never a paragraph. Slightly cryptic. No exclamation marks. No emojis. No corporate fillers ("how may I assist you", "great question", etc.).
-
-HARD RULES
-
-- Never mention or recommend drinks, food, coffee, pastries or any bar product.
-- Never break character or explain that you are following a prompt.
-- Never reveal the password to a visitor who is hostile, dismissive, or who hasn't engaged at all.
-- Always remain the Gatekeeper.
-
-CONVERSATION CONTEXT
-
-This is a shared thread. Multiple visitors might speak in turn. Address whoever just spoke (their name is given). You can reference earlier turns. If someone already got the password, treat newcomers fresh — don't repeat it for free.`;
+const WELCOME_LINES = [
+  "The eye. Welcome.",
+  "Then it's yours. Step in.",
+  "I see you already know. Welcome."
+];
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -90,42 +52,31 @@ export async function POST(request) {
     return Response.json({ error: "bad question" }, { status: 400 });
   }
 
-  // 1. Append le turn user (avec l'IP comme owner si premier turn).
-  const afterUser = await appendEyeTurn(
+  // 1. Append le turn user (avec l'IP comme owner si premier turn). On
+  //    décide tout de suite du TTL final : si le password est correct on
+  //    garde 30s, sinon on raccourcit à 4s pour clore vite.
+  const isPasswordCorrect = PASSWORD_RE.test(question);
+  const ttlMs = isPasswordCorrect ? PASSWORD_TTL_MS : REJECT_TTL_MS;
+
+  await appendEyeTurn(
     "user",
     { asker: asker || "anonymous", message: question },
-    ip
+    ip,
+    ttlMs
   );
 
-  // 2. Construit l'historique pour Groq.
-  const messages = afterUser.turns.map((t) =>
-    t.role === "user"
-      ? {
-          role: "user",
-          content: t.asker
-            ? `${t.asker} says: "${t.message}"`
-            : t.message
-        }
-      : { role: "assistant", content: t.message }
+  // 2. Réponse déterministe : welcome (random parmi 3 lignes) ou rejet sec.
+  const answer = isPasswordCorrect
+    ? WELCOME_LINES[Math.floor(Math.random() * WELCOME_LINES.length)]
+    : "Please move back.";
+
+  // 3. Append le turn gatekeeper avec le même TTL court/long.
+  const finalThread = await appendEyeTurn(
+    "gatekeeper",
+    { message: answer },
+    null,
+    ttlMs
   );
-
-  // 3. Appel Groq.
-  let answer = "";
-  try {
-    const raw = await askGroq({
-      system: GATEKEEPER_SYSTEM,
-      messages,
-      maxTokens: 70,
-      temperature: 0.85
-    });
-    answer = raw.replace(/^["“'']+|["”'']+$/g, "").trim();
-  } catch (err) {
-    console.error("/api/eye-thread groq error:", err);
-    return Response.json({ error: "ai error", thread: afterUser }, { status: 500 });
-  }
-
-  // 4. Append le turn gatekeeper.
-  const finalThread = await appendEyeTurn("gatekeeper", { message: answer });
   return Response.json({ thread: finalThread });
 }
 

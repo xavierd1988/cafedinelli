@@ -21,6 +21,11 @@ export default function Seat({ seat }) {
     setPersonaState(getPersona());
     return subscribePersona(setPersonaState);
   }, []);
+  // Persona de la personne qui est ASSISE à ce siège (ce que tous les autres
+  // visiteurs doivent voir, pas le persona local). null = pas encore reçu →
+  // on tombe sur le persona local en attendant (utile quand on est en train
+  // de cliquer le tabouret avant que le serveur ait notre message).
+  const [seatPersona, setSeatPersona] = useState(seat.persona || null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [activeMessage, setActiveMessage] = useState(seat.message || "");
@@ -82,6 +87,13 @@ export default function Seat({ seat }) {
       clearTimeout(messageTimerRef.current);
       clearTimeout(personTimerRef.current);
 
+      // On adopte le persona du visiteur qui est assis ici (peut être null
+      // si l'entrée serveur est ancienne et n'avait pas le champ — dans ce
+      // cas on garde le précédent qu'on a, ou on tombe sur DEFAULT).
+      if (mine.persona && typeof mine.persona === "object") {
+        setSeatPersona(mine.persona);
+      }
+
       setActiveNickname(mine.nickname);
       if (messageRemaining > 0) {
         setActiveMessage(mine.message);
@@ -128,6 +140,13 @@ export default function Seat({ seat }) {
     if (editing) inputRef.current?.focus();
   }, [editing]);
 
+  // Quand le siège se vide (personne plus assise → activeNickname = ""),
+  // on oublie le persona qu'on avait stocké pour ce siège. Ça évite que
+  // la prochaine personne qui s'assoit hérite des habits du précédent.
+  useEffect(() => {
+    if (!activeNickname) setSeatPersona(null);
+  }, [activeNickname]);
+
   function handleClick(e) {
     // Si je suis déjà assis ailleurs ou ici-occupé-par-un-autre : rien.
     const mySeatId = getMySeat();
@@ -171,6 +190,9 @@ export default function Seat({ seat }) {
     setMySeat(id);
     setActiveMessage(trimmed);
     setActiveNickname(speaker);
+    // Mon siège m'affiche avec MON persona local — feedback immédiat,
+    // pas besoin d'attendre le prochain poll.
+    setSeatPersona(persona);
 
     window.dispatchEvent(
       new CustomEvent("seat-spoke", {
@@ -188,7 +210,10 @@ export default function Seat({ seat }) {
     fetch("/api/seats", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, nickname: speaker, message: trimmed })
+      // Envoie le persona courant : chaque client rendra ce siège avec
+      // les habits réels de la personne qui parle, pas avec le persona du
+      // visiteur qui regarde.
+      body: JSON.stringify({ id, nickname: speaker, message: trimmed, persona })
     })
       .then(async (res) => {
         if (res.status === 409) {
@@ -310,9 +335,16 @@ export default function Seat({ seat }) {
       }}
     >
       {bubbleHost && bubbleNode && createPortal(bubbleNode, bubbleHost)}
-      {showPerson && (
+      {showPerson && (() => {
+        // Persona réellement utilisé pour rendre la silhouette assise :
+        // - seatPersona si on a une donnée serveur (le persona DE LA PERSONNE
+        //   qui est assise ici, peu importe qui regarde)
+        // - sinon le persona local en fallback (utile pendant l'édition
+        //   avant qu'un message ne soit posté)
+        const p = seatPersona || persona;
+        return (
         <span
-          className={`seat-person${lastSourceRef.current === "remote" ? " is-remote-occupied" : " seat-person-clickable"} persona-${persona.gender} wig-${persona.gender}-${persona.wig} jacket-${persona.gender}-${persona.jacket} pants-${persona.gender}-${persona.pants} shoes-${persona.gender}-${persona.shoes}`}
+          className={`seat-person${lastSourceRef.current === "remote" ? " is-remote-occupied" : " seat-person-clickable"} persona-${p.gender} wig-${p.gender}-${p.wig} jacket-${p.gender}-${p.jacket} pants-${p.gender}-${p.pants} shoes-${p.gender}-${p.shoes}`}
           aria-label={lastSourceRef.current === "remote" ? `Seat ${id} occupied` : `Talk as person at seat ${id}`}
           role="button"
           onClick={handleClick}
@@ -324,7 +356,8 @@ export default function Seat({ seat }) {
           <span className="person-shoes person-shoes-l" />
           <span className="person-shoes person-shoes-r" />
         </span>
-      )}
+        );
+      })()}
       <span className="stool" aria-hidden="true">
         <span className="stool-top" />
         <span className="stool-stem" />
