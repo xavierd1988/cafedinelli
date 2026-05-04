@@ -46,6 +46,15 @@ button {
     linear-gradient(180deg, #050404 0%, #110b0a 54%, #040303 100%);
 }
 
+/* Décalage global : 100% des éléments visibles desktop sont poussés vers
+   la droite (cafe scene complète + modules flottants Receipt / WeatherClock
+   / NicknameTag). Le transform crée un nouveau containing block, donc les
+   enfants en position:fixed se référencent à .desktop-shell transformé et
+   suivent le décalage. */
+.desktop-shell {
+  transform: translate(5mm, 1cm);
+}
+
 /* === MOBILE / DESKTOP SWAP =================================================
    En desktop on rend le café Hopper complet (.desktop-shell).
    En mobile on rend une version empilée (.m-shell : newsletter / chat / mike).
@@ -930,9 +939,16 @@ button {
 .seat-person .person-pants {
   position: absolute;
   left: 50%;
-  bottom: -28px;
+  /* Le haut du pantalon doit toucher / dépasser dans le bas des épaules
+     ET le bas du pantalon doit toucher le haut des chaussures.
+     - shoulders bottom = 0 (du seat-person)
+     - shoes  top       = -47 (-54 bottom + 7 height)
+     → bottom: -48, height: 50 → spans y=-2 à y=-48 → recouvre épaules à
+       haut de 2px et touche bien les chaussures. AUCUN variant ne doit
+       override la height (sinon gap revient). */
+  bottom: -48px;
   width: 30px;
-  height: 26px;
+  height: 50px;
   border-radius: 4px 4px 6px 6px;
   transform: translateX(-50%);
   z-index: 0;
@@ -940,7 +956,7 @@ button {
 }
 .seat-person .person-shoes {
   position: absolute;
-  bottom: -34px;
+  bottom: -54px;
   width: 11px;
   height: 7px;
   border-radius: 50% 50% 30% 30%;
@@ -976,17 +992,19 @@ button {
 .jacket-w-3 .person-shoulders { background: #d878a0; width: 54px; height: 52px; border-radius: 50% 50% 18px 18px; }
 .jacket-w-4 .person-shoulders { background: #1a1a1a; width: 48px; border-radius: 30px 30px 4px 4px; }
 
-/* PANTS — homme */
-.pants-m-1 .person-pants { background: #2a3e5a; width: 28px; height: 28px; }
-.pants-m-2 .person-pants { background: #1a1a1a; width: 28px; height: 28px; }
-.pants-m-3 .person-pants { background: #c4a878; width: 28px; height: 26px; }
-.pants-m-4 .person-pants { background: #5a3a1a; width: 28px; height: 28px; }
+/* PANTS — homme. AUCUNE règle ne doit override `height` (sinon gap entre
+   épaules et jambes). Largeur + couleur uniquement. */
+.pants-m-1 .person-pants { background: #2a3e5a; width: 28px; }
+.pants-m-2 .person-pants { background: #1a1a1a; width: 28px; }
+.pants-m-3 .person-pants { background: #c4a878; width: 28px; }
+.pants-m-4 .person-pants { background: #5a3a1a; width: 28px; }
 
-/* PANTS / SKIRTS — femme */
-.pants-w-1 .person-pants { background: #2a3e5a; width: 28px; height: 26px; }
-.pants-w-2 .person-pants { background: #1a1a1a; width: 38px; height: 28px; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); border-radius: 6px 6px 0 0; }
-.pants-w-3 .person-pants { background: #8a4a5a; width: 32px; height: 28px; clip-path: polygon(15% 0, 85% 0, 95% 100%, 5% 100%); }
-.pants-w-4 .person-pants { background: #f0e8da; width: 24px; height: 28px; }
+/* PANTS / SKIRTS — femme. Pour les jupes (-w-2, -w-3) le clip-path utilise
+   des % donc il s'adapte automatiquement à la nouvelle hauteur 50px. */
+.pants-w-1 .person-pants { background: #2a3e5a; width: 28px; }
+.pants-w-2 .person-pants { background: #1a1a1a; width: 38px; clip-path: polygon(20% 0, 80% 0, 100% 100%, 0 100%); border-radius: 6px 6px 0 0; }
+.pants-w-3 .person-pants { background: #8a4a5a; width: 32px; clip-path: polygon(15% 0, 85% 0, 95% 100%, 5% 100%); }
+.pants-w-4 .person-pants { background: #f0e8da; width: 24px; }
 
 /* SHOES — homme */
 .shoes-m-1 .person-shoes { background: #3a2010; height: 7px; border-radius: 50% 50% 20% 20%; }
@@ -1278,10 +1296,14 @@ button {
    nuit par défaut.
    ============================================================================ */
 
+/* Day mode garde un fond sombre côté .homepage : le décalage du
+   .desktop-shell (transform translate) laisse voir le parent .homepage
+   au bord gauche/haut, on évite ainsi qu'un bandeau bleu apparaisse.
+   Le ciel/bleu reste appliqué seulement à l'intérieur de .scene-stage. */
 .homepage.is-day {
   background:
-    radial-gradient(circle at 70% 28%, rgba(255, 232, 140, 0.55), transparent 42%),
-    linear-gradient(180deg, #88c2e8 0%, #c5dff0 42%, #f5e0c4 100%);
+    radial-gradient(circle at 72% 48%, rgba(173, 87, 37, 0.2), transparent 42%),
+    linear-gradient(180deg, #050404 0%, #110b0a 54%, #040303 100%);
 }
 
 .homepage.is-day .scene-stage {
@@ -1809,8 +1831,8 @@ button {
 /* Hanger horizontal au-dessus avec 2 chaînes */
 .neon-hanger {
   position: absolute;
-  left: -40px;
-  right: -40px;
+  left: 12%;
+  right: 12%;
   top: -70px;
   height: 64px;
   pointer-events: none;
@@ -2365,11 +2387,10 @@ button {
   left: 50%;
   width: 1600px;
   height: 900px;
-  /* overflow:visible pour laisser respirer les éléments qui dépassent
-     verticalement (ex : LeftBuilding qui monte plus haut que la stage
-     pour héberger 3 étages supplémentaires en haut). Le .scene-viewport
-     parent garde overflow:hidden donc le clipping final se fait à la
-     fenêtre du browser. */
+  /* overflow:visible pour laisser respirer le LeftBuilding qui monte
+     200px plus haut que la stage (2 rangées de fenêtres ajoutées en
+     haut). .scene-viewport parent garde overflow:hidden donc le
+     clipping final se fait à la fenêtre du browser. */
   overflow: visible;
   transform-origin: center center;
   background:
@@ -2569,41 +2590,34 @@ button {
 /* === END CAFE UPPER FLOOR ================================================== */
 
 /* === LEFT BUILDING ==========================================================
-   Façade unique côté gauche. .left-building : top:-300, height:1060.
-   Sa box couvre scene y -300 → 760. Le bas reste à 760 (sol), le haut
-   monte 300px plus haut qu'avant pour héberger 3 étages supplémentaires.
-   .scene-stage est en overflow:visible donc la partie au-dessus de scene
-   y=0 reste affichée (clipping fait par .scene-viewport à la fenêtre).
-
-   Layout vertical (top INTERNES dans le bâtiment, +300 par rapport à
-   l'origine) :
-       0       ┌─────────────────────────┐  (= scene y -300)
-      30       │  étage 6 (ajouté, top)  │  (= scene y -270)
-     130       │  étage 5 (ajouté)       │
-     230       │  étage 4 (ajouté)       │
-     330       │  étage 3 (origine)      │  (= scene y 30)
-     430       │  étage 2 (origine)      │
-     530       │  étage 1 (origine)      │
-     600       ├─────────────────────────┤  string-course (bandeau)
-     630       │  vitrine (lb-storefront)│
-     990       ├─────────────────────────┤
-    1060       └─────────────────────────┘  socle (lb-base, scene y 760)
+   Façade unique côté gauche : du haut de l'image au sol.
+   Toutes les classes commencent par .lb-* pour faire bloc.
+   Layout vertical (top dans le bâtiment) :
+     0       ┌─────────────────────────┐
+             │  étage 1 (lb-floor)     │
+     100     │  étage 2 (lb-floor)     │
+     200     │  étage 3 (lb-floor)     │
+     300     ├─────────────────────────┤  string-course (bandeau)
+     330     │  vitrine (lb-storefront)│
+     690     ├─────────────────────────┤
+     760     └─────────────────────────┘  socle (lb-base)
    ============================================================================ */
 
 .left-building {
   position: absolute;
-  left: 0;
-  /* Étendu vers le haut de 300px pour couvrir 3 étages supplémentaires
-     ajoutés au-dessus de la position d'origine. La façade brune monte
-     jusqu'au top du viewport, le bas reste à scene y 760 comme avant. */
-  top: -300px;
-  width: 1600px;
-  height: 1060px;
+  /* Élargi de 3cm vers la gauche : left négatif et width ajustée pour
+     que le bord droit reste à 1600. */
+  left: -3cm;
+  /* Étendu de 200px vers le haut pour héberger 2 rangées de fenêtres
+     supplémentaires au sommet. La façade brune monte avec, le bas reste
+     à scene y 760 comme avant. */
+  top: -200px;
+  width: calc(1600px + 3cm);
+  height: 960px;
   z-index: 4;
   background:
     linear-gradient(90deg, rgba(31, 20, 18, 0.92), rgba(48, 32, 28, 0.9) 55%, rgba(20, 15, 14, 0.94)),
     linear-gradient(180deg, rgba(123, 68, 39, 0.18), transparent 35%);
-  border-left: 2px solid rgba(213, 166, 102, 0.28);
   border-right: 1px solid rgba(213, 166, 102, 0.12);
   border-bottom: 2px solid rgba(222, 144, 73, 0.26);
   box-shadow: inset -36px 0 62px rgba(0, 0, 0, 0.5), 26px 18px 60px rgba(0, 0, 0, 0.55);
@@ -2614,8 +2628,8 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  /* +300 par rapport à l'origine pour compenser le building top:-300. */
-  top: 600px;
+  /* +200 pour compenser le building top:-200. */
+  top: 500px;
   height: 26px;
   background: rgba(5, 4, 4, 0.7);
   border-top: 1px solid rgba(239, 187, 113, 0.34);
@@ -2669,8 +2683,8 @@ button {
 .lb-storefront {
   position: absolute;
   left: 40px;
-  /* +300 par rapport à l'origine pour compenser le building top:-300. */
-  top: 630px;
+  /* +200 pour compenser le building top:-200. */
+  top: 530px;
   width: 620px;
   height: 360px;
   border-top: 1px solid rgba(232, 177, 101, 0.24);
@@ -2718,8 +2732,8 @@ button {
 /* Commerces style old grocery — étage du bas */
 .lb-shop {
   position: absolute;
-  /* +300 par rapport à l'origine pour compenser le building top:-300. */
-  top: 630px;
+  /* +200 pour compenser le building top:-200. */
+  top: 530px;
   width: 140px;
   height: 360px;
   z-index: 5;
@@ -2729,8 +2743,148 @@ button {
     linear-gradient(180deg, rgba(48, 28, 22, 0.92), rgba(20, 12, 10, 0.96));
 }
 
-.lb-shop-a { left: 660px; }
-.lb-shop-b { left: 808px; }
+/* Tous les magasins poussés vers le bout de la rue (extrême gauche du
+   bâtiment). MOTOS contre le bord gauche, FLORIST puis GROCERY suivent
+   à droite avec 20px de gap entre chaque. */
+/* Ordre dans la rue (gauche → droite) : MOTOS, [porte cochère], GROCERY,
+   FLORIST. La porte cochère prend ~100px entre MOTOS et GROCERY. */
+.lb-shop-c { left: calc(150px - 1cm); width: 380px; height: 380px; }
+.lb-shop-a { left: calc(660px - 1cm); width: 250px; }
+.lb-shop-b { left: calc(930px - 1cm); width: 160px; }
+
+/* === PORTE COCHÈRE ========================================================
+   Grande arche en bois sombre type immeuble haussmannien. Mêmes top/height
+   que les shops voisins pour aligner les bases au sol. */
+.lb-porte-cochere {
+  position: absolute;
+  /* Aligné sur les shops : top:530px (= scene y 330) */
+  top: 530px;
+  /* Entre MOTOS (se termine à calc(150-1cm)+380 = calc(530-1cm)) et
+     GROCERY (commence à calc(660-1cm)) — 130px disponibles, on prend
+     110px et on laisse 10px de gap de chaque côté. */
+  left: calc(540px - 1cm);
+  width: 110px;
+  height: 360px;
+  z-index: 5;
+  background: linear-gradient(180deg, #060403 0%, #110906 60%, #050302 100%);
+  border-radius: 55px 55px 0 0;
+  border-left: 3px solid rgba(96, 56, 30, 0.55);
+  border-right: 3px solid rgba(96, 56, 30, 0.55);
+  border-top: 2px solid rgba(140, 88, 48, 0.4);
+  box-shadow:
+    inset 0 0 36px rgba(0, 0, 0, 0.9),
+    inset 0 -10px 14px rgba(255, 200, 120, 0.05);
+}
+
+/* Lueur intérieure faible (cour intérieure éclairée) — compressée
+   en haut de l'arche, juste sous la courbe. */
+.lb-porte-arch-glow {
+  position: absolute;
+  top: 14px;
+  left: 26%;
+  right: 26%;
+  height: 12%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(255, 200, 130, 0.32), transparent 70%);
+  pointer-events: none;
+}
+
+/* Escalier compressé sur la moitié basse de l'arche, en perspective vers
+   le fond (clip-path trapèze). Le sommet débouche sur une porte fermée. */
+.lb-porte-stairs {
+  position: absolute;
+  bottom: 0;
+  left: 4px;
+  right: 4px;
+  height: 40%;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 0;
+  clip-path: polygon(0% 100%, 100% 100%, 76% 0%, 24% 0%);
+  background:
+    linear-gradient(180deg,
+      rgba(255, 200, 120, 0.14) 0%,
+      rgba(38, 22, 14, 0.95) 30%,
+      rgba(8, 5, 4, 0.98) 100%);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.85);
+}
+
+/* 7 marches dans 40% de hauteur → ~5.7% par marche, plus serrées qu'avant */
+.lb-porte-step {
+  width: 100%;
+  height: 14%;
+  background:
+    linear-gradient(180deg,
+      rgba(168, 122, 78, 0.6) 0%,
+      rgba(94, 60, 32, 0.85) 25%,
+      rgba(28, 16, 10, 0.95) 100%);
+  border-top: 1px solid rgba(212, 168, 110, 0.5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.7);
+}
+
+/* Porte fermée en haut de l'escalier (palier intérieur). Plus petite
+   que l'arche externe, perspective oblige. Lueur chaude en bas pour
+   suggérer une lumière sous la porte. */
+.lb-porte-back-door {
+  position: absolute;
+  bottom: 43%;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Élargie pour laisser place à un imposte vitré */
+  width: 58%;
+  height: 45%;
+  background:
+    linear-gradient(180deg,
+      rgba(86, 52, 28, 0.95) 0%,
+      rgba(48, 26, 14, 0.95) 50%,
+      rgba(20, 10, 6, 0.98) 100%),
+    repeating-linear-gradient(180deg,
+      rgba(0, 0, 0, 0.18) 0 12px,
+      transparent 12px 24px);
+  border: 1px solid rgba(40, 22, 12, 0.85);
+  border-top: 1px solid rgba(168, 110, 60, 0.45);
+  border-radius: 4px 4px 0 0;
+  box-shadow:
+    inset 0 -3px 4px rgba(255, 200, 120, 0.18),
+    inset 0 0 6px rgba(0, 0, 0, 0.6),
+    0 -2px 6px rgba(255, 200, 120, 0.08);
+}
+
+/* Vitre sur la moitié haute de la porte : panneau vitré avec lumière
+   chaude qui filtre depuis l'intérieur. Petite croix (croisillon) au
+   centre pour le côté vieux Paris. */
+.lb-porte-back-door::before {
+  content: "";
+  position: absolute;
+  top: 8%;
+  left: 12%;
+  right: 12%;
+  height: 46%;
+  background:
+    linear-gradient(180deg,
+      rgba(255, 220, 150, 0.55) 0%,
+      rgba(255, 195, 120, 0.42) 60%,
+      rgba(190, 130, 70, 0.3) 100%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 230, 165, 0.4), transparent 75%);
+  border: 1px solid rgba(28, 16, 10, 0.9);
+  box-shadow:
+    inset 0 0 6px rgba(255, 200, 120, 0.5),
+    0 0 10px rgba(255, 200, 120, 0.18);
+  /* Croisillon : un trait vertical et un horizontal en pseudo via box-shadow */
+}
+
+/* Petit reflet de poignée doré sur la partie basse (bois) */
+.lb-porte-back-door::after {
+  content: "";
+  position: absolute;
+  bottom: 22%;
+  right: 16%;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #d4a548;
+  box-shadow: 0 0 3px rgba(255, 210, 130, 0.6);
+}
 
 .lb-shop-awning {
   position: absolute;
@@ -2747,6 +2901,11 @@ button {
 
 .lb-shop-awning-alt {
   background: repeating-linear-gradient(90deg, #2c5e3a 0 14px, #f5e0c4 14px 28px);
+}
+
+/* Moto shop — store rouge/noir mécanique */
+.lb-shop-awning-moto {
+  background: repeating-linear-gradient(90deg, #1a1a1a 0 14px, #c8260f 14px 28px);
 }
 
 .lb-shop-sign {
@@ -2803,6 +2962,201 @@ button {
 
 .lb-shop-shelf-top { top: 38%; }
 .lb-shop-shelf-mid { top: 68%; }
+
+/* === MOTOS EN VITRINE =====================================================
+   Silhouettes de motos placées dans la fenêtre de .lb-shop-c. Chaque moto
+   = 2 roues + cadre + réservoir + selle + guidon + fourche. Couleurs
+   sombres/métalliques pour contraster avec la lueur jaune de la vitrine.
+   Vue 3/4 obtenue via perspective + rotateY. La moto de droite est un
+   motocross (overrides via .lb-moto-2) tournée dans l'autre sens. */
+.lb-moto {
+  position: absolute;
+  bottom: 14px;
+  width: 150px;
+  height: 80px;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
+  transform-style: preserve-3d;
+}
+/* Moto 1 (gauche) : classique en vue 3/4 face-droite */
+.lb-moto-1 {
+  left: 16px;
+  transform: perspective(420px) rotateY(22deg);
+}
+/* Moto 2 (droite) : motocross en vue 3/4 face-gauche → scaleX(-1) inverse
+   le sens, le rotateY garde le même angle de perspective. */
+.lb-moto-2 {
+  right: 16px;
+  transform: perspective(420px) scaleX(-1) rotateY(22deg);
+}
+
+.lb-moto-wheel {
+  position: absolute;
+  bottom: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, #555 0 6px, #1a1a1a 7px 14px, #2c2c2c 15px 19px);
+  border: 2px solid #0d0d0d;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.8), 0 0 6px rgba(255, 200, 120, 0.18);
+}
+.lb-moto-wheel-rear  { left: 6px; }
+.lb-moto-wheel-front { right: 6px; }
+
+/* Cadre principal : tube horizontal qui relie le bas de la fourche à la
+   roue arrière (pre-réservoir). */
+.lb-moto-frame {
+  position: absolute;
+  bottom: 22px;
+  left: 30px;
+  right: 30px;
+  height: 4px;
+  background: linear-gradient(90deg, #2a2a2a, #555 50%, #2a2a2a);
+  border-radius: 2px;
+}
+
+/* Réservoir d'essence — trapèze sombre métallique */
+.lb-moto-tank {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-55%);
+  width: 52px;
+  height: 22px;
+  background: linear-gradient(180deg, #c8260f 0%, #6e1004 100%);
+  border-radius: 8px 12px 4px 4px;
+  border: 1px solid #1a0a05;
+  box-shadow: inset 0 -2px 3px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+/* Selle noire derrière le réservoir */
+.lb-moto-seat {
+  position: absolute;
+  bottom: 32px;
+  right: 36px;
+  width: 36px;
+  height: 8px;
+  background: linear-gradient(180deg, #0d0d0d 0%, #2c2c2c 100%);
+  border-radius: 4px 8px 2px 2px;
+  border: 1px solid #050505;
+}
+
+/* Guidon : tige horizontale en haut à l'avant */
+.lb-moto-handle {
+  position: absolute;
+  bottom: 56px;
+  left: 24px;
+  width: 22px;
+  height: 3px;
+  background: #777;
+  border-radius: 2px;
+  box-shadow: -2px 0 0 #444, 2px 0 0 #444;
+}
+
+/* Fourche : barre verticale qui descend du guidon vers la roue avant */
+.lb-moto-fork {
+  position: absolute;
+  bottom: 22px;
+  left: 30px;
+  width: 4px;
+  height: 36px;
+  background: linear-gradient(180deg, #888, #333);
+  border-radius: 2px;
+  transform: rotate(-12deg);
+  transform-origin: bottom center;
+}
+
+/* Moto 1 (à gauche dans la vitrine) — classique rouge */
+.lb-moto-1 .lb-moto-tank {
+  background: linear-gradient(180deg, #c8260f 0%, #6e1004 100%);
+}
+
+/* === MOTOCROSS (.lb-moto-2) ================================================
+   Overrides pour transformer la moto droite en dirt bike : grosses roues
+   crantées, suspension haute, réservoir étroit, selle plate longue, garde-
+   boue surélevé, couleur jaune/noir façon enduro. */
+.lb-moto-2 .lb-moto-wheel {
+  width: 42px;
+  height: 42px;
+  background:
+    radial-gradient(circle at 50% 50%, #555 0 6px, #1a1a1a 7px 14px, #2c2c2c 15px 20px),
+    repeating-conic-gradient(from 0deg,
+      rgba(0, 0, 0, 0.6) 0deg 10deg,
+      transparent 10deg 20deg);
+  border: 2px solid #050505;
+}
+.lb-moto-2 .lb-moto-wheel-rear  { left: 0; }
+.lb-moto-2 .lb-moto-wheel-front { right: 0; }
+
+/* Cadre triangle agressif type enduro */
+.lb-moto-2 .lb-moto-frame {
+  bottom: 30px;
+  left: 36px;
+  right: 36px;
+  height: 3px;
+  background: linear-gradient(90deg, #1a1a1a, #444 50%, #1a1a1a);
+}
+
+/* Réservoir étroit et anguleux jaune fluo */
+.lb-moto-2 .lb-moto-tank {
+  bottom: 34px;
+  width: 36px;
+  height: 18px;
+  background: linear-gradient(180deg, #f4c534 0%, #b88800 100%);
+  border-radius: 6px 4px 2px 2px;
+  border-color: #2a1a05;
+  transform: translateX(-45%) skewX(-8deg);
+}
+
+/* Selle longue et plate */
+.lb-moto-2 .lb-moto-seat {
+  bottom: 40px;
+  right: 30px;
+  width: 50px;
+  height: 6px;
+  background: linear-gradient(180deg, #0d0d0d 0%, #1a1a1a 100%);
+  border-radius: 3px 6px 2px 2px;
+}
+
+/* Guidon haut et large (cross) */
+.lb-moto-2 .lb-moto-handle {
+  bottom: 64px;
+  left: 18px;
+  width: 30px;
+  height: 4px;
+  background: #aaa;
+  box-shadow: -3px 0 0 #555, 3px 0 0 #555;
+}
+
+/* Fourche longue et inclinée pour suspension cross */
+.lb-moto-2 .lb-moto-fork {
+  bottom: 22px;
+  left: 32px;
+  width: 5px;
+  height: 46px;
+  background: linear-gradient(180deg, #d4d4d4, #444);
+  transform: rotate(-20deg);
+}
+
+/* Garde-boue avant haut surélevé : pseudo-element */
+.lb-moto-2::before {
+  content: "";
+  position: absolute;
+  bottom: 60px;
+  left: 6px;
+  width: 36px;
+  height: 4px;
+  background: linear-gradient(90deg, #f4c534, #b88800);
+  border-radius: 8px 4px 0 0;
+  border: 1px solid #2a1a05;
+  transform: rotate(-12deg);
+}
+
+/* Mode jour : motos un peu plus claires pour rester lisibles */
+.homepage.is-day .lb-moto-wheel {
+  background:
+    radial-gradient(circle at 50% 50%, #777 0 6px, #2a2a2a 7px 14px, #444 15px 19px);
+}
 
 .lb-shop-base {
   position: absolute;
@@ -3927,23 +4281,49 @@ button {
 .sr-char {
   position: absolute;
   left: 50%;
-  bottom: 18%;
-  width: 60%;
-  height: 70%;
+  /* 20% plus petit (60% → 48% width / 70% → 56% height) et bottom abaissé
+     de 18% à 12% pour que le bas de la figure colle au coussin (pas de
+     gap entre torse et chaise). */
+  bottom: 12%;
+  width: 48%;
+  height: 56%;
   transform: translateX(-50%);
   pointer-events: none;
 }
 
+/* Torse / épaules — partie supérieure du corps. RECOUVRE le haut des
+   jambes (overlap visuel pour que la silhouette soit continue). */
 .sr-char-shoulders {
   position: absolute;
   left: 50%;
-  bottom: 0;
+  bottom: 14%;
   width: 130%;
-  height: 50%;
+  height: 38%;
   transform: translateX(-50%);
   background: linear-gradient(180deg, #14100e 0%, #0a0707 100%);
-  border-radius: 18px 18px 6px 6px;
+  border-radius: 22px 22px 4px 4px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.55);
+  z-index: 2;
+}
+
+/* Jambes — trapèze qui descend bien sous le torse, plus étroit que les
+   épaules. Le haut des jambes est CACHÉ par le bas du torse (z-index 2 vs
+   1) → la silhouette torso+jambes est visuellement continue, pas de gap.
+   Le bas des jambes descend à -32% du sr-char → atteint le bas du siège
+   et un peu en-dessous, donnant des jambes vraiment longues. */
+.sr-char-legs {
+  position: absolute;
+  left: 50%;
+  bottom: -32%;
+  width: 78%;
+  height: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #14100e 0%, #050303 100%);
+  border-radius: 6px 6px 8px 8px;
+  box-shadow: 0 6px 10px rgba(0, 0, 0, 0.5);
+  /* Petit clip-path : trapèze légèrement effilé en bas (cuisses → mollets) */
+  clip-path: polygon(8% 0, 92% 0, 86% 100%, 14% 100%);
+  z-index: 1;
 }
 
 .sr-char-neck {
@@ -4402,6 +4782,9 @@ button {
 .sr-char-mystic .sr-char-shoulders {
   background: linear-gradient(180deg, #2a1638 0%, #110620 100%);
 }
+.sr-char-mystic .sr-char-legs {
+  background: linear-gradient(180deg, #2a1638 0%, #0a0220 100%);
+}
 .sr-char-mystic .sr-char-head {
   background: radial-gradient(circle at 50% 40%, #f0d6ba 0%, #b08a68 100%);
 }
@@ -4704,6 +5087,83 @@ button {
 }
 /* === END BLACK BACKDROP ==================================================== */
 
+/* === CHECKERED FLOOR (sol damier bordeaux + noir) ========================= */
+.checkered-floor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* z-index 8 : au-dessus de la porte (7), du fond noir et du glass-wrap (6),
+     mais sous le register (18) et le counter cluster (70). */
+  z-index: 8;
+  background-color: #0a0303;
+  /* Damier diagonal (carreaux en losanges) : deux linear-gradients à 45°
+     décalés d'une demi-tile → chaque carreau bordeaux est un losange,
+     fond noir entre les losanges. Taille de tile contrôlée par
+     background-size. */
+  background-image:
+    linear-gradient(45deg, #5a0a07 25%, transparent 25%, transparent 75%, #5a0a07 75%),
+    linear-gradient(45deg, #5a0a07 25%, transparent 25%, transparent 75%, #5a0a07 75%);
+  background-size: 28px 28px;
+  background-position: 0 0, 14px 14px;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 60px rgba(0, 0, 0, 0.55),
+    0 8px 16px rgba(0, 0, 0, 0.55);
+}
+
+.homepage:not(.is-frozen) .checkered-floor {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+.homepage:not(.is-frozen) .checkered-floor.is-dragging {
+  cursor: grabbing;
+}
+
+.checkered-floor-resize-handle {
+  position: absolute;
+  bottom: -10px;
+  right: -10px;
+}
+
+.checkered-floor:hover > .cafe-resize-handle,
+.checkered-floor.is-dragging > .cafe-resize-handle {
+  opacity: 1;
+}
+
+/* Poignée de rotation : top-right, drag circulaire autour du centre. */
+.checkered-floor-rotate-handle {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 220, 170, 0.9);
+  background: rgba(20, 6, 4, 0.9);
+  border: 1px solid rgba(255, 200, 170, 0.55);
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: grab;
+  user-select: none;
+  pointer-events: auto;
+  opacity: 0;
+  transition: opacity 160ms ease;
+  touch-action: none;
+  z-index: 2;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.checkered-floor:hover > .checkered-floor-rotate-handle,
+.checkered-floor.is-dragging > .checkered-floor-rotate-handle {
+  opacity: 1;
+}
+.checkered-floor.is-dragging > .checkered-floor-rotate-handle {
+  cursor: grabbing;
+}
+.is-frozen .checkered-floor-rotate-handle { display: none !important; }
+/* === END CHECKERED FLOOR =================================================== */
+
 /* === SEATS COUNTER (module autonome "X/6 seats taken") ==================== */
 .seats-counter {
   position: absolute;
@@ -4998,6 +5458,460 @@ button {
   transform: translate(0, 62px) scale(0.69, 0.92);
   transform-origin: 1520px center;
 }
+
+/* === NYC TAXI ============================================================
+   Taxi jaune moderne style Ford Escape SUV (boxy/carré), traverse la rue
+   de droite à gauche au clic sur CornerCurve2. z-index 5 → derrière la
+   vitrine. Dimensions : 260×130 (2× plus petit que la version précédente,
+   proportions plus carrées). */
+/* === NYC TAXI ============================================================
+   Crown Victoria-style sedan : long capot bas, cabine basse, coffre court.
+   Front = LEFT (le taxi traverse de droite à gauche, headlight devant). */
+.nyc-taxi {
+  position: absolute;
+  top: 640px;
+  left: 0;
+  width: 300px;
+  height: 130px;
+  z-index: 5;
+  pointer-events: none;
+  transform: translateX(1800px);
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.55));
+}
+
+.nyc-taxi.is-running {
+  animation: taxi-cross 6s linear forwards;
+}
+
+@keyframes taxi-cross {
+  0%   { transform: translateX(1800px); }
+  100% { transform: translateX(-340px); }
+}
+
+/* Carrosserie principale — sedan, basse et longue.
+   Le clip-path donne le profil : capot avant qui s'incline doucement et
+   coffre arrière relevé. */
+.taxi-body {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  height: 42px;
+  background:
+    linear-gradient(180deg,
+      #ffe87a 0%,
+      #ffd400 25%,
+      #f4be00 60%,
+      #c89308 100%);
+  border-radius: 14px 18px 6px 6px;
+  box-shadow:
+    inset 0 -4px 8px rgba(0, 0, 0, 0.32),
+    inset 0 2px 3px rgba(255, 255, 255, 0.32),
+    0 1px 0 rgba(0, 0, 0, 0.45);
+}
+.taxi-body::before {
+  /* sill (bas-de-caisse foncé) */
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 14px;
+  bottom: -8px;
+  height: 10px;
+  background: linear-gradient(180deg, #8a6308 0%, #2c1d04 100%);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+.taxi-body::after {
+  /* highlight haut de carrosserie */
+  content: "";
+  position: absolute;
+  left: 16px;
+  right: 18px;
+  top: 4px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 2px;
+  filter: blur(0.5px);
+}
+
+/* Cabine / greenhouse — toit plat type Crown Victoria : plus rectangulaire
+   et un cran plus bas que la version précédente. Capot et coffre dépassent
+   généreusement à gauche/droite (longue silhouette sedan). */
+.nyc-taxi::before {
+  content: "";
+  position: absolute;
+  bottom: 64px;
+  left: 86px;
+  right: 72px;
+  height: 28px;
+  background:
+    linear-gradient(180deg, #ffe87a 0%, #f4c200 100%);
+  border-radius: 10px 14px 0 0;
+  box-shadow:
+    inset 0 3px 4px rgba(255, 255, 255, 0.32),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 -1px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Pilier B (entre porte avant et arrière) */
+.nyc-taxi::after {
+  content: "";
+  position: absolute;
+  bottom: 70px;
+  left: 168px;
+  width: 3px;
+  height: 22px;
+  background: linear-gradient(180deg, #1a0e08 0%, #050505 100%);
+  border-radius: 1px;
+  z-index: 2;
+}
+
+/* --- Vitres tintées noires --- */
+.taxi-window {
+  position: absolute;
+  bottom: 70px;
+  height: 22px;
+  background:
+    linear-gradient(180deg,
+      rgba(60, 90, 120, 0.85) 0%,
+      rgba(20, 30, 45, 0.94) 60%,
+      rgba(8, 12, 22, 0.96) 100%),
+    radial-gradient(ellipse at 30% 25%, rgba(220, 235, 255, 0.32), transparent 55%);
+  border: 1px solid #1a0e08;
+  box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.22);
+}
+.taxi-window-front {
+  left: 84px;
+  width: 84px;
+  border-radius: 12px 4px 2px 2px;
+  clip-path: polygon(10% 0, 100% 0, 100% 100%, 0% 100%);
+}
+.taxi-window-rear {
+  left: 174px;
+  width: 70px;
+  border-radius: 3px 4px 2px 2px;
+}
+/* Petite vitre quart arrière (triangulaire-ish) */
+.taxi-window-quarter {
+  left: 248px;
+  width: 18px;
+  height: 22px;
+  border-radius: 2px 8px 2px 2px;
+  clip-path: polygon(0 0, 100% 30%, 100% 100%, 0 100%);
+}
+
+/* Chrome trim — fine ligne brillante sous les vitres (Crown Vic detail) */
+.taxi-trim {
+  position: absolute;
+  bottom: 68px;
+  left: 80px;
+  right: 56px;
+  height: 1.5px;
+  background: linear-gradient(180deg, #ffffff 0%, #cfcfcf 50%, #6a6a6a 100%);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Lignes de portes (cuts verticaux entre portes) */
+.taxi-doorline {
+  position: absolute;
+  bottom: 24px;
+  width: 1.5px;
+  height: 38px;
+  background: rgba(0, 0, 0, 0.45);
+  box-shadow: 0.5px 0 0 rgba(255, 230, 100, 0.35);
+}
+.taxi-doorline-front { left: 100px; }
+.taxi-doorline-rear  { left: 170px; }
+
+/* Rétroviseur côté conducteur (sticking out un peu en haut-avant de la cabine) */
+.taxi-mirror {
+  position: absolute;
+  bottom: 88px;
+  left: 76px;
+  width: 8px;
+  height: 6px;
+  background: linear-gradient(180deg, #ffe06a 0%, #c89308 100%);
+  border: 1px solid #1a0e08;
+  border-radius: 1px 1px 50% 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  z-index: 3;
+}
+
+/* Logo "NYC TAXI" sur la porte arrière */
+.taxi-logo {
+  position: absolute;
+  bottom: 38px;
+  left: 178px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-family: "Helvetica Neue", "Inter", sans-serif;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  z-index: 2;
+}
+.taxi-logo-nyc {
+  color: #1a0e08;
+}
+.taxi-logo-mark {
+  background: #1a0e08;
+  color: #ffd400;
+  padding: 1px 2px;
+  border-radius: 1px;
+  font-style: italic;
+}
+.taxi-logo-axi {
+  color: #1a0e08;
+}
+
+/* Numéro de médaillon "5J25" — style timbre carré */
+.taxi-medallion {
+  position: absolute;
+  bottom: 40px;
+  left: 152px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a0e08;
+  font-family: "Courier New", monospace;
+  font-size: 6.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 3px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 1px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+/* Damier checker NYC — stripe horizontal sur tout le flanc */
+.taxi-stripe {
+  position: absolute;
+  bottom: 30px;
+  left: 18px;
+  right: 22px;
+  height: 7px;
+  background:
+    repeating-linear-gradient(90deg,
+      #050505 0 7px,
+      #ffffff 7px 14px);
+  border-top: 1px solid rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.5);
+}
+/* Panneau checker plus dense sur l'aile arrière (référence aux taxis NYC) */
+.taxi-checker-rear {
+  position: absolute;
+  bottom: 38px;
+  right: 22px;
+  width: 36px;
+  height: 16px;
+  background:
+    repeating-conic-gradient(
+      #050505 0% 25%,
+      #ffffff 25% 50%
+    );
+  background-size: 9px 8px;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  z-index: 2;
+}
+
+/* Dôme TAXI sur le toit : housing + light */
+.taxi-rooflight {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 9px;
+  background: linear-gradient(180deg, #1a0e08 0%, #050505 100%);
+  border-radius: 2px 2px 0 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  z-index: 2;
+}
+
+/* TAXI text qui s'affiche sur le dôme (lumière jaune chaude) */
+.taxi-sign {
+  position: absolute;
+  bottom: 99px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #fff5c0 0%, #ffd34a 100%);
+  color: #1a0e08;
+  font-family: "Helvetica Neue", "Inter", sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 1px 6px;
+  border: 1px solid #1a0e08;
+  border-radius: 1px;
+  box-shadow:
+    0 0 10px rgba(255, 220, 100, 0.85),
+    0 0 18px rgba(255, 200, 80, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.25);
+  z-index: 3;
+}
+
+/* Bumpers chrome avant et arrière */
+.taxi-bumper {
+  position: absolute;
+  bottom: 24px;
+  height: 6px;
+  background:
+    linear-gradient(180deg, #f4f4f4 0%, #b8b8b8 50%, #5a5a5a 100%);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+.taxi-bumper-front {
+  left: -2px;
+  width: 22px;
+  border-radius: 4px 1px 2px 4px;
+}
+.taxi-bumper-rear {
+  right: -2px;
+  width: 24px;
+  border-radius: 1px 4px 4px 2px;
+}
+
+/* Phare avant LED dans le bumper */
+.taxi-headlight {
+  position: absolute;
+  bottom: 36px;
+  left: 4px;
+  width: 14px;
+  height: 9px;
+  background: linear-gradient(180deg, #fff8d0 0%, #ffe890 55%, #ffc870 100%);
+  border: 1px solid #1a0e08;
+  border-radius: 5px 2px 2px 4px;
+  box-shadow:
+    0 0 12px rgba(255, 232, 144, 0.92),
+    0 0 22px rgba(255, 200, 100, 0.5),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  z-index: 3;
+}
+
+/* Feu arrière rouge */
+.taxi-taillight {
+  position: absolute;
+  bottom: 36px;
+  right: 5px;
+  width: 11px;
+  height: 8px;
+  background: linear-gradient(180deg, #ff7b5a 0%, #c0260a 55%, #6e1004 100%);
+  border: 1px solid #1a0e08;
+  border-radius: 2px 4px 4px 2px;
+  box-shadow:
+    0 0 6px rgba(255, 100, 60, 0.7),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.3);
+  z-index: 3;
+}
+
+/* Arches de roue (passage de roue sombre) */
+.taxi-arch {
+  position: absolute;
+  bottom: 0;
+  width: 50px;
+  height: 26px;
+  background: #050505;
+  border-radius: 50% 50% 0 0;
+  z-index: 1;
+}
+.taxi-arch-front { left: 36px; }
+.taxi-arch-rear  { right: 36px; }
+
+/* Roues alloy chrome */
+.taxi-wheel {
+  position: absolute;
+  bottom: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%,
+      #c8c8c8 0 4px,
+      #2c2c2c 5px 8px,
+      #1a1a1a 9px 13px,
+      #050505 14px 17px,
+      #1a1a1a 18px 19px),
+    repeating-conic-gradient(from 0deg,
+      rgba(200, 200, 200, 0.55) 0deg 6deg,
+      transparent 6deg 36deg);
+  border: 2.5px solid #050505;
+  box-shadow:
+    inset 0 0 3px rgba(0, 0, 0, 0.75),
+    0 0 5px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+}
+.taxi-wheel-front { left: 43px; }
+.taxi-wheel-rear  { right: 43px; }
+
+/* Grille avant chromée verticale (Crown Vic detail) */
+.taxi-grille {
+  position: absolute;
+  bottom: 32px;
+  left: 16px;
+  width: 8px;
+  height: 14px;
+  background:
+    repeating-linear-gradient(90deg,
+      #2c2c2c 0 1px,
+      #888 1px 2px,
+      #2c2c2c 2px 3px),
+    linear-gradient(180deg, #555 0%, #2a2a2a 100%);
+  border: 1px solid rgba(0, 0, 0, 0.65);
+  border-radius: 1px;
+  z-index: 2;
+}
+
+/* Ligne de capot — sépare la zone du capot du pare-chocs avant.
+   Donne du relief à la longue partie avant. */
+.taxi-hoodline {
+  position: absolute;
+  bottom: 50px;
+  left: 8px;
+  width: 76px;
+  height: 1.5px;
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      rgba(0, 0, 0, 0.55) 30%,
+      rgba(0, 0, 0, 0.55) 100%);
+  z-index: 2;
+}
+
+/* Ligne de coffre — équivalent côté arrière. */
+.taxi-trunkline {
+  position: absolute;
+  bottom: 50px;
+  right: 8px;
+  width: 60px;
+  height: 1.5px;
+  background:
+    linear-gradient(90deg,
+      rgba(0, 0, 0, 0.55) 0%,
+      rgba(0, 0, 0, 0.55) 70%,
+      transparent 100%);
+  z-index: 2;
+}
+
+/* Poignées de portes chromées */
+.taxi-handle {
+  position: absolute;
+  bottom: 50px;
+  width: 8px;
+  height: 2.5px;
+  background: linear-gradient(180deg, #efefef 0%, #b0b0b0 50%, #6a6a6a 100%);
+  border: 0.5px solid rgba(0, 0, 0, 0.55);
+  border-radius: 1px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+}
+.taxi-handle-front { left: 110px; }
+.taxi-handle-rear  { left: 198px; }
+/* === END NYC TAXI ========================================================== */
 
 .cafe-glass {
   position: absolute;
@@ -5348,6 +6262,10 @@ button {
 .silhouette-c {
   left: 560px;
   width: 60px;
+  /* Allongée vers le bas : on diminue bottom (descend plus bas) et on
+     augmente height de la même valeur pour que le haut ne bouge pas. */
+  bottom: 40px;
+  height: 95px;
   transform: scale(0.88);
   transform-origin: bottom center;
   opacity: 0.92;
@@ -5836,50 +6754,49 @@ button {
   text-shadow: 0 0 4px rgba(255, 141, 177, 0.4);
 }
 
-.shelf-recent-title {
-  margin: 0 0 5px;
+/* Compteur "online" — visiteurs actifs sur le site dans les 15 dernières
+   secondes (basé sur le polling /api/seats côté serveur). */
+.shelf-online {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.shelf-online-dot {
+  align-self: center;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5cff8a;
+  box-shadow: 0 0 6px rgba(92, 255, 138, 0.85),
+              0 0 12px rgba(92, 255, 138, 0.45);
+  animation: shelf-online-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes shelf-online-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+.shelf-online-num {
+  font-family: "VT323", monospace;
+  font-size: 32px;
+  color: #ffe4ad;
+  line-height: 1;
+  text-shadow:
+    0 0 6px rgba(255, 184, 74, 0.55),
+    0 0 12px rgba(255, 138, 50, 0.3);
+}
+
+.shelf-online-label {
   color: #ff8db1;
   font-family: "VT323", monospace;
   font-size: 12px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-}
-
-.shelf-recent-empty {
-  margin: 0;
-  color: rgba(255, 232, 192, 0.45);
-  font-family: "VT323", monospace;
-  font-size: 14px;
-}
-
-.shelf-recent ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.shelf-recent li {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding: 3px 6px;
-  font-family: "VT323", monospace;
-  font-size: 14px;
-  color: #ffe4ad;
-  background: rgba(238, 164, 82, 0.08);
-  border-left: 2px solid #f1b268;
-}
-
-.shelf-recent-seat {
-  color: #ffd890;
-  letter-spacing: 0.4px;
-}
-
-.shelf-recent-stamp {
-  font-size: 12px;
-  color: rgba(255, 232, 192, 0.6);
+  text-shadow: 0 0 3px rgba(255, 141, 177, 0.35);
 }
 
 /* Resize handle (au hover du panneau) */
@@ -6191,7 +7108,11 @@ button {
   bottom: 79px;
   width: 58px;
   height: 66px;
-  transform: translateX(-50%);
+  /* +40% pour des silhouettes plus présentes sur les tabourets.
+     transform-origin bottom center → la silhouette grandit vers le haut
+     en restant ancrée sur l'assise. */
+  transform: translateX(-50%) scale(1.4);
+  transform-origin: bottom center;
   z-index: 2;
 }
 

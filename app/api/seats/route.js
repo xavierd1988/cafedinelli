@@ -2,6 +2,8 @@ import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../..
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
+import { recordPresence, getOnlineCount } from "../../../lib/presenceStore.js";
+import { getRedis } from "../../../lib/redis.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -15,11 +17,17 @@ const COOLDOWN_MS = 1000;
 
 export async function GET(request) {
   const ip = getIp(request);
-  const [seats, regulars, mikeRaw, eyeRaw] = await Promise.all([
+  // Record this poll as a presence ping AVANT de lire le compteur,
+  // pour que le visiteur en cours soit déjà compté dans sa propre réponse.
+  await recordPresence(ip);
+
+  const [seats, regulars, mikeRaw, eyeRaw, taxiRaw, online] = await Promise.all([
     getActiveSeats(),
     getRegulars(),
     getMikeThread(),
-    getEyeThread()
+    getEyeThread(),
+    getRedis().get("cafe:taxi:summonedAt"),
+    getOnlineCount()
   ]);
   let mike = null;
   if (mikeRaw) {
@@ -32,7 +40,10 @@ export async function GET(request) {
     const { ownerIp, ...rest } = eyeRaw;
     eye = { ...rest, isYours: ownerIp ? ownerIp === ip : true };
   }
-  return Response.json({ seats, regulars, mike, eye });
+  // taxi : timestamp du dernier "summon-taxi" partagé (TTL 10s côté Redis).
+  const taxiTs = taxiRaw ? Number(taxiRaw) : null;
+  const taxi = Number.isFinite(taxiTs) ? { summonedAt: taxiTs } : null;
+  return Response.json({ seats, regulars, mike, eye, taxi, online });
 }
 
 export async function POST(request) {

@@ -52,12 +52,16 @@ function tick() {
     // Coords en repère scene-stage (non scaled).
     const centerX = (seatRect.left + seatRect.width / 2 - hostRect.left) / scale;
     const seatBottomFromTop = (seatRect.bottom - hostRect.top) / scale;
-    // Haut de la tête : par défaut on suppose un .seat (226px de hauteur,
-    // tête à 145px au-dessus du bas). Pour les éléments dont le rect épouse
-    // déjà la silhouette (Mike), on prend simplement le top du rect.
+    // Haut de la tête au-dessus du bas du .seat.
+    // Calcul : .seat-person est à bottom:79, height:66, et a un
+    // transform:scale(1.4) avec origin bottom center → la silhouette
+    // visuelle s'étire de 79 + 66*1.4 = ~172 px au-dessus du bas du
+    // .seat. On ajoute ~3 px pour être pile sur le haut de la tête.
+    // Pour les éléments dont le rect épouse déjà la silhouette (Mike),
+    // on prend simplement le top du rect via anchor="top".
     const headTopFromTop = info.anchor === "top"
       ? (seatRect.top - hostRect.top) / scale
-      : seatBottomFromTop - 145;
+      : seatBottomFromTop - 175;
 
     const bubbleW = bubbleRect.width / scale;
     const bubbleH = bubbleRect.height / scale;

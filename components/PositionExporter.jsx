@@ -21,7 +21,8 @@ const MODULES = [
   { selector: ".radio-cabinet",                     file: "CafeScene.jsx::RadioCabinet" },
   { selector: ".cafe-door-module",                  file: "CafeDoor.jsx" },
   { selector: ".seats-counter",                     file: "SeatsCounter.jsx" },
-  { selector: ".black-backdrop",                    file: "BlackBackdrop.jsx" }
+  { selector: ".black-backdrop",                    file: "BlackBackdrop.jsx" },
+  { selector: ".checkered-floor",                   file: "CheckeredFloor.jsx" }
 ];
 
 function parseTransform(str = "") {
@@ -56,8 +57,13 @@ export default function PositionExporter() {
       const t = parseTransform(el.style.transform || "");
       positions[file] = t;
       // taille pour les modules dont la width/height est en inline style
-      // (PaperPanel et BlackBackdrop sont resizables sans scale).
-      if (selector === ".paper-panel" || selector === ".black-backdrop") {
+      // (PaperPanel, BlackBackdrop et CheckeredFloor sont resizables
+      // indépendamment de l'échelle).
+      if (
+        selector === ".paper-panel" ||
+        selector === ".black-backdrop" ||
+        selector === ".checkered-floor"
+      ) {
         const w = parseFloat(el.style.width);
         const h = parseFloat(el.style.height);
         if (!isNaN(w)) positions[file].width = w;

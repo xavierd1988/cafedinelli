@@ -232,11 +232,18 @@ function Face() {
   );
 }
 
-// Personnage : archétype rendu en couches CSS (head + accessoires).
+// Personnage : archétype rendu en couches CSS empilées de bas en haut :
+//   sr-char-legs       → trapèze des jambes, descend bien sous le torse
+//   sr-char-torso      → buste/épaules, recouvre le haut des jambes pour
+//                        masquer la jonction (chevauchement = pas de gap)
+//   sr-char-neck       → connecteur peau
+//   sr-char-head       → visage + accessoires d'archétype
+//   sr-char-hands      → mains posées sur la table
 function Character({ archetype }) {
   return (
     <div className={`sr-char sr-char-${archetype}`}>
       <div className="sr-char-back" />
+      <div className="sr-char-legs" />
       <div className="sr-char-shoulders" />
       <div className="sr-char-neck" />
       <div className="sr-char-head">
@@ -256,6 +263,7 @@ function UserAvatar() {
   return (
     <div className="sr-char sr-char-user">
       <div className="sr-char-back" />
+      <div className="sr-char-legs" />
       <div className="sr-char-shoulders" />
       <div className="sr-char-neck" />
       <div className="sr-char-head">

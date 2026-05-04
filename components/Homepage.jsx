@@ -21,13 +21,15 @@ function computeMode() {
   return minutes >= 630 && minutes < 1050 ? "day" : "night";
 }
 
+// Tabourets rallongés : footY repoussé ~40px plus bas par rapport à seatY,
+// ce qui allonge le pied (.stool-stem dont la hauteur = footY - seatY).
 const seatPositions = [
-  { id: 1, x: 700, seatY: 655, footY: 715 },
-  { id: 2, x: 820, seatY: 650, footY: 708 },
-  { id: 3, x: 940, seatY: 646, footY: 702 },
-  { id: 4, x: 1060, seatY: 642, footY: 697 },
-  { id: 5, x: 1180, seatY: 638, footY: 692 },
-  { id: 6, x: 1300, seatY: 634, footY: 688 }
+  { id: 1, x: 700, seatY: 655, footY: 755 },
+  { id: 2, x: 820, seatY: 650, footY: 748 },
+  { id: 3, x: 940, seatY: 646, footY: 742 },
+  { id: 4, x: 1060, seatY: 642, footY: 737 },
+  { id: 5, x: 1180, seatY: 638, footY: 732 },
+  { id: 6, x: 1300, seatY: 634, footY: 728 }
 ];
 
 export default function Homepage() {

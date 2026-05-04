@@ -4,17 +4,6 @@ import { useEffect, useState } from "react";
 import { useDragScale } from "./useDragScale.js";
 import { getModulePosition } from "../lib/modulePositions.js";
 
-function formatStamp(ts) {
-  const d = new Date(ts);
-  const day = String(d.getDate()).padStart(2, "0");
-  const mon = String(d.getMonth() + 1).padStart(2, "0");
-  const h24 = d.getHours();
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  const h12 = h24 % 12 || 12;
-  return `${day}/${mon} · ${h12}:${mm} ${ampm}`;
-}
-
 export default function ShelfPanel() {
   const init = getModulePosition("ShelfPanel");
   const ds = useDragScale({
@@ -24,46 +13,33 @@ export default function ShelfPanel() {
     initialScale: init.scale
   });
 
-  // Compteur global et derniers entrants viennent du serveur (Redis), partagés
-  // entre tous les visiteurs et persistés. Mis à jour via SeatsPoller (~3s)
-  // et bumpés instantanément au commit local pour un feedback immédiat.
+  // - total : nombre cumulé de visiteurs (Redis cafe:regulars:total)
+  // - online : nombre de personnes actives sur le site dans les 15 dernières
+  //   secondes (Redis cafe:presence sorted set, basé sur les polls API).
   const [total, setTotal] = useState(0);
-  const [recent, setRecent] = useState([]);
+  const [online, setOnline] = useState(0);
 
-  // Sync depuis le serveur via le polling.
   useEffect(() => {
     function handler(e) {
       const r = e.detail?.regulars;
-      if (!r) return;
-      if (typeof r.total === "number") setTotal(r.total);
-      if (Array.isArray(r.recent)) setRecent(r.recent);
+      if (r && typeof r.total === "number") setTotal(r.total);
+      if (typeof e.detail?.online === "number") setOnline(e.detail.online);
     }
     window.addEventListener("seats-remote-update", handler);
     return () => window.removeEventListener("seats-remote-update", handler);
   }, []);
 
-  // Bump optimiste au commit local : +1 et insert en tête, en attendant que
-  // le prochain poll vienne reconcilier avec la valeur serveur autoritative.
+  // Bump optimiste au commit local : +1 sur le total tant que le poll serveur
+  // n'est pas remonté (le serveur fait foi ensuite).
   useEffect(() => {
     function handler(e) {
       const detail = typeof e.detail === "object" ? e.detail : null;
-      if (!detail) return;
-      // Les seat-spoke "remote" viennent du polling — le serveur a déjà
-      // incrémenté le total et l'a mis à jour côté Redis. On évite le double comptage.
-      if (detail.source === "remote") return;
+      if (!detail || detail.source === "remote") return;
       setTotal((t) => t + 1);
-      setRecent((prev) =>
-        [
-          { id: detail.id, nickname: detail.nickname, message: detail.message, timestamp: detail.timestamp },
-          ...prev
-        ].slice(0, 20)
-      );
     }
     window.addEventListener("seat-spoke", handler);
     return () => window.removeEventListener("seat-spoke", handler);
   }, []);
-
-  const lastThree = recent.slice(0, 3);
 
   return (
     <section
@@ -84,20 +60,10 @@ export default function ShelfPanel() {
           <span className="shelf-total-num">{total}</span>
           <span className="shelf-total-label">regulars</span>
         </div>
-        <div className="shelf-recent">
-          <p className="shelf-recent-title">Last to join</p>
-          {lastThree.length === 0 ? (
-            <p className="shelf-recent-empty">No one yet…</p>
-          ) : (
-            <ul>
-              {lastThree.map((entry, i) => (
-                <li key={`${entry.id}-${entry.timestamp}-${i}`}>
-                  <span className="shelf-recent-seat">Seat {entry.id}</span>
-                  <span className="shelf-recent-stamp">{formatStamp(entry.timestamp)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="shelf-online">
+          <span className="shelf-online-dot" aria-hidden="true" />
+          <span className="shelf-online-num">{online}</span>
+          <span className="shelf-online-label">{online === 1 ? "online" : "online"}</span>
         </div>
       </div>
       <span

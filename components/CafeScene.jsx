@@ -5,6 +5,7 @@ import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
 import CafeDoor from "./CafeDoor.jsx";
 import CafeSign from "./CafeSign.jsx";
+import CheckeredFloor from "./CheckeredFloor.jsx";
 import Counter from "./Counter.jsx";
 import Gatekeeper from "./Gatekeeper.jsx";
 import InteractiveSilhouette from "./InteractiveSilhouette.jsx";
@@ -145,28 +146,25 @@ const WINDOW_LEFTS = [
   886, 980, 1074, 1168, 1262, 1356, 1450, 1544
 ];
 
-// 6 étages résidentiels. Le building a été étendu vers le haut (CSS
-// top:-300) donc tous les top internes sont décalés de +300 par rapport
-// à la position d'origine en scène. Les 3 nouveaux étages sont en haut
-// (top 30/130/230 = scene y -270/-170/-70), les 3 d'origine en bas
-// (top 330/430/530 = scene y 30/130/230, position d'avant).
+// 5 étages résidentiels. Le building a été étendu de 200px vers le haut
+// (CSS top:-200) donc tous les top internes sont décalés de +200. 2
+// nouvelles rangées au sommet (top 30/130 = scene y -170/-70) et les 3
+// d'origine en bas (top 230/330/430 = scene y 30/130/230).
 const buildingFloors = [
   { top: 30,  windows: WINDOW_LEFTS },
   { top: 130, windows: WINDOW_LEFTS },
   { top: 230, windows: WINDOW_LEFTS },
   { top: 330, windows: WINDOW_LEFTS },
-  { top: 430, windows: WINDOW_LEFTS },
-  { top: 530, windows: WINDOW_LEFTS }
+  { top: 430, windows: WINDOW_LEFTS }
 ];
 
-// pattern damier alterné par étage (6 rangées maintenant).
+// pattern damier alterné par étage (5 rangées)
 const litMap = [
   WINDOW_LEFTS.map((_, i) => i % 2 === 0),
   WINDOW_LEFTS.map((_, i) => i % 2 === 1),
   WINDOW_LEFTS.map((_, i) => i % 2 === 0),
   WINDOW_LEFTS.map((_, i) => i % 2 === 1),
-  WINDOW_LEFTS.map((_, i) => i % 2 === 0),
-  WINDOW_LEFTS.map((_, i) => i % 2 === 1)
+  WINDOW_LEFTS.map((_, i) => i % 2 === 0)
 ];
 
 function LeftBuilding() {
@@ -205,11 +203,55 @@ function LeftBuilding() {
       </div>
       <div className="lb-shop lb-shop-b">
         <div className="lb-shop-awning lb-shop-awning-alt" />
-        <div className="lb-shop-sign">BAKERY</div>
+        <div className="lb-shop-sign">FLORIST</div>
         <div className="lb-shop-window">
           <span className="lb-shop-glow" />
           <span className="lb-shop-shelf lb-shop-shelf-top" />
           <span className="lb-shop-shelf lb-shop-shelf-mid" />
+        </div>
+        <div className="lb-shop-base" />
+      </div>
+      {/* Porte cochère haussmannienne entre MOTOS et GROCERY : arche
+          sombre. On voit un petit escalier compressé qui monte vers
+          une porte en haut (entrée du logement / cour). */}
+      <div className="lb-porte-cochere" aria-hidden="true">
+        <span className="lb-porte-arch-glow" />
+        <span className="lb-porte-back-door" />
+        <span className="lb-porte-stairs">
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+          <span className="lb-porte-step" />
+        </span>
+      </div>
+      <div className="lb-shop lb-shop-c">
+        <div className="lb-shop-awning lb-shop-awning-moto" />
+        <div className="lb-shop-sign">MOTOS</div>
+        <div className="lb-shop-window">
+          <span className="lb-shop-glow" />
+          {/* 2 silhouettes de moto en vitrine. Chaque moto = 2 roues +
+              un cadre + un guidon, positionnée absolue dans la fenêtre. */}
+          <span className="lb-moto lb-moto-1" aria-hidden="true">
+            <span className="lb-moto-wheel lb-moto-wheel-rear" />
+            <span className="lb-moto-wheel lb-moto-wheel-front" />
+            <span className="lb-moto-frame" />
+            <span className="lb-moto-tank" />
+            <span className="lb-moto-seat" />
+            <span className="lb-moto-handle" />
+            <span className="lb-moto-fork" />
+          </span>
+          <span className="lb-moto lb-moto-2" aria-hidden="true">
+            <span className="lb-moto-wheel lb-moto-wheel-rear" />
+            <span className="lb-moto-wheel lb-moto-wheel-front" />
+            <span className="lb-moto-frame" />
+            <span className="lb-moto-tank" />
+            <span className="lb-moto-seat" />
+            <span className="lb-moto-handle" />
+            <span className="lb-moto-fork" />
+          </span>
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -574,6 +616,8 @@ function CornerCurve2() {
   });
   const [scale, setScale] = useState(init.scale);
   const [resizing, setResizing] = useState(false);
+  // Click vs drag detection — clic court sans mouvement = on summon le taxi
+  const downRef = useRef(null);
 
   function handleResizeStart(e) {
     if (!getEditMode()) return;
@@ -600,6 +644,33 @@ function CornerCurve2() {
     window.addEventListener("pointerup", up);
   }
 
+  function handlePointerDown(e) {
+    downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+    handleDragStart(e); // no-op si !EDIT_MODE
+  }
+
+  function handlePointerUp(e) {
+    const start = downRef.current;
+    downRef.current = null;
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    const dt = Date.now() - start.t;
+    if (dx < 5 && dy < 5 && dt < 600) {
+      // Clic court → on déclenche le taxi NYC localement (feedback immédiat)
+      // ET on POST au serveur pour que tous les autres visiteurs voient
+      // aussi le taxi traverser au prochain poll (~3s max).
+      try {
+        window.dispatchEvent(new CustomEvent("summon-taxi"));
+      } catch {
+        /* ignore */
+      }
+      fetch("/api/taxi", { method: "POST" }).catch(() => {
+        /* silencieux : si le réseau est en panne, l'anim locale a au moins joué */
+      });
+    }
+  }
+
   const interacting = dragging || resizing;
 
   return (
@@ -609,7 +680,9 @@ function CornerCurve2() {
       style={{
         transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale.x}, ${scale.y})`
       }}
-      onPointerDown={handleDragStart}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => { downRef.current = null; }}
     >
       <span className="corner-line corner-line-top" />
       <span className="corner-line corner-line-mid" />
@@ -622,6 +695,124 @@ function CornerCurve2() {
       >
         ⤡
       </span>
+    </div>
+  );
+}
+
+// Taxi NYC partagé : traverse de droite à gauche quand un visiteur clique
+// CornerCurve2. La signal arrive de 2 sources :
+//   (1) "summon-taxi" event local (clic immédiat, feedback < 1ms)
+//   (2) seats-remote-update.taxi.summonedAt (autre visiteur a cliqué,
+//       reçu via poll en max ~3s)
+// Pour ne pas re-jouer une anim qu'on a déjà jouée, on track le dernier
+// timestamp affiché via un ref.
+function Taxi() {
+  const [running, setRunning] = useState(false);
+  const ref = useRef(null);
+  const lastShownTsRef = useRef(0);
+
+  function trigger() {
+    setRunning(false);
+    requestAnimationFrame(() => {
+      if (ref.current) void ref.current.offsetWidth; // restart anim
+      setRunning(true);
+    });
+  }
+
+  useEffect(() => {
+    function onSummonLocal() {
+      // Clic local → on note un "now" pour que le poll suivant ne
+      // déclenche pas une anim de plus.
+      lastShownTsRef.current = Date.now();
+      trigger();
+    }
+    function onRemote(e) {
+      const ts = Number(e.detail?.taxi?.summonedAt);
+      if (!Number.isFinite(ts) || ts <= 0) return;
+      if (ts <= lastShownTsRef.current) return; // déjà vu
+      lastShownTsRef.current = ts;
+      trigger();
+    }
+    window.addEventListener("summon-taxi", onSummonLocal);
+    window.addEventListener("seats-remote-update", onRemote);
+    return () => {
+      window.removeEventListener("summon-taxi", onSummonLocal);
+      window.removeEventListener("seats-remote-update", onRemote);
+    };
+  }, []);
+
+  function onAnimEnd() {
+    setRunning(false);
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={`nyc-taxi${running ? " is-running" : ""}`}
+      aria-hidden="true"
+      onAnimationEnd={onAnimEnd}
+      data-file="CafeScene.jsx::Taxi"
+    >
+      {/* Dôme TAXI lumineux sur le toit */}
+      <span className="taxi-rooflight" />
+      <span className="taxi-sign">TAXI</span>
+
+      {/* Carrosserie + greenhouse rendus via .taxi-body (bas) et
+          ::before (cabine vitrée). Vitres = 3 fenêtres : conducteur,
+          porte arrière, et petit quart-arrière triangulaire. */}
+      <span className="taxi-body" />
+      <span className="taxi-window taxi-window-front" />
+      <span className="taxi-window taxi-window-rear" />
+      <span className="taxi-window taxi-window-quarter" />
+
+      {/* Rétroviseur extérieur côté conducteur */}
+      <span className="taxi-mirror" />
+
+      {/* Chrome window trim (fine ligne brillante au bas des vitres) */}
+      <span className="taxi-trim" />
+
+      {/* Lignes de portes (cuts entre portes avant/arrière) */}
+      <span className="taxi-doorline taxi-doorline-front" />
+      <span className="taxi-doorline taxi-doorline-rear" />
+
+      {/* Logo NYC TAXI sur la porte arrière */}
+      <span className="taxi-logo">
+        <span className="taxi-logo-nyc">NYC</span>
+        <span className="taxi-logo-mark">T</span>
+        <span className="taxi-logo-axi">AXI</span>
+      </span>
+
+      {/* Numéro de médaillon (style "5J25 / 525-7253") */}
+      <span className="taxi-medallion">5J25</span>
+
+      {/* Damier checker NYC : stripe le long du flanc + panneau plus dense
+          sur l'aile arrière */}
+      <span className="taxi-stripe" />
+      <span className="taxi-checker-rear" />
+
+      {/* Chrome bumpers avant et arrière */}
+      <span className="taxi-bumper taxi-bumper-front" />
+      <span className="taxi-bumper taxi-bumper-rear" />
+
+      {/* Phares & feux arrière */}
+      <span className="taxi-headlight" />
+      <span className="taxi-taillight" />
+
+      {/* Roues (avec arche noire pour mieux se détacher du sol) */}
+      <span className="taxi-arch taxi-arch-front" />
+      <span className="taxi-arch taxi-arch-rear" />
+      <span className="taxi-wheel taxi-wheel-front" />
+      <span className="taxi-wheel taxi-wheel-rear" />
+
+      {/* Grille avant + ligne de capot pour rapprocher la silhouette
+          d'une Crown Victoria */}
+      <span className="taxi-grille" />
+      <span className="taxi-hoodline" />
+      <span className="taxi-trunkline" />
+
+      {/* Poignées de portes chromées */}
+      <span className="taxi-handle taxi-handle-front" />
+      <span className="taxi-handle taxi-handle-rear" />
     </div>
   );
 }
@@ -724,6 +915,12 @@ export default function CafeScene({ seats }) {
             AVANT le glass dans le DOM pour que le glass paint au-dessus
             quand les z-index sont égaux. */}
         <BlackBackdrop />
+        {/* Sol en damier bordeaux/noir, draggable + resizable. */}
+        <CheckeredFloor />
+        {/* Taxi NYC : traverse la rue de droite à gauche au clic sur
+            CornerCurve2. Posé AVANT le glass dans le DOM + z-index 5
+            pour passer derrière la vitrine. */}
+        <Taxi />
         <div className="cafe-glass-wrap"><CafeGlass /></div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
