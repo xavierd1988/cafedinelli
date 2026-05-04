@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { EDIT_MODE, getEditMode, setEditMode } from "../lib/editMode.js";
+import { getEditMode, setEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
 import CafeDoor from "./CafeDoor.jsx";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
+import Gatekeeper from "./Gatekeeper.jsx";
 import InteractiveSilhouette from "./InteractiveSilhouette.jsx";
 import Mike from "./Mike.jsx";
 import PaperPanel from "./PaperPanel.jsx";
@@ -503,7 +504,7 @@ function CornerCurve() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (!EDIT_MODE) return;
+    if (!getEditMode()) return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
@@ -564,7 +565,7 @@ function CornerCurve2() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (!EDIT_MODE) return;
+    if (!getEditMode()) return;
     e.preventDefault();
     e.stopPropagation();
     const startY = e.clientY;
@@ -659,14 +660,7 @@ function CafeGlass() {
         message="I'm busy working."
       />
       <Mike />
-      <InteractiveSilhouette
-        className="silhouette-c"
-        bubbleId={-3}
-        mode="password"
-        password="the eye"
-        unlockMessage="welcome to the back room"
-        rejectMessage="not tonight."
-      />
+      <Gatekeeper />
       {mullions.map((mullion) => (
         <span
           className="mullion"

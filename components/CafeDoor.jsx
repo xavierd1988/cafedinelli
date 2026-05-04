@@ -70,6 +70,29 @@ export default function CafeDoor() {
           <span className="cafe-door-knob" />
         </div>
       </div>
+      {/* Hotspot intérieur : visible UNIQUEMENT quand la porte est ouverte.
+          Cliquer dispatch "secret-room-open" qui ouvre <SecretRoom />.
+          stopPropagation sur pointerdown pour ne pas déclencher le drag du
+          parent. Position en screen-coords (pas dans .cafe-door-art donc pas
+          de mirror scaleX(-1) à compenser). */}
+      {!closed && (
+        <button
+          type="button"
+          className="cafe-door-enter"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            try {
+              window.dispatchEvent(new CustomEvent("secret-room-open"));
+            } catch {
+              /* SSR / sandbox */
+            }
+          }}
+          aria-label="Enter secret room"
+          title="Enter"
+        />
+      )}
+
       <span
         className="cafe-resize-handle cafe-door-resize-handle"
         onPointerDown={ds.handleResizeStart}

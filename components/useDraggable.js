@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { EDIT_MODE } from "../lib/editMode.js";
+import { getEditMode } from "../lib/editMode.js";
 
 // Drag handler partagé pour tous les modules.
 // - scaled: true si l'élément est dans .scene-stage (compense le scale de la stage).
@@ -11,8 +11,9 @@ export function useDraggable({ scaled = false, name = null, initialOffset = { x:
   const [dragging, setDragging] = useState(false);
 
   function handleDragStart(e) {
-    // Figé par défaut. EDIT_MODE = true uniquement quand on bouge des positions.
-    if (!EDIT_MODE) return;
+    // Figé par défaut. Edit mode runtime, lu via getEditMode() pour
+    // garantir la valeur courante (toggle via la caisse + tape "7").
+    if (!getEditMode()) return;
     // ignore les clics sur des contrôles interactifs
     const tag = (e.target.tagName || "").toLowerCase();
     if (["input", "button", "textarea", "select", "a", "label"].includes(tag)) return;

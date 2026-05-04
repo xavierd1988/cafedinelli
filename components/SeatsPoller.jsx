@@ -23,7 +23,8 @@ export default function SeatsPoller() {
             data?.regulars && typeof data.regulars === "object"
               ? data.regulars
               : { total: 0, recent: [] },
-          mike: data?.mike && typeof data.mike === "object" ? data.mike : null
+          mike: data?.mike && typeof data.mike === "object" ? data.mike : null,
+          eye: data?.eye && typeof data.eye === "object" ? data.eye : null
         };
         window.dispatchEvent(
           new CustomEvent("seats-remote-update", { detail: payload })

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { EDIT_MODE } from "../lib/editMode.js";
+import { getEditMode } from "../lib/editMode.js";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -296,8 +296,8 @@ export default function PaperPanel() {
   }
 
   function handleDragStart(e) {
-    // Gelé sauf en EDIT_MODE — comme tous les autres modules désormais.
-    if (!EDIT_MODE) return;
+    // Gelé sauf en edit mode runtime — comme tous les autres modules.
+    if (!getEditMode()) return;
     e.preventDefault();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("module-click", { detail: "PaperPanel (Résumé Tendances)" }));
@@ -326,7 +326,7 @@ export default function PaperPanel() {
   }
 
   function handleResizeStart(e) {
-    if (!EDIT_MODE) return;
+    if (!getEditMode()) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;

@@ -8,6 +8,7 @@ import { NicknameProvider } from "./NicknameContext.jsx";
 import NicknameTag from "./NicknameTag.jsx";
 import PositionExporter from "./PositionExporter.jsx";
 import Receipt from "./Receipt.jsx";
+import SecretRoom from "./SecretRoom.jsx";
 import SeatsPoller from "./SeatsPoller.jsx";
 import SoundManager from "./SoundManager.jsx";
 import WeatherClock from "./WeatherClock.jsx";
@@ -70,6 +71,10 @@ export default function Homepage() {
         <MobileShell />
         <SeatsPoller />
         <SoundManager />
+        {/* Pièce secrète plein écran. Reste invisible tant que le hotspot
+            "secret-room-open" (intérieur de CafeDoor en état ouvert) n'est
+            pas cliqué. Top-level pour passer au-dessus de tous les modules. */}
+        <SecretRoom />
         {editMode && <ModuleNameBadge />}
         {/* Bouton save : caché en mode figé, visible uniquement en edit mode. */}
         {editMode && <PositionExporter />}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { EDIT_MODE } from "../lib/editMode.js";
+import { getEditMode } from "../lib/editMode.js";
 
 // Fond noir plein, draggable en position et resizable en hauteur (et
 // largeur via la même poignée). Posé à z-index 6, donc juste au niveau
@@ -20,7 +20,7 @@ export default function BlackBackdrop() {
   const [resizing, setResizing] = useState(false);
 
   function handleResizeStart(e) {
-    if (!EDIT_MODE) return;
+    if (!getEditMode()) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
