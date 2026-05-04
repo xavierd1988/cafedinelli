@@ -11,7 +11,7 @@ import Receipt from "./Receipt.jsx";
 import SeatsPoller from "./SeatsPoller.jsx";
 import SoundManager from "./SoundManager.jsx";
 import WeatherClock from "./WeatherClock.jsx";
-import { EDIT_MODE } from "../lib/editMode.js";
+import { useEditMode } from "../lib/editMode.js";
 
 function computeMode() {
   const now = new Date();
@@ -33,6 +33,9 @@ export default function Homepage() {
   const [autoMode, setAutoMode] = useState("night");
   // null = AUTO (suit l'heure), "night" = forcé nuit, "day" = forcé jour
   const [forceMode, setForceMode] = useState(null);
+  // Edit mode est runtime, activé via la caisse (clic + tape "7"). Persiste
+  // en localStorage. useEditMode est réactif → re-render sur toggle.
+  const editMode = useEditMode();
 
   useEffect(() => {
     setAutoMode(computeMode());
@@ -45,14 +48,14 @@ export default function Homepage() {
   }
 
   const mode = forceMode || autoMode;
-  // Outils d'édition (badge fichier + export positions) visibles UNIQUEMENT
-  // quand EDIT_MODE est actif. Le reste du temps tout est figé partout
-  // (incluant iPad / touch).
+  // Outils d'édition (badge fichier + bouton save layout) visibles UNIQUEMENT
+  // en edit mode. Le reste du temps tout est figé partout (incluant iPad /
+  // touch). Pour activer l'edit mode : clic sur la caisse → tape "7".
 
   return (
     <NicknameProvider>
       <main
-        className={`homepage is-${mode}${EDIT_MODE ? "" : " is-frozen"}`}
+        className={`homepage is-${mode}${editMode ? "" : " is-frozen"}`}
         aria-label="Dinelli's Cafe homepage"
         data-file="Homepage.jsx"
       >
@@ -67,8 +70,9 @@ export default function Homepage() {
         <MobileShell />
         <SeatsPoller />
         <SoundManager />
-        {EDIT_MODE && <ModuleNameBadge />}
-        {EDIT_MODE && <PositionExporter />}
+        {editMode && <ModuleNameBadge />}
+        {/* Bouton save : caché en mode figé, visible uniquement en edit mode. */}
+        {editMode && <PositionExporter />}
       </main>
     </NicknameProvider>
   );

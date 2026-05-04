@@ -18,7 +18,10 @@ const MODULES = [
   { selector: ".corner-curve:not(.corner-curve-2)", file: "CafeScene.jsx::CornerCurve" },
   { selector: ".corner-curve-2",                    file: "CafeScene.jsx::CornerCurve2" },
   { selector: ".cash-register",                     file: "CafeScene.jsx::CashRegister" },
-  { selector: ".radio-cabinet",                     file: "CafeScene.jsx::RadioCabinet" }
+  { selector: ".radio-cabinet",                     file: "CafeScene.jsx::RadioCabinet" },
+  { selector: ".cafe-door-module",                  file: "CafeDoor.jsx" },
+  { selector: ".seats-counter",                     file: "SeatsCounter.jsx" },
+  { selector: ".black-backdrop",                    file: "BlackBackdrop.jsx" }
 ];
 
 function parseTransform(str = "") {
@@ -52,8 +55,9 @@ export default function PositionExporter() {
       }
       const t = parseTransform(el.style.transform || "");
       positions[file] = t;
-      // taille pour PaperPanel (resizable)
-      if (selector === ".paper-panel") {
+      // taille pour les modules dont la width/height est en inline style
+      // (PaperPanel et BlackBackdrop sont resizables sans scale).
+      if (selector === ".paper-panel" || selector === ".black-backdrop") {
         const w = parseFloat(el.style.width);
         const h = parseFloat(el.style.height);
         if (!isNaN(w)) positions[file].width = w;
@@ -79,8 +83,8 @@ export default function PositionExporter() {
 
   return (
     <div className="position-exporter">
-      <button type="button" onClick={exportPositions}>
-        📋 Export positions ({getDeviceClass()})
+      <button type="button" onClick={exportPositions} title="Save current drag/sizing to clipboard">
+        💾 Save layout ({getDeviceClass()})
       </button>
       {status && <span className="position-exporter-status">{status}</span>}
     </div>

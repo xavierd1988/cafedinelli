@@ -36,14 +36,10 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
         className={`counter-copy is-drag-handle${isDragging ? " is-dragging" : ""}`}
         onPointerDown={onDragStart}
       >
-        <p id="counter-title">At the Counter</p>
-        <strong>
-          {count}/{total} seats taken
-        </strong>
-        <span>
-          {isFull
-            ? "The counter is full — come back soon."
-            : "Click a seat to leave a thought"}
+        <p className="counter-eyebrow" id="counter-title">At the Counter</p>
+        <strong className="counter-num">{count}/{total} seats taken</strong>
+        <span className="counter-sub">
+          {isFull ? "The counter is full — come back soon." : "Click a seat to leave a thought"}
         </span>
         {onResizeStart && (
           <span

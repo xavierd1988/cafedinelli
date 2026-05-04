@@ -1,11 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { EDIT_MODE } from "../lib/editMode.js";
+import { EDIT_MODE, getEditMode, setEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
+import BlackBackdrop from "./BlackBackdrop.jsx";
+import CafeDoor from "./CafeDoor.jsx";
 import CafeSign from "./CafeSign.jsx";
 import Counter from "./Counter.jsx";
+import InteractiveSilhouette from "./InteractiveSilhouette.jsx";
 import Mike from "./Mike.jsx";
 import PaperPanel from "./PaperPanel.jsx";
+import SeatsCounter from "./SeatsCounter.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
@@ -348,16 +352,88 @@ function CashRegister() {
     initialOffset: init.offset,
     initialScale: init.scale
   });
+  // Keypad caché qui apparaît au clic. "7" toggle l'edit mode.
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [keypadValue, setKeypadValue] = useState("");
+  const [feedback, setFeedback] = useState(null); // null | "ok" | "reject"
+  const downRef = useRef(null);
+  const inputRef = useRef(null);
+  const closeTimerRef = useRef(null);
+
+  // Distinguer click vs drag : on track pointerdown/up et on n'ouvre le
+  // keypad que si pas de mouvement.
+  function handlePointerDown(e) {
+    downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+    ds.handleDragStart(e); // no-op si !EDIT_MODE
+  }
+
+  function handlePointerUp(e) {
+    const start = downRef.current;
+    downRef.current = null;
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    const dt = Date.now() - start.t;
+    if (dx < 5 && dy < 5 && dt < 600) {
+      setKeypadOpen(true);
+      setKeypadValue("");
+      setFeedback(null);
+    }
+  }
+
+  // Auto-focus l'input quand le keypad ouvre.
+  useEffect(() => {
+    if (keypadOpen) {
+      inputRef.current?.focus();
+      // Auto-close si rien tapé en 6s.
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = setTimeout(() => {
+        setKeypadOpen(false);
+        setFeedback(null);
+        setKeypadValue("");
+      }, 6000);
+    }
+    return () => clearTimeout(closeTimerRef.current);
+  }, [keypadOpen]);
+
+  function submitKeypad(e) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    const v = keypadValue.trim();
+    if (v === "7") {
+      // Toggle : si déjà en edit mode, désactive ; sinon active.
+      setEditMode(!getEditMode());
+      setFeedback("ok");
+    } else {
+      setFeedback("reject");
+    }
+    setKeypadValue("");
+    clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setKeypadOpen(false);
+      setFeedback(null);
+    }, 900);
+  }
+
+  function closeKeypad(e) {
+    e?.stopPropagation();
+    clearTimeout(closeTimerRef.current);
+    setKeypadOpen(false);
+    setFeedback(null);
+    setKeypadValue("");
+  }
 
   return (
     <div
-      className={`cash-register${ds.interacting ? " is-dragging" : ""}`}
+      className={`cash-register${ds.interacting ? " is-dragging" : ""}${keypadOpen ? " is-keypad-open" : ""}`}
       data-file="CafeScene.jsx::CashRegister"
       style={{
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px) scale(${ds.scale.x}, ${ds.scale.y})`,
         transformOrigin: "center center"
       }}
-      onPointerDown={ds.handleDragStart}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => { downRef.current = null; }}
     >
       {/* Meuble en bois (base) */}
       <div className="cr-cabinet">
@@ -367,7 +443,37 @@ function CashRegister() {
       {/* Caisse enregistreuse posée dessus */}
       <div className="cr-body">
         <div className="cr-display">
-          <span className="cr-display-text">$ 4.50</span>
+          {keypadOpen ? (
+            <form
+              className="cr-keypad-form"
+              onSubmit={submitKeypad}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                ref={inputRef}
+                className="cr-keypad-input"
+                type="text"
+                inputMode="numeric"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                value={keypadValue}
+                onChange={(e) => setKeypadValue(e.target.value.replace(/\D/g, "").slice(0, 3))}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") closeKeypad(e);
+                  e.stopPropagation();
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                placeholder="—"
+                maxLength={3}
+              />
+            </form>
+          ) : (
+            <span className="cr-display-text">
+              {feedback === "ok" ? "OK" : feedback === "reject" ? "ERR" : "$ 4.50"}
+            </span>
+          )}
         </div>
         <div className="cr-keys">
           {Array.from({ length: 12 }).map((_, i) => (
@@ -546,9 +652,21 @@ function CafeGlass() {
         <span />
         <span />
       </div>
-      <div className="inside-silhouette silhouette-a" />
+      <InteractiveSilhouette
+        className="silhouette-a"
+        bubbleId={-2}
+        mode="message"
+        message="I'm busy working."
+      />
       <Mike />
-      <div className="inside-silhouette silhouette-c" />
+      <InteractiveSilhouette
+        className="silhouette-c"
+        bubbleId={-3}
+        mode="password"
+        password="the eye"
+        unlockMessage="welcome to the back room"
+        rejectMessage="not tonight."
+      />
       {mullions.map((mullion) => (
         <span
           className="mullion"
@@ -597,6 +715,10 @@ export default function CafeScene({ seats }) {
         <div className="street-haze" />
         <DistantSkyline />
         <LeftBuilding />
+        {/* Fond noir (z-index 6, même niveau que .cafe-glass-wrap). Rendu
+            AVANT le glass dans le DOM pour que le glass paint au-dessus
+            quand les z-index sont égaux. */}
+        <BlackBackdrop />
         <div className="cafe-glass-wrap"><CafeGlass /></div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
@@ -608,9 +730,14 @@ export default function CafeScene({ seats }) {
         </div>
         <CornerCurve />
         <CornerCurve2 />
-        <CashRegister />
+        {/* Porte AVANT register/radio dans le DOM : door doit passer derrière
+            le register (z-index 10 vs 18). Garder cet ordre — sinon en cas de
+            cache CSS le DOM order ferait remonter la porte par-dessus. */}
+        <CafeDoor />
         <RadioCabinet />
+        <CashRegister />
         <CafeSign />
+        <SeatsCounter />
         <PaperPanel />
         <ShelfPanel />
         <div className="street-base" aria-hidden="true" />
