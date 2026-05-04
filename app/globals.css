@@ -1455,15 +1455,18 @@ button {
 .is-frozen .neon-resize-handle,
 .is-frozen .neon-rotate-handle,
 .is-frozen .corner-resize-handle,
-.is-frozen .counter-resize-handle,
-.is-frozen .paper-resize-handle,
-.is-frozen .paper-drag-hint {
+.is-frozen .counter-resize-handle {
   display: none !important;
 }
-/* En mode figé, plus aucun module n'est manipulable — y compris PaperPanel.
-   L'edit mode est activé via la caisse-enregistreuse (clic + tape "7"). */
+/* EXCEPTION : le PaperPanel (Trend Summary) reste draggable et resizable
+   même en mode figé. Le visiteur peut déplacer la newsletter et ajuster
+   sa taille pour la lire confortablement — c'est le seul module qui
+   survit au gel global. */
 .is-frozen .paper-masthead {
-  cursor: default;
+  cursor: grab;
+}
+.is-frozen .paper-masthead.is-dragging {
+  cursor: grabbing;
 }
 
 /* Les inputs/boutons à l'intérieur d'un draggable gardent leur curseur */

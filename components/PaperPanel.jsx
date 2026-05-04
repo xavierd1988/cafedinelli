@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { getEditMode } from "../lib/editMode.js";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -296,8 +295,9 @@ export default function PaperPanel() {
   }
 
   function handleDragStart(e) {
-    // Gelé sauf en edit mode runtime — comme tous les autres modules.
-    if (!getEditMode()) return;
+    // EXCEPTION : le PaperPanel (Trend Summary) reste draggable même en
+    // mode figé. Le visiteur peut déplacer la newsletter pour la lire à
+    // l'aise — c'est le seul module qui survit au gel global.
     e.preventDefault();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("module-click", { detail: "PaperPanel (Résumé Tendances)" }));
@@ -326,7 +326,7 @@ export default function PaperPanel() {
   }
 
   function handleResizeStart(e) {
-    if (!getEditMode()) return;
+    // Resize toujours actif — exception explicite au gel global.
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;
