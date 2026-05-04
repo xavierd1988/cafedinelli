@@ -265,19 +265,41 @@ function UserAvatar() {
   );
 }
 
-// Configuration de la vidéo qui joue sur l'écran mural. Mets l'ID YouTube
-// dans `id` et utilise `start`/`end` (en secondes) pour ne garder qu'un
-// passage. `loop: true` boucle indéfiniment. Le son démarre coupé pour
-// passer le blocage autoplay-with-audio des navigateurs ; un bouton "🔊
-// unmute" apparaît dans le coin pour activer le son d'un clic.
+// Configuration de la vidéo qui joue sur l'écran mural.
+// `segments` = 10 morceaux du clip — à chaque ouverture de la pièce ET à
+// chaque fin de segment, on en pioche un au hasard (en évitant de
+// re-jouer le même 2 fois d'affilée). Modifie les start/end (en
+// secondes) pour ajuster les passages.
 const VIDEO = {
-  id: "dQw4w9WgXcQ",   // remplace par l'ID YouTube de ton choix
-  start: 0,             // début en secondes (0 = depuis le début)
-  end: null,            // fin en secondes (null = jusqu'à la fin)
-  loop: true            // boucler la vidéo (utile pour un clip court)
+  id: "APq749_MvRA",
+  segments: [
+    { start: 8,   end: 26  },
+    { start: 32,  end: 52  },
+    { start: 60,  end: 80  },
+    { start: 95,  end: 118 },
+    { start: 130, end: 150 },
+    { start: 165, end: 185 },
+    { start: 200, end: 222 },
+    { start: 240, end: 262 },
+    { start: 280, end: 300 },
+    { start: 320, end: 342 }
+  ]
 };
 
-function buildVideoSrc({ muted }) {
+function pickRandomSegment(prev) {
+  const list = VIDEO.segments;
+  if (list.length <= 1) return list[0];
+  let next = list[Math.floor(Math.random() * list.length)];
+  // Évite de re-piocher le même segment juste après.
+  let safety = 0;
+  while (prev && next === prev && safety < 6) {
+    next = list[Math.floor(Math.random() * list.length)];
+    safety += 1;
+  }
+  return next;
+}
+
+function buildVideoSrc({ muted, segment }) {
   const params = new URLSearchParams({
     autoplay: "1",
     mute: muted ? "1" : "0",
@@ -286,26 +308,42 @@ function buildVideoSrc({ muted }) {
     modestbranding: "1",
     iv_load_policy: "3",
     playsinline: "1",
-    start: String(VIDEO.start || 0)
+    start: String(segment.start),
+    end: String(segment.end)
   });
-  if (VIDEO.end) params.set("end", String(VIDEO.end));
-  if (VIDEO.loop) {
-    params.set("loop", "1");
-    params.set("playlist", VIDEO.id);  // requis par YouTube pour le loop
-  }
   return `https://www.youtube.com/embed/${VIDEO.id}?${params.toString()}`;
 }
 
 // Écran mural au fond de la pièce. La vidéo n'est mountée que quand
 // `open === true` → fermer la pièce démonte l'iframe et coupe l'audio.
+//
+// Cycle des segments : à l'ouverture, un segment random est choisi.
+// Quand sa durée s'écoule (via setTimeout aligné sur end-start),
+// on en pioche un nouveau et l'iframe est remontée → enchaînement
+// random sans intervention.
 function WallScreen({ open }) {
   const [unmuted, setUnmuted] = useState(false);
+  const [segment, setSegment] = useState(() => pickRandomSegment());
 
-  // Reset du flag à chaque ouverture (sinon une seconde ouverture
-  // rejouerait avec son sans que l'user ait recliqué unmute).
+  // Reset audio + nouveau segment random à chaque ouverture.
   useEffect(() => {
-    if (!open) setUnmuted(false);
+    if (!open) {
+      setUnmuted(false);
+      return;
+    }
+    setSegment((prev) => pickRandomSegment(prev));
   }, [open]);
+
+  // Quand le segment courant arrive à terme, on en pioche un autre.
+  // setTimeout calé sur (end - start) secondes + petite marge.
+  useEffect(() => {
+    if (!open || !segment) return;
+    const ms = Math.max(2000, (segment.end - segment.start) * 1000 + 250);
+    const id = setTimeout(() => {
+      setSegment((prev) => pickRandomSegment(prev));
+    }, ms);
+    return () => clearTimeout(id);
+  }, [open, segment]);
 
   return (
     <div className="sr-screen">
@@ -318,12 +356,12 @@ function WallScreen({ open }) {
           <span className="sr-screen-pill sr-screen-pill-warn">⚠ DO NOT PANIC</span>
         </header>
 
-        {open && (
+        {open && segment && (
           <>
             <iframe
-              key={unmuted ? "audio" : "muted"}
+              key={`${segment.start}-${segment.end}-${unmuted ? "a" : "m"}`}
               className="sr-screen-video"
-              src={buildVideoSrc({ muted: !unmuted })}
+              src={buildVideoSrc({ muted: !unmuted, segment })}
               title="Secret meeting briefing"
               allow="autoplay; encrypted-media; picture-in-picture"
               allowFullScreen={false}

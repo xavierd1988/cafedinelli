@@ -2365,7 +2365,12 @@ button {
   left: 50%;
   width: 1600px;
   height: 900px;
-  overflow: hidden;
+  /* overflow:visible pour laisser respirer les éléments qui dépassent
+     verticalement (ex : LeftBuilding qui monte plus haut que la stage
+     pour héberger 3 étages supplémentaires en haut). Le .scene-viewport
+     parent garde overflow:hidden donc le clipping final se fait à la
+     fenêtre du browser. */
+  overflow: visible;
   transform-origin: center center;
   background:
     radial-gradient(ellipse at 69% 39%, rgba(240, 150, 66, 0.22), transparent 34%),
@@ -2564,25 +2569,36 @@ button {
 /* === END CAFE UPPER FLOOR ================================================== */
 
 /* === LEFT BUILDING ==========================================================
-   Façade unique côté gauche : du haut de l'image au sol.
-   Toutes les classes commencent par .lb-* pour faire bloc.
-   Layout vertical (top dans le bâtiment) :
-     0       ┌─────────────────────────┐
-             │  étage 1 (lb-floor)     │
-     100     │  étage 2 (lb-floor)     │
-     200     │  étage 3 (lb-floor)     │
-     300     ├─────────────────────────┤  string-course (bandeau)
-     330     │  vitrine (lb-storefront)│
-     690     ├─────────────────────────┤
-     760     └─────────────────────────┘  socle (lb-base)
+   Façade unique côté gauche. .left-building : top:-300, height:1060.
+   Sa box couvre scene y -300 → 760. Le bas reste à 760 (sol), le haut
+   monte 300px plus haut qu'avant pour héberger 3 étages supplémentaires.
+   .scene-stage est en overflow:visible donc la partie au-dessus de scene
+   y=0 reste affichée (clipping fait par .scene-viewport à la fenêtre).
+
+   Layout vertical (top INTERNES dans le bâtiment, +300 par rapport à
+   l'origine) :
+       0       ┌─────────────────────────┐  (= scene y -300)
+      30       │  étage 6 (ajouté, top)  │  (= scene y -270)
+     130       │  étage 5 (ajouté)       │
+     230       │  étage 4 (ajouté)       │
+     330       │  étage 3 (origine)      │  (= scene y 30)
+     430       │  étage 2 (origine)      │
+     530       │  étage 1 (origine)      │
+     600       ├─────────────────────────┤  string-course (bandeau)
+     630       │  vitrine (lb-storefront)│
+     990       ├─────────────────────────┤
+    1060       └─────────────────────────┘  socle (lb-base, scene y 760)
    ============================================================================ */
 
 .left-building {
   position: absolute;
   left: 0;
-  top: 0;
+  /* Étendu vers le haut de 300px pour couvrir 3 étages supplémentaires
+     ajoutés au-dessus de la position d'origine. La façade brune monte
+     jusqu'au top du viewport, le bas reste à scene y 760 comme avant. */
+  top: -300px;
   width: 1600px;
-  height: 760px;
+  height: 1060px;
   z-index: 4;
   background:
     linear-gradient(90deg, rgba(31, 20, 18, 0.92), rgba(48, 32, 28, 0.9) 55%, rgba(20, 15, 14, 0.94)),
@@ -2598,7 +2614,8 @@ button {
   position: absolute;
   left: 0;
   right: 0;
-  top: 300px;
+  /* +300 par rapport à l'origine pour compenser le building top:-300. */
+  top: 600px;
   height: 26px;
   background: rgba(5, 4, 4, 0.7);
   border-top: 1px solid rgba(239, 187, 113, 0.34);
@@ -2613,7 +2630,8 @@ button {
   height: 70px;
 }
 
-/* Fenêtre type étage résidentiel */
+/* Fenêtre type étage résidentiel — taille d'origine, 6 étages stackés
+   verticalement (3 originaux + 3 ajoutés au-dessus en top négatif). */
 .lb-window {
   position: absolute;
   top: 0;
@@ -2651,7 +2669,8 @@ button {
 .lb-storefront {
   position: absolute;
   left: 40px;
-  top: 330px;
+  /* +300 par rapport à l'origine pour compenser le building top:-300. */
+  top: 630px;
   width: 620px;
   height: 360px;
   border-top: 1px solid rgba(232, 177, 101, 0.24);
@@ -2699,7 +2718,8 @@ button {
 /* Commerces style old grocery — étage du bas */
 .lb-shop {
   position: absolute;
-  top: 330px;
+  /* +300 par rapport à l'origine pour compenser le building top:-300. */
+  top: 630px;
   width: 140px;
   height: 360px;
   z-index: 5;

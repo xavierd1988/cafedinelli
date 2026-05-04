@@ -145,17 +145,28 @@ const WINDOW_LEFTS = [
   886, 980, 1074, 1168, 1262, 1356, 1450, 1544
 ];
 
+// 6 étages résidentiels. Le building a été étendu vers le haut (CSS
+// top:-300) donc tous les top internes sont décalés de +300 par rapport
+// à la position d'origine en scène. Les 3 nouveaux étages sont en haut
+// (top 30/130/230 = scene y -270/-170/-70), les 3 d'origine en bas
+// (top 330/430/530 = scene y 30/130/230, position d'avant).
 const buildingFloors = [
   { top: 30,  windows: WINDOW_LEFTS },
   { top: 130, windows: WINDOW_LEFTS },
-  { top: 230, windows: WINDOW_LEFTS }
+  { top: 230, windows: WINDOW_LEFTS },
+  { top: 330, windows: WINDOW_LEFTS },
+  { top: 430, windows: WINDOW_LEFTS },
+  { top: 530, windows: WINDOW_LEFTS }
 ];
 
-// pattern damier alterné par étage
+// pattern damier alterné par étage (6 rangées maintenant).
 const litMap = [
   WINDOW_LEFTS.map((_, i) => i % 2 === 0),
   WINDOW_LEFTS.map((_, i) => i % 2 === 1),
-  WINDOW_LEFTS.map((_, i) => i % 2 === 0)
+  WINDOW_LEFTS.map((_, i) => i % 2 === 0),
+  WINDOW_LEFTS.map((_, i) => i % 2 === 1),
+  WINDOW_LEFTS.map((_, i) => i % 2 === 0),
+  WINDOW_LEFTS.map((_, i) => i % 2 === 1)
 ];
 
 function LeftBuilding() {
