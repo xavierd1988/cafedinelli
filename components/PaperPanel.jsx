@@ -296,7 +296,8 @@ export default function PaperPanel() {
   }
 
   function handleDragStart(e) {
-    if (!EDIT_MODE) return;
+    // Le PaperPanel reste interactif même quand le reste est figé : les
+    // visiteurs peuvent déplacer la newsletter pour lire confortablement.
     e.preventDefault();
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("module-click", { detail: "PaperPanel (Résumé Tendances)" }));
@@ -325,7 +326,6 @@ export default function PaperPanel() {
   }
 
   function handleResizeStart(e) {
-    if (!EDIT_MODE) return;
     e.preventDefault();
     e.stopPropagation();
     const startX = e.clientX;

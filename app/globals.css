@@ -1445,15 +1445,17 @@ button {
 .is-frozen .neon-resize-handle,
 .is-frozen .neon-rotate-handle,
 .is-frozen .corner-resize-handle,
-.is-frozen .counter-resize-handle,
-.is-frozen .paper-resize-handle,
-.is-frozen .paper-drag-hint {
+.is-frozen .counter-resize-handle {
   display: none !important;
 }
-/* En mode figé, plus aucun curseur "grab" — y compris sur PaperPanel. */
-.is-frozen .paper-masthead,
-.is-frozen .paper-panel.is-draggable {
-  cursor: default;
+/* PaperPanel reste manipulable même en mode figé : le visiteur peut le
+   déplacer (drag par le masthead) et le redimensionner (poignée bottom-right)
+   pour lire la newsletter confortablement. */
+.is-frozen .paper-masthead {
+  cursor: grab;
+}
+.is-frozen .paper-masthead.is-dragging {
+  cursor: grabbing;
 }
 
 /* Les inputs/boutons à l'intérieur d'un draggable gardent leur curseur */
