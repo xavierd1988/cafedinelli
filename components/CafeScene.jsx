@@ -12,7 +12,6 @@ import Gatekeeper from "./Gatekeeper.jsx";
 import InteractiveSilhouette from "./InteractiveSilhouette.jsx";
 import Mike from "./Mike.jsx";
 import PaperPanel from "./PaperPanel.jsx";
-import SeatsCounter from "./SeatsCounter.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
@@ -1179,7 +1178,6 @@ export default function CafeScene({ seats }) {
         <RadioCabinet />
         <CashRegister />
         <CafeSign />
-        <SeatsCounter />
         <PaperPanel />
         <ShelfPanel />
         <div className="street-base" aria-hidden="true" />

@@ -404,6 +404,9 @@ function WallScreen({ open }) {
 export default function SecretRoom() {
   const [open, setOpen] = useState(false);
   const [userSeatId, setUserSeatId] = useState(null);
+  // Sièges remote partagés via Redis. Reçus via SeatsPoller (seats-remote-update.secretRoom).
+  // Format : [{ seatId, nickname, persona, timestamp, isYours? }]
+  const [remoteSeats, setRemoteSeats] = useState([]);
 
   useEffect(() => {
     function onOpen() {
@@ -411,6 +414,16 @@ export default function SecretRoom() {
     }
     window.addEventListener("secret-room-open", onOpen);
     return () => window.removeEventListener("secret-room-open", onOpen);
+  }, []);
+
+  // Sync des sièges secret-room via le poll global (3s).
+  useEffect(() => {
+    function handler(e) {
+      const arr = Array.isArray(e.detail?.secretRoom) ? e.detail.secretRoom : [];
+      setRemoteSeats(arr);
+    }
+    window.addEventListener("seats-remote-update", handler);
+    return () => window.removeEventListener("seats-remote-update", handler);
   }, []);
 
   useEffect(() => {
@@ -430,11 +443,20 @@ export default function SecretRoom() {
   function close() {
     setOpen(false);
     setUserSeatId(null);
+    // Libère le siège côté serveur si on en occupait un.
+    fetch("/api/secret-room", { method: "DELETE" }).catch(() => {});
   }
 
   function takeSeat(id, e) {
     e.stopPropagation();
     setUserSeatId(id);
+    // Partage côté serveur : POST /api/secret-room. La liste sera
+    // mise à jour côté tous les visiteurs au prochain poll (~3s).
+    fetch("/api/secret-room", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seatId: id })
+    }).catch(() => { /* silencieux */ });
   }
 
   return (
@@ -492,17 +514,33 @@ export default function SecretRoom() {
           </div>
         ))}
 
-        {/* Sièges vides cliquables */}
+        {/* Sièges visiteurs cliquables. Si un visiteur (autre IP) est
+            assis, on affiche son avatar + nickname. Si c'est nous, on
+            montre le UserAvatar + bulle. Sinon le siège est libre. */}
         {EMPTY_SEATS.map((s) => {
           const isUser = userSeatId === s.id;
+          const remote = remoteSeats.find(
+            (r) => r.seatId === s.id && !isUser
+          );
           return (
             <button
               type="button"
               key={s.id}
-              className={`sr-seat sr-seat-empty${isUser ? " is-user" : ""}`}
+              className={
+                `sr-seat sr-seat-empty` +
+                (isUser ? " is-user" : "") +
+                (remote ? " is-occupied-remote" : "")
+              }
               style={{ left: `${s.x}%`, top: `${s.y}%` }}
-              onClick={(e) => takeSeat(s.id, e)}
-              aria-label={isUser ? "Your seat" : "Sit here"}
+              onClick={(e) => !remote && takeSeat(s.id, e)}
+              disabled={!!remote}
+              aria-label={
+                isUser
+                  ? "Your seat"
+                  : remote
+                  ? `${remote.nickname} is here`
+                  : "Sit here"
+              }
             >
               <div className="sr-chair">
                 <div className="sr-chair-back" />
@@ -513,6 +551,13 @@ export default function SecretRoom() {
                   <UserAvatar />
                   <span className="sr-user-bubble">
                     I probably shouldn’t be here.
+                  </span>
+                </>
+              ) : remote ? (
+                <>
+                  <UserAvatar />
+                  <span className="sr-user-bubble">
+                    {remote.nickname || "anonymous"}
                   </span>
                 </>
               ) : (
