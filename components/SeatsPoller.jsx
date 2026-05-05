@@ -2,46 +2,139 @@
 
 import { useEffect } from "react";
 
-const POLL_INTERVAL_MS = 3000;
+// =============================================================================
+// REAL-TIME STATE BUS — SSE-first, polling fallback
+// =============================================================================
+// Source de vérité unique pour tout l'état partagé du café :
+//   1. On essaie d'ouvrir une connexion SSE persistante (/api/stream).
+//      Le serveur push les changements en sub-seconde, sans polling client.
+//   2. Si SSE échoue (réseau, proxy qui coupe, env qui supporte mal SSE),
+//      on retombe automatiquement sur le polling /api/seats toutes les Xs.
+//   3. EventSource (natif browser) gère la reconnexion automatique quand
+//      Vercel ferme la connexion à ~25s — invisible côté UX.
+//
+// L'API publique reste identique : on dispatche `seats-remote-update` sur
+// window, donc tous les composants existants (Seat, Mike, Gatekeeper,
+// LeftBuilding, ShelfPanel, SecretRoom, Taxi, etc.) continuent de marcher
+// sans aucune modif.
+// =============================================================================
 
-// Singleton qui interroge /api/seats toutes les 3s et dispatch un évènement
-// "seats-remote-update" écouté par chaque Seat.jsx. Permet aux clients de
-// voir les messages postés par d'autres visiteurs sans refresh.
+const FALLBACK_POLL_INTERVAL_MS = 6000;
+// Si on n'a pas reçu un seul message SSE depuis ce délai, on considère que
+// la connexion est foireuse et on bascule en polling fallback.
+const SSE_HEALTH_TIMEOUT_MS = 35_000;
+
+function dispatchPayload(data) {
+  if (!data || typeof data !== "object") return;
+  const payload = {
+    seats: Array.isArray(data.seats) ? data.seats : [],
+    regulars:
+      data.regulars && typeof data.regulars === "object"
+        ? data.regulars
+        : { total: 0, recent: [] },
+    mike: data.mike && typeof data.mike === "object" ? data.mike : null,
+    eye: data.eye && typeof data.eye === "object" ? data.eye : null,
+    taxi: data.taxi && typeof data.taxi === "object" ? data.taxi : null,
+    online: typeof data.online === "number" ? data.online : 0,
+    secretRoom: Array.isArray(data.secretRoom) ? data.secretRoom : []
+  };
+  window.dispatchEvent(
+    new CustomEvent("seats-remote-update", { detail: payload })
+  );
+}
+
 export default function SeatsPoller() {
   useEffect(() => {
     let cancelled = false;
-    let timer;
+    let es = null;
+    let pollTimer = null;
+    let healthTimer = null;
+    let lastMessageAt = Date.now();
 
-    async function tick() {
-      try {
-        const res = await fetch("/api/seats", { cache: "no-store" });
-        const data = await res.json();
+    function startFallbackPolling() {
+      // Plan B : polling /api/seats. Plus lent, plus cher en Redis, mais
+      // ça marche partout. On augmente l'intervalle pour économiser.
+      async function tick() {
         if (cancelled) return;
-        const payload = {
-          seats: Array.isArray(data?.seats) ? data.seats : [],
-          regulars:
-            data?.regulars && typeof data.regulars === "object"
-              ? data.regulars
-              : { total: 0, recent: [] },
-          mike: data?.mike && typeof data.mike === "object" ? data.mike : null,
-          eye: data?.eye && typeof data.eye === "object" ? data.eye : null,
-          taxi: data?.taxi && typeof data.taxi === "object" ? data.taxi : null,
-          online: typeof data?.online === "number" ? data.online : 0,
-          secretRoom: Array.isArray(data?.secretRoom) ? data.secretRoom : []
-        };
-        window.dispatchEvent(
-          new CustomEvent("seats-remote-update", { detail: payload })
-        );
-      } catch {
-        // silencieux : pas la peine de faire pleurer l'UI sur un blip réseau
+        try {
+          const res = await fetch("/api/seats", { cache: "no-store" });
+          const data = await res.json();
+          if (!cancelled) dispatchPayload(data);
+        } catch {
+          // silencieux : reseau temporairement HS
+        }
+        if (!cancelled) pollTimer = setTimeout(tick, FALLBACK_POLL_INTERVAL_MS);
       }
-      if (!cancelled) timer = setTimeout(tick, POLL_INTERVAL_MS);
+      tick();
     }
 
-    tick();
+    function startSSE() {
+      try {
+        es = new EventSource("/api/stream");
+      } catch {
+        // EventSource non supporté (très vieux browser) → fallback direct
+        startFallbackPolling();
+        return;
+      }
+
+      es.addEventListener("snapshot", (e) => {
+        lastMessageAt = Date.now();
+        try { dispatchPayload(JSON.parse(e.data)); } catch { /* ignore */ }
+      });
+
+      es.addEventListener("state", (e) => {
+        lastMessageAt = Date.now();
+        try { dispatchPayload(JSON.parse(e.data)); } catch { /* ignore */ }
+      });
+
+      // "bye" : le serveur ferme proprement avant le timeout Vercel.
+      // EventSource va reconnecter tout seul, on n'a rien à faire.
+      es.addEventListener("bye", () => {
+        // no-op — le navigateur reconnecte tout seul
+      });
+
+      es.onerror = () => {
+        // EventSource gère la reconnexion automatique sur les erreurs
+        // transitoires. On ne fait rien ici sauf si la santé du flux
+        // dépasse SSE_HEALTH_TIMEOUT_MS (vérifié dans le health check).
+      };
+
+      // Health check : si pas de message reçu depuis SSE_HEALTH_TIMEOUT_MS,
+      // on ferme SSE et on bascule en polling fallback définitif.
+      healthTimer = setInterval(() => {
+        if (Date.now() - lastMessageAt > SSE_HEALTH_TIMEOUT_MS) {
+          if (es) {
+            try { es.close(); } catch {}
+            es = null;
+          }
+          clearInterval(healthTimer);
+          healthTimer = null;
+          if (!cancelled) startFallbackPolling();
+        }
+      }, 5000);
+    }
+
+    // Visibility : quand l'onglet est en background longtemps, certains
+    // navigateurs throttlent EventSource. À chaque retour foreground, on
+    // s'assure d'avoir au moins une lecture fraîche.
+    function onVisible() {
+      if (document.visibilityState === "visible" && !es && !pollTimer) {
+        // Si on est mort, redémarre proprement
+        startSSE();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    startSSE();
+
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      if (es) {
+        try { es.close(); } catch {}
+      }
+      if (pollTimer) clearTimeout(pollTimer);
+      if (healthTimer) clearInterval(healthTimer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

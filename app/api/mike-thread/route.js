@@ -5,6 +5,7 @@ import {
   clearMikeThread
 } from "../../../lib/mikeThreadStore.js";
 import { getLatestNewsletter } from "../../../lib/newsletterStore.js";
+import { invalidateCafeState } from "../../../lib/stateStore.js";
 
 const MIKE_SYSTEM = `You are Mike, the bartender at Dinelli's Café.
 
@@ -110,6 +111,7 @@ export async function POST(request) {
     { asker: asker || "anonymous", message: question },
     ip
   );
+  invalidateCafeState();
 
   // 2. on construit l'historique pour Groq (alternance user/assistant)
   const messages = afterUser.turns.map((t) =>
@@ -163,6 +165,7 @@ If a question is genuinely outside the digest, you can say so briefly, but pivot
 
   // 4. on append le turn mike
   const finalThread = await appendMikeTurn("mike", { message: answer });
+  invalidateCafeState();
   return Response.json({ thread: finalThread });
 }
 
@@ -177,5 +180,6 @@ export async function DELETE(request) {
     );
   }
   await clearMikeThread();
+  invalidateCafeState();
   return Response.json({ ok: true });
 }

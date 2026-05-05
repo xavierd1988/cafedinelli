@@ -3,6 +3,7 @@ import {
   appendEyeTurn,
   clearEyeThread
 } from "../../../lib/eyeThreadStore.js";
+import { invalidateCafeState } from "../../../lib/stateStore.js";
 
 // Gatekeeper déterministe : il garde la porte rouge. Une seule entrée valide,
 // le password "the eye". Tout autre input → "Please move back." et le thread
@@ -77,6 +78,7 @@ export async function POST(request) {
     null,
     ttlMs
   );
+  invalidateCafeState();
   return Response.json({ thread: finalThread });
 }
 
@@ -91,5 +93,6 @@ export async function DELETE(request) {
     );
   }
   await clearEyeThread();
+  invalidateCafeState();
   return Response.json({ ok: true });
 }

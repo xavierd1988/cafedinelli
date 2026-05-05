@@ -9,6 +9,7 @@ import {
   getSecretRoomSeats,
   findSecretSeatForIp
 } from "../../../lib/secretRoomStore.js";
+import { invalidateCafeState } from "../../../lib/stateStore.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -54,11 +55,13 @@ export async function POST(request) {
   }
 
   const entry = await takeSecretSeat({ seatId, ip, nickname, message, persona });
+  invalidateCafeState();
   return Response.json({ ok: true, entry });
 }
 
 export async function DELETE(request) {
   const ip = getIp(request);
   await leaveSecretSeatForIp(ip);
+  invalidateCafeState();
   return Response.json({ ok: true });
 }

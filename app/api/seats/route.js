@@ -4,6 +4,7 @@ import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
 import { recordPresence, getOnlineCount, extractIp } from "../../../lib/presenceStore.js";
 import { getSecretRoomSeats } from "../../../lib/secretRoomStore.js";
+import { invalidateCafeState } from "../../../lib/stateStore.js";
 import { getRedis } from "../../../lib/redis.js";
 
 // Détection d'IP centralisée dans presenceStore : couvre cf-connecting-ip,
@@ -24,14 +25,20 @@ export async function GET(request) {
   // pour que le visiteur en cours soit déjà compté dans sa propre réponse.
   await recordPresence(ip);
 
+  // Helper résilient : si une promesse rejette (ex: Redis throttle),
+  // on remplace par une valeur sûre plutôt que de faire planter
+  // /api/seats au complet (HTTP 500). Chaque sous-store a son propre
+  // try/catch interne, mais cette ceinture+bretelles couvre le cas
+  // d'un getRedis().get() inline (taxi).
+  const safe = (p, fallback = null) => p.then((v) => v).catch(() => fallback);
   const [seats, regulars, mikeRaw, eyeRaw, taxiRaw, online, secretRoom] = await Promise.all([
-    getActiveSeats(),
-    getRegulars(),
-    getMikeThread(),
-    getEyeThread(),
-    getRedis().get("cafe:taxi:summonedAt"),
-    getOnlineCount(),
-    getSecretRoomSeats()
+    safe(getActiveSeats(), []),
+    safe(getRegulars(), { total: 0, recent: [] }),
+    safe(getMikeThread(), null),
+    safe(getEyeThread(), null),
+    safe(getRedis().get("cafe:taxi:summonedAt"), null),
+    safe(getOnlineCount(), 1),
+    safe(getSecretRoomSeats(), [])
   ]);
   let mike = null;
   if (mikeRaw) {
@@ -93,5 +100,8 @@ export async function POST(request) {
 
   const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
   const regulars = await recordRegular({ id, nickname, message });
+  // Invalide la cache snapshot pour que le prochain tick SSE voie ce
+  // nouveau message tout de suite (latence ressentie : <300ms).
+  invalidateCafeState();
   return Response.json({ ok: true, entry, regulars });
 }

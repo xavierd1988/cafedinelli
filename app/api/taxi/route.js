@@ -4,6 +4,7 @@
 // (max 3s de latence) et déclenchent leur animation locale.
 
 import { getRedis } from "../../../lib/redis.js";
+import { invalidateCafeState } from "../../../lib/stateStore.js";
 
 const KEY = "cafe:taxi:summonedAt";
 const TTL_SEC = 10; // un peu plus long que l'anim (6s) pour latence poll
@@ -11,6 +12,9 @@ const TTL_SEC = 10; // un peu plus long que l'anim (6s) pour latence poll
 export async function POST() {
   const now = Date.now();
   await getRedis().set(KEY, String(now), { ex: TTL_SEC });
+  // Invalide la cache snapshot pour que tous les SSE poussent l'event
+  // taxi au prochain tick (= ~300ms) plutôt que d'attendre 1.2s.
+  invalidateCafeState();
   return Response.json({ summonedAt: now });
 }
 
