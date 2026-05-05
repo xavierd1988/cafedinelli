@@ -26,6 +26,13 @@ export default function CafeSign() {
           <span className="sign-capsule">CAFÉ DINELLI</span>
         </h1>
       </div>
+      {/* 4 petites lampes architecturales sous l'enseigne. Chaque lampe =
+          un boîtier sombre + une ampoule chaude + un faisceau lumineux qui
+          remonte sur la face du sign. Décoratives uniquement. */}
+      <span className="cafe-sign-uplight cafe-sign-uplight-1" aria-hidden="true" />
+      <span className="cafe-sign-uplight cafe-sign-uplight-2" aria-hidden="true" />
+      <span className="cafe-sign-uplight cafe-sign-uplight-3" aria-hidden="true" />
+      <span className="cafe-sign-uplight cafe-sign-uplight-4" aria-hidden="true" />
       {/* Le néon "CAFE Dinelli" est rendu comme enfant de CafeSign : il hérite
           du transform parent, donc il bouge/scale avec lui. NeonSign garde
           son propre drag/scale/rotate par-dessus. */}

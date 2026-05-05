@@ -325,6 +325,44 @@ function enrichHtmlWithProductLinks(html, products) {
   }
 
   walk(root);
+
+  // Injection d'un bouton "Buy it" à droite de chaque ligne des tables
+  // Amazon Top 15 (best sellers + movers). On repère les <h2> contenant
+  // "AMAZON" et on accroche un <td> bouton à la fin de chaque <tr> du
+  // tableau qui suit. Idempotent : skip si déjà injecté.
+  const headers = root.querySelectorAll("h2, h3, h4");
+  headers.forEach((h) => {
+    if (!/amazon/i.test(h.textContent || "")) return;
+    let next = h.nextElementSibling;
+    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
+    if (!next) return;
+    next.querySelectorAll("tr").forEach((tr) => {
+      if (tr.querySelector(".paper-buy-it-injected")) return;
+      const strong = tr.querySelector("strong");
+      const keyword = (strong?.textContent || "").trim();
+      if (!keyword) return;
+      const a = doc.createElement("a");
+      a.className = "paper-buy-it-injected";
+      a.href = amazonSearchUrl(keyword);
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = "Buy it";
+      a.setAttribute("data-product-name", keyword);
+      // On l'insère ENTRE la cellule produit et la cellule catégorie :
+      // nouvelle <td> placée avant la dernière <td> de la rangée.
+      const td = doc.createElement("td");
+      td.style.cssText = "padding:6px 8px; vertical-align:middle; white-space:nowrap; text-align:center;";
+      td.appendChild(a);
+      const cells = tr.querySelectorAll(":scope > td");
+      const lastTd = cells[cells.length - 1];
+      if (lastTd) {
+        tr.insertBefore(td, lastTd);
+      } else {
+        tr.appendChild(td);
+      }
+    });
+  });
+
   return root.innerHTML;
 }
 
@@ -629,11 +667,9 @@ export default function PaperPanel() {
     window.addEventListener("pointerup", handleUp);
   }
 
-  // En shop mode : on ajoute un offset X au transform inline pour faire
-  // glisser le journal vers la droite, et la classe .is-shop-mode baisse
-  // son z-index pour qu'il passe derrière le bar. Le slide est calé sur
-  // la largeur du paper pour qu'il se rétracte (presque) entièrement.
-  const SHOP_SLIDE_X = Math.max(900, size.width - 60);
+  // Slide quasi total moins 2mm (~7.56px) pour laisser un peu de
+  // paper visible à droite.
+  const SHOP_SLIDE_X = Math.max(900, size.width) - 7.56;
   const composedX = offset.x + (shopMode ? SHOP_SLIDE_X : 0);
 
   return (
@@ -712,20 +748,38 @@ export default function PaperPanel() {
             className="paper-newsletter-html"
             dangerouslySetInnerHTML={{ __html: enrichedNewsletterHtml || newsletter.html }}
             onClick={(e) => {
-              // Délégation : tout clic sur un <a> dans le HTML email
-              // active le shop mode (le journal slide vers la droite,
-              // le store apparaît). Le href s'ouvre normalement dans un
-              // nouvel onglet via target="_blank" si présent dans le HTML.
+              // RÈGLE : depuis la newsletter on N'OUVRE PAS Amazon. On
+              // se contente de rétracter le journal et de surligner le
+              // produit correspondant dans la vitrine du magasin. C'est
+              // depuis la vitrine (clic sur la case rouge highlightée)
+              // qu'on ouvre ensuite le lien Amazon.
               const link = e.target.closest && e.target.closest("a");
-              if (!link) return;
-              try {
-                window.dispatchEvent(new CustomEvent("product_clicked", {
-                  detail: { name: (link.textContent || "").trim().slice(0, 80) }
-                }));
-                window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", {
-                  detail: { open: true }
-                }));
-              } catch {}
+              if (link) {
+                e.preventDefault();
+                e.stopPropagation();
+                const name = (link.getAttribute("data-product-name") || link.textContent || "").trim().slice(0, 120);
+                try {
+                  window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter" } }));
+                  window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
+                  window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
+                } catch {}
+                return;
+              }
+              // Clic dans une rangée Amazon (zone texte/pourcentage) sans
+              // viser un <a> directement : on dispatche les mêmes events
+              // sans simuler de clic sur le <a> (sinon ça ouvrirait Amazon).
+              const tr = e.target.closest && e.target.closest("tr");
+              if (!tr) return;
+              const buyLink = tr.querySelector(".paper-buy-it-injected");
+              if (buyLink) {
+                e.preventDefault();
+                const name = (buyLink.getAttribute("data-product-name") || "").trim();
+                try {
+                  window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter-row" } }));
+                  window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
+                  window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
+                } catch {}
+              }
             }}
           />
         ) : (

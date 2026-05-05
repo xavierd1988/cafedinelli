@@ -175,16 +175,103 @@ function LeftBuilding() {
   // <a> qui pointe vers Amazon dans un nouvel onglet.
   const [products, setProducts] = useState([]);
   const [shopMode, setShopMode] = useState(false);
+  // ID du produit à highlighter (entouré rouge dans la vitrine) après un
+  // clic sur le bouton Buy it / la rangée correspondante côté newsletter.
+  const [highlightedId, setHighlightedId] = useState(null);
 
+  // Charge les produits dans les vitrines : on essaie d'abord d'extraire
+  // les Amazon Top 15 (Best Sellers + Movers) de la newsletter du jour
+  // pour que chaque clic dans la newsletter ait son pendant exact dans
+  // les vitrines. Fallback : la liste curated /api/products.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/products", { cache: "no-store" })
+
+    function emojiFor(name) {
+      const n = name.toLowerCase();
+      if (/(watch|series|garmin|apple watch)/.test(n)) return "⌚";
+      if (/(phone|iphone)/.test(n)) return "📱";
+      if (/(airpod|earbud|headphone|mic\b|lavalier)/.test(n)) return "🎧";
+      if (/(tumbler|stanley|mug|cup|bottle|hydro)/.test(n)) return "☕";
+      if (/(lotion|oil|serum|cream|moisturiz|hair|olaplex|mielle|eos)/.test(n)) return "🧴";
+      if (/(patch|cosmetic|beauty|toner|skincare|medicube)/.test(n)) return "💄";
+      if (/(ice|maker|appliance|silonn)/.test(n)) return "🧊";
+      if (/(duvet|bedding|sheet|pillow|bedsure)/.test(n)) return "🛏️";
+      if (/(lego|toy|squeeze|squishy|needoh|game)/.test(n)) return "🧩";
+      if (/(sunscreen|spf|neutrogena|banana boat)/.test(n)) return "☀️";
+      if (/(fan|cooling|dreo|tower)/.test(n)) return "🌀";
+      if (/(vacuum|shark)/.test(n)) return "🧹";
+      if (/(crocs|clog|shoe|boot)/.test(n)) return "👟";
+      if (/(card|greeting|pop-?up)/.test(n)) return "💌";
+      if (/(claritin|allergy|gummies|olly|vitamin|supplement)/.test(n)) return "💊";
+      if (/(julep|cup|glass|tumbler|mint)/.test(n)) return "🥃";
+      if (/(planner|notebook|journal|academic)/.test(n)) return "📒";
+      if (/(scarf|pashmina|silk)/.test(n)) return "🧣";
+      if (/(hat|fascinator|derby)/.test(n)) return "🎩";
+      if (/(roller|jade|gua sha)/.test(n)) return "🪞";
+      if (/(stove|fire|patio)/.test(n)) return "🔥";
+      if (/(bicycle|bike|tire|tube)/.test(n)) return "🚲";
+      if (/(decor|cinco)/.test(n)) return "🎉";
+      return "🛒";
+    }
+
+    function amazonUrlFor(name) {
+      const q = encodeURIComponent(String(name || "").trim()).replace(/%20/g, "+");
+      return `https://www.amazon.com/s?k=${q}`;
+    }
+
+    function extractFromNewsletter(html) {
+      if (!html || typeof DOMParser === "undefined") return null;
+      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
+      const out = [];
+      const headers = doc.querySelectorAll("h2, h3, h4");
+      headers.forEach((h) => {
+        if (!/amazon/i.test(h.textContent || "")) return;
+        let next = h.nextElementSibling;
+        while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
+        if (!next) return;
+        next.querySelectorAll("tr").forEach((tr) => {
+          const strong = tr.querySelector("strong");
+          const name = (strong?.textContent || "").trim();
+          if (!name) return;
+          out.push({
+            id: `nl-${out.length}`,
+            name,
+            emoji: emojiFor(name),
+            amazonUrl: amazonUrlFor(name)
+          });
+        });
+      });
+      return out;
+    }
+
+    fetch("/api/newsletter")
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (Array.isArray(data?.products)) setProducts(data.products);
+        const html = data?.newsletter?.html;
+        const fromNewsletter = extractFromNewsletter(html);
+        if (fromNewsletter && fromNewsletter.length > 0) {
+          setProducts(fromNewsletter);
+          return;
+        }
+        // Fallback liste curated
+        return fetch("/api/products", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d) => {
+            if (cancelled) return;
+            if (Array.isArray(d?.products)) setProducts(d.products);
+          });
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback complet en cas d'erreur réseau/newsletter
+        fetch("/api/products", { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d) => {
+            if (cancelled) return;
+            if (Array.isArray(d?.products)) setProducts(d.products);
+          })
+          .catch(() => {});
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -193,6 +280,75 @@ function LeftBuilding() {
     window.addEventListener("cafe-shop-mode-change", handler);
     return () => window.removeEventListener("cafe-shop-mode-change", handler);
   }, []);
+
+  // Highlight : matche le nom reçu de la newsletter contre nos produits.
+  // Match fuzzy : on cherche le produit dont le nom partage le plus de
+  // tokens (>=4 chars, casse insensible) avec le label cliqué. Si match
+  // trouvé, on flash sa case 4s avec un cadre rouge.
+  useEffect(() => {
+    let timer = null;
+    function handler(e) {
+      const name = (e.detail?.name || "").trim();
+      if (!name || products.length === 0) return;
+      const queryTokens = name.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+      if (queryTokens.length === 0) return;
+      let bestId = null;
+      let bestScore = 0;
+      for (const p of products) {
+        const tokens = String(p.name || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+        let score = 0;
+        for (const q of queryTokens) {
+          if (tokens.some((t) => t === q || t.includes(q) || q.includes(t))) score++;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestId = p.id;
+        }
+      }
+      if (bestId) {
+        // S'assurer que la vitrine est visible AVANT d'afficher le highlight
+        setShopMode(true);
+        setHighlightedId(bestId);
+        clearTimeout(timer);
+        timer = setTimeout(() => setHighlightedId(null), 4500);
+      }
+    }
+    window.addEventListener("cafe-highlight-product", handler);
+    return () => {
+      window.removeEventListener("cafe-highlight-product", handler);
+      clearTimeout(timer);
+    };
+  }, [products]);
+
+  // Photos produits : on hydrate chaque produit avec son imageUrl quand
+  // /api/product-image (Amazon scraping + cache Redis) répond. Les
+  // produits sans image gardent leur emoji en fallback. On lance le fetch
+  // dès que la liste produits est connue.
+  const [productImages, setProductImages] = useState({});
+  useEffect(() => {
+    if (products.length === 0) return;
+    let cancelled = false;
+    const CONCURRENCY = 3;
+    let i = 0;
+    async function worker() {
+      while (i < products.length && !cancelled) {
+        const p = products[i++];
+        if (productImages[p.id] !== undefined) continue;
+        try {
+          const r = await fetch(`/api/product-image?q=${encodeURIComponent(p.name)}`);
+          const d = await r.json();
+          if (cancelled) return;
+          setProductImages((prev) => ({ ...prev, [p.id]: d?.imageUrl || null }));
+        } catch {
+          if (cancelled) return;
+          setProductImages((prev) => ({ ...prev, [p.id]: null }));
+        }
+      }
+    }
+    Promise.all(Array.from({ length: CONCURRENCY }, () => worker())).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
 
   // 30 produits répartis sur les 3 vitrines, dimensionné en proportion
   // de la largeur de chaque shop (GROCERY 250px, FLORIST 160px, MOTOS
@@ -213,20 +369,33 @@ function LeftBuilding() {
     if (!items.length) return null;
     return (
       <div className={`lb-shop-products ${shopMode ? "is-visible" : ""} ${className}`}>
-        {items.map((p) => (
-          <a
-            key={p.id}
-            href={p.amazonUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="lb-shop-product"
-            title={p.name}
-            onClick={() => trackClick(p)}
-          >
-            <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
-            <span className="lb-shop-product-name">{p.name}</span>
-          </a>
-        ))}
+        {items.map((p) => {
+          const img = productImages[p.id];
+          return (
+            <a
+              key={p.id}
+              href={p.amazonUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`lb-shop-product${p.id === highlightedId ? " is-highlighted" : ""}${img ? " has-image" : ""}`}
+              title={p.name}
+              onClick={() => trackClick(p)}
+            >
+              {img ? (
+                <img
+                  className="lb-shop-product-img"
+                  src={img}
+                  alt={p.name}
+                  loading="lazy"
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+              ) : (
+                <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
+              )}
+              <span className="lb-shop-product-name">{p.name}</span>
+            </a>
+          );
+        })}
       </div>
     );
   }

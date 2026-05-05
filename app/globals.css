@@ -3027,8 +3027,68 @@ button {
   line-height: 1;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
 }
+/* Photo produit (Amazon scrap) — remplit la case en object-fit:contain
+   pour ne jamais déformer le packaging. Fond blanc subtil pour faire
+   ressortir les images sur PNG transparent. */
+.lb-shop-product-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+}
+.lb-shop-product.has-image {
+  background: rgba(255, 255, 255, 0.92);
+  padding: 1px;
+}
 .lb-shop-product-name {
   display: none; /* on cache le texte pour rester compact dans la vitrine */
+}
+
+/* Cadre rouge spectaculaire sur le produit cliqué dans la newsletter
+   (déclenché par "cafe-highlight-product"). Auto-disparaît ~4s. La
+   vitrine étant petite on pousse le scale pour qu'on remarque tout
+   de suite l'item dans la grille. */
+.lb-shop-product.is-highlighted {
+  border-color: #ff2a1a !important;
+  outline: 4px solid #ff2a1a;
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 6px rgba(255, 60, 30, 0.55),
+    0 0 28px 12px rgba(255, 60, 30, 0.85),
+    0 0 60px 24px rgba(255, 60, 30, 0.45),
+    inset 0 0 16px rgba(255, 140, 80, 0.7);
+  animation: lb-shop-product-flash 0.7s ease-in-out infinite;
+  z-index: 30;
+  transform: scale(1.4);
+}
+.lb-shop-product.is-highlighted .lb-shop-product-emoji {
+  font-size: 22px;
+  filter: drop-shadow(0 0 6px rgba(255, 60, 30, 0.9));
+}
+@keyframes lb-shop-product-flash {
+  0%, 100% {
+    transform: scale(1.4);
+    outline-color: #ff2a1a;
+  }
+  50% {
+    transform: scale(1.55);
+    outline-color: #ffe600;
+  }
+}
+
+/* Quand au moins un produit est highlighted, on autorise les enfants
+   à dépasser de la vitrine (sinon les `overflow:hidden` clippent le
+   glow rouge), et on force l'opacité de la grille à 1 pour que le
+   highlight soit immédiatement visible (sans attendre le fade-in). */
+.lb-shop-window:has(.lb-shop-product.is-highlighted) {
+  overflow: visible;
+}
+.lb-shop-products:has(.lb-shop-product.is-highlighted) {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transition: opacity 200ms ease;
 }
 
 .lb-shop-glow {
@@ -5666,6 +5726,99 @@ button {
   }
 }
 
+/* === 4 LAMPES UPLIGHT sous l'enseigne CAFÉ DINELLI ======================
+   Boîtier sombre (le span), ampoule chaude (::before) et faisceau qui
+   remonte sur la face du sign (::after, mix-blend screen pour s'éclairer
+   sur le fond foncé). */
+.cafe-sign-uplight {
+  position: absolute;
+  bottom: 52px;
+  width: 26px;
+  height: 14px;
+  background: linear-gradient(180deg, #2a1810 0%, #050302 100%);
+  border-radius: 6px 6px 3px 3px;
+  box-shadow:
+    0 3px 4px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 200, 130, 0.22);
+  z-index: 4;
+  pointer-events: none;
+}
+
+.cafe-sign-uplight::before {
+  /* Ampoule chaude au sommet du boîtier */
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 1px;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 5px;
+  background:
+    radial-gradient(ellipse at 50% 30%, #fff7c8 0% 25%, #ffd680 55%, #f4a448 100%);
+  border-radius: 50% 50% 40% 40%;
+  box-shadow:
+    0 0 8px rgba(255, 214, 128, 0.95),
+    0 0 16px rgba(255, 168, 72, 0.55);
+}
+
+.cafe-sign-uplight::after {
+  /* Faisceau lumineux qui remonte sur la face du sign */
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  width: 130px;
+  height: 160px;
+  background:
+    radial-gradient(ellipse at 50% 100%,
+      rgba(255, 220, 140, 0.55) 0%,
+      rgba(255, 200, 100, 0.28) 26%,
+      rgba(255, 180, 80, 0.12) 55%,
+      transparent 80%);
+  filter: blur(3px);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* 4 lampes équidistantes le long du bas du sign (largeur 738) */
+.cafe-sign-uplight-1 { left: 12%; }
+.cafe-sign-uplight-2 { left: 37%; }
+.cafe-sign-uplight-3 { left: 62%; }
+.cafe-sign-uplight-4 { left: 87%; }
+
+/* En mode JOUR : lampes physiquement présentes mais ÉTEINTES.
+   - Boîtier visible normalement
+   - Ampoule (::before) : passe d'un cream chaud lumineux à un gris
+     froid mat (verre éteint), aucun glow autour
+   - Faisceau (::after) : disparaît complètement (plus de cône). */
+.homepage.is-day .cafe-sign-uplight::before {
+  background:
+    radial-gradient(ellipse at 50% 30%, #d8d4cc 0% 25%, #8a8680 55%, #4a4640 100%);
+  box-shadow: none;
+}
+.homepage.is-day .cafe-sign-uplight::after {
+  opacity: 0;
+}
+.homepage.is-day .cafe-sign-uplight {
+  box-shadow: 0 3px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* Lampes des extrémités (1 et 4) : faisceau plus faible (atténué).
+   L'ampoule reste identique, seul le cône lumineux est réduit en taille
+   et opacité — donne un dégradé naturel d'éclairage le long de l'enseigne. */
+.cafe-sign-uplight-1::after,
+.cafe-sign-uplight-4::after {
+  width: 90px;
+  height: 110px;
+  background:
+    radial-gradient(ellipse at 50% 100%,
+      rgba(255, 220, 140, 0.28) 0%,
+      rgba(255, 200, 100, 0.14) 28%,
+      rgba(255, 180, 80, 0.06) 55%,
+      transparent 80%);
+}
+
 /* Wrapper qui applique le transform du cluster (baked), pour que l'inline
    transform du cafe-glass ne contienne QUE le drag — sinon le PositionExporter
    parserait toujours la valeur baked au lieu du drag. */
@@ -6809,6 +6962,39 @@ button {
 }
 .paper-shop-toggle-arrow:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+
+/* === Rangées Amazon Top 15 entièrement cliquables ====================== */
+/* Toute <tr> qui contient un .paper-buy-it-injected reçoit un curseur
+   pointer + highlight au survol. La délégation onClick côté React simule
+   le clic sur le bouton Buy it de la rangée. */
+.paper-newsletter-html tr:has(.paper-buy-it-injected) {
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+.paper-newsletter-html tr:has(.paper-buy-it-injected):hover {
+  background: rgba(255, 153, 0, 0.1) !important;
+}
+
+/* === Bouton "Buy it" injecté dans les Top 15 Amazon ===================== */
+.paper-buy-it-injected {
+  display: inline-block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #1f2937;
+  background: #ffffff;
+  border: 1px solid rgba(31, 41, 55, 0.5);
+  border-radius: 999px;
+  padding: 2px 10px;
+  text-decoration: none !important;
+  white-space: nowrap;
+  transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
+}
+.paper-buy-it-injected:hover {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #1f2937;
 }
 
 /* === Liens inline dans la newsletter (mots {accolades} → Amazon) ======== */
