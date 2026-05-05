@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import TopicPopup from "./TopicPopup.jsx";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -363,6 +364,64 @@ function enrichHtmlWithProductLinks(html, products) {
     });
   });
 
+  // === Pass topic-link ====================================================
+  // Wrap every <strong> et la cellule "topic" des tableaux ranked dans un
+  // <a class="paper-topic-link">. ATTENTION : on EXCLUT les tables
+  // Amazon (Top 15 best sellers, Movers & Shakers) qui ont déjà leur
+  // bouton Buy-it injecté → pas besoin de les transformer en topic-links.
+  function wrapAsTopicLink(node, topicText) {
+    const text = (topicText || node.textContent || "").trim();
+    if (text.length < 2) return;
+    if (node.querySelector("a") || node.closest("a")) return;
+    const a = doc.createElement("a");
+    a.className = "paper-topic-link";
+    a.href = `https://news.google.com/search?q=${encodeURIComponent(text)}`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    while (node.firstChild) a.appendChild(node.firstChild);
+    node.appendChild(a);
+  }
+
+  // Collecte des tables Amazon (celles qui suivent un header "AMAZON ...").
+  // On les exclut du topic-link wrap pour ne pas dupliquer l'UX avec le
+  // bouton Buy-it qu'on a déjà injecté plus haut.
+  const amazonTables = new Set();
+  headers.forEach((h) => {
+    if (!/amazon/i.test(h.textContent || "")) return;
+    let next = h.nextElementSibling;
+    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
+    if (next) amazonTables.add(next);
+  });
+  function isInAmazonTable(node) {
+    let p = node.parentNode;
+    while (p) {
+      if (amazonTables.has(p)) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
+  // 1) Bold tags : titres et noms saillants ("Cinco de Mayo", "Hegseth", ...)
+  root.querySelectorAll("strong").forEach((strong) => {
+    if (isInAmazonTable(strong)) return;
+    wrapAsTopicLink(strong);
+  });
+
+  // 2) Cellules "topic" des tables ranked NON-Amazon : 2e <td> d'un <tr>
+  //    dont le 1er <td> est un numéro ("1.", "2.", "12.").
+  root.querySelectorAll("tr").forEach((tr) => {
+    if (isInAmazonTable(tr)) return;
+    const cells = tr.querySelectorAll(":scope > td");
+    if (cells.length < 2) return;
+    const firstText = (cells[0].textContent || "").trim();
+    if (!/^\d{1,3}\.?$/.test(firstText)) return;
+    const second = cells[1];
+    if (second.querySelector("a")) return;
+    // On marque le <tr> pour pouvoir styler la ligne entière en hover.
+    tr.classList.add("paper-topic-row");
+    wrapAsTopicLink(second);
+  });
+
   return root.innerHTML;
 }
 
@@ -568,6 +627,9 @@ export default function PaperPanel() {
   }, []);
   const [newsletter, setNewsletter] = useState(null);
   const [products, setProducts] = useState([]);
+  // Popup ouvert quand on clique sur un lien non-Amazon dans la newsletter.
+  // null si fermé. { topic, articleHref } si ouvert.
+  const [topicPopup, setTopicPopup] = useState(null);
 
   // Charge la newsletter du jour (postée par le script automatique).
   useEffect(() => {
@@ -748,21 +810,47 @@ export default function PaperPanel() {
             className="paper-newsletter-html"
             dangerouslySetInnerHTML={{ __html: enrichedNewsletterHtml || newsletter.html }}
             onClick={(e) => {
-              // RÈGLE : depuis la newsletter on N'OUVRE PAS Amazon. On
-              // se contente de rétracter le journal et de surligner le
-              // produit correspondant dans la vitrine du magasin. C'est
-              // depuis la vitrine (clic sur la case rouge highlightée)
-              // qu'on ouvre ensuite le lien Amazon.
+              // RÈGLES de clic dans la newsletter :
+              //   1. Lien Amazon (amazon.com / amzn.to) ou produit Buy-it
+              //      injecté → on rétracte le journal et on surligne le
+              //      produit dans la vitrine. Pas de popup, pas
+              //      d'ouverture directe d'Amazon (le visiteur clique
+              //      ensuite sur la case rouge dans le shop pour ouvrir
+              //      Amazon).
+              //   2. Lien non-Amazon (article source : NBC, Vogue, CNN,
+              //      etc.) → on ouvre la TopicPopup avec 5 photos liées
+              //      au topic + un bouton vers l'article original.
               const link = e.target.closest && e.target.closest("a");
               if (link) {
                 e.preventDefault();
                 e.stopPropagation();
-                const name = (link.getAttribute("data-product-name") || link.textContent || "").trim().slice(0, 120);
-                try {
-                  window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter" } }));
-                  window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
-                  window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
-                } catch {}
+                const href = link.href || "";
+
+                // Le bouton "Buy it" injecté (paper-buy-it-injected) est
+                // le SEUL lien qui déclenche le retract + highlight de
+                // produit. Tout le reste (topics enrichis, liens email
+                // bruts, etc.) ouvre la TopicPopup.
+                if (link.classList.contains("paper-buy-it-injected")) {
+                  const name = (link.getAttribute("data-product-name") || link.textContent || "").trim().slice(0, 120);
+                  try {
+                    window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter-buy-it" } }));
+                    window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
+                    window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
+                  } catch {}
+                  return;
+                }
+
+                // Topic ou lien d'article : on ouvre la popup avec
+                // 5 photos. Si le href est déjà une recherche Amazon
+                // (cas des topics auto-enrichis), on remplace
+                // articleHref par Google News pour donner un vrai
+                // "source" cliquable au visiteur.
+                const topic = (link.textContent || "").trim().slice(0, 120);
+                const isAmazon = /amazon\.com|amzn\.to/i.test(href);
+                const articleHref = isAmazon
+                  ? `https://news.google.com/search?q=${encodeURIComponent(topic)}`
+                  : href;
+                setTopicPopup({ topic, articleHref });
                 return;
               }
               // Clic dans une rangée Amazon (zone texte/pourcentage) sans
@@ -779,6 +867,21 @@ export default function PaperPanel() {
                   window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
                   window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
                 } catch {}
+                return;
+              }
+              // Clic dans une rangée "topic" non-Amazon (Top 25 Google,
+              // Twitter, TikTok, etc.) hors du <a> direct : on ouvre la
+              // popup avec le topic de la 2e cellule.
+              if (tr.classList.contains("paper-topic-row")) {
+                const topicLink = tr.querySelector(".paper-topic-link");
+                if (!topicLink) return;
+                e.preventDefault();
+                const topic = (topicLink.textContent || "").trim().slice(0, 120);
+                const href = topicLink.href || "";
+                const articleHref = /amazon\.com|amzn\.to/i.test(href)
+                  ? `https://news.google.com/search?q=${encodeURIComponent(topic)}`
+                  : href;
+                setTopicPopup({ topic, articleHref });
               }
             }}
           />
@@ -837,6 +940,17 @@ export default function PaperPanel() {
         aria-label="Redimensionner"
         role="button"
       />
+
+      {/* Popup ouvert au clic sur un lien d'article (non-Amazon) dans la
+          newsletter : 5 photos d'un produit Amazon lié au topic + lien
+          vers l'article source. */}
+      {topicPopup && (
+        <TopicPopup
+          topic={topicPopup.topic}
+          articleHref={topicPopup.articleHref}
+          onClose={() => setTopicPopup(null)}
+        />
+      )}
     </section>
   );
 }

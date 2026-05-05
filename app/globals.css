@@ -7205,6 +7205,19 @@ button {
   background: rgba(255, 153, 0, 0.1) !important;
 }
 
+/* === Rangées "topic" (rangées numérotées non-Amazon) =====================
+   Toute <tr.paper-topic-row> reçoit le même traitement de survol que les
+   rangées Amazon, mais avec une teinte sépia (au lieu d'orange) pour
+   signaler que le clic ouvre la TopicPopup et non le shop. La classe est
+   posée par enrichHtmlWithProductLinks() côté React. */
+.paper-newsletter-html tr.paper-topic-row {
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+.paper-newsletter-html tr.paper-topic-row:hover {
+  background: rgba(60, 40, 20, 0.08) !important;
+}
+
 /* === Bouton "Buy it" injecté dans les Top 15 Amazon ===================== */
 .paper-buy-it-injected {
   display: inline-block;
@@ -7464,6 +7477,242 @@ button {
 
 .paper-newsletter-html a {
   color: #2563eb;
+}
+
+/* Topic-link : ancres injectées par enrichHtmlWithProductLinks autour des
+   <strong> et des cellules de topic dans les tables ranked. Garde la
+   couleur du parent (= titre rouge / texte gris) avec juste un
+   soulignement pointillé subtil pour signaler que c'est cliquable. */
+.paper-newsletter-html .paper-topic-link {
+  color: inherit !important;
+  text-decoration: none !important;
+  cursor: pointer;
+  border-bottom: 1px dotted currentColor;
+  opacity: 0.95;
+  transition: border-bottom-style 180ms ease, opacity 180ms ease;
+}
+.paper-newsletter-html .paper-topic-link:hover {
+  border-bottom-style: solid;
+  opacity: 1;
+}
+
+/* === TOPIC POPUP =========================================================
+   Overlay déclenché au clic sur un lien d'article (non-Amazon) dans la
+   newsletter. 5 "photos" d'un produit Amazon lié au topic + un lien
+   vers l'article source. */
+.topic-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 4, 4, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  animation: topic-popup-fade 220ms ease both;
+  padding: 24px;
+}
+@keyframes topic-popup-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.topic-popup {
+  position: relative;
+  width: min(880px, 95vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: linear-gradient(180deg, #fffaf0 0%, #f1ead8 100%);
+  border: 1px solid rgba(60, 40, 20, 0.2);
+  border-radius: 14px;
+  padding: 30px 34px 28px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  font-family: Georgia, "Times New Roman", serif;
+  color: #2a1d10;
+  animation: topic-popup-slide 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes topic-popup-slide {
+  from { opacity: 0; transform: translateY(20px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.topic-popup-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: rgba(60, 40, 20, 0.08);
+  color: #2a1d10;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 180ms ease, color 180ms ease;
+  padding: 0;
+}
+.topic-popup-close:hover {
+  background: #2a1d10;
+  color: #f9f4e3;
+}
+
+.topic-popup-head { margin-bottom: 20px; }
+.topic-popup-eyebrow {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #6e4a18;
+  margin-bottom: 6px;
+}
+.topic-popup-head h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #2a1d10;
+  letter-spacing: 0.3px;
+}
+
+/* === Split 2 colonnes : produits Amazon (gauche) / sources presse (droite) */
+.topic-popup-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin: 6px 0 4px;
+}
+.topic-popup-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.topic-popup-col-title {
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(60, 40, 20, 0.18);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 2.4px;
+  text-transform: uppercase;
+  color: #6e4a18;
+}
+.topic-popup-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* --- Ligne produit (photo · description / prix) -------------------------- */
+.topic-popup-product a {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 180ms ease, transform 180ms ease;
+}
+.topic-popup-product a:hover {
+  background: rgba(60, 40, 20, 0.08);
+  transform: translateX(2px);
+}
+.topic-popup-product-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  border: 1px solid rgba(60, 40, 20, 0.18);
+  background: #ece0c2;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+.topic-popup-product-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* Placeholder pulse pendant que /api/product-image scrape Amazon. */
+.topic-popup-product-photo:not(.has-image) {
+  background: linear-gradient(
+    100deg,
+    #ece0c2 30%,
+    rgba(255, 250, 240, 0.6) 50%,
+    #ece0c2 70%
+  );
+  background-size: 200% 100%;
+  animation: topic-popup-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes topic-popup-shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+.topic-popup-product-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.topic-popup-product-desc {
+  font-size: 13px;
+  line-height: 1.3;
+  color: #2a1d10;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topic-popup-product-price {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #6e4a18;
+}
+
+/* --- Ligne source (nom presse · tagline) --------------------------------- */
+.topic-popup-source a {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-left: 2px solid rgba(60, 40, 20, 0.22);
+  border-radius: 0 6px 6px 0;
+  text-decoration: none;
+  color: inherit;
+  transition: background 180ms ease, border-left-color 180ms ease, transform 180ms ease;
+}
+.topic-popup-source a:hover {
+  background: rgba(60, 40, 20, 0.08);
+  border-left-color: #2a1d10;
+  transform: translateX(2px);
+}
+.topic-popup-source-name {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #2a1d10;
+}
+.topic-popup-source-tagline {
+  font-size: 12px;
+  font-style: italic;
+  line-height: 1.3;
+  color: #6e4a18;
+}
+
+/* Single column on small screens. */
+@media (max-width: 640px) {
+  .topic-popup { padding: 24px 20px 22px; }
+  .topic-popup-body { grid-template-columns: 1fr; gap: 22px; }
 }
 
 /* Carte de section */

@@ -5,6 +5,10 @@
 import { getRedis } from "../../../lib/redis.js";
 
 const TTL_SEC = 24 * 3600;
+// TTL court sur les échecs : si Amazon a throttle / bloqué une fois, on
+// veut retenter dans 20 min, pas attendre 24h. Sinon une seule mauvaise
+// vague de scrape vide la moitié des vitrines pour la journée.
+const TTL_NONE_SEC = 20 * 60;
 
 // User-Agent type navigateur — Amazon renvoie de la HTML JSless si le UA
 // n'est pas reconnu. On en met un récent et standard.
@@ -53,8 +57,18 @@ export async function GET(request) {
     });
     if (res.ok) {
       const html = await res.text();
-      const m = html.match(/class="s-image"[^>]*src="([^"]+)"/);
-      if (m && m[1]) imageUrl = m[1];
+      // Amazon expose plusieurs patterns d'<img> dans la page de search.
+      // On essaie dans l'ordre du plus fiable au moins fiable.
+      const patterns = [
+        /class="s-image"[^>]*src="([^"]+)"/,
+        /<img[^>]+class="[^"]*s-image[^"]*"[^>]+src="([^"]+)"/,
+        /<img[^>]+data-image-source-density="1"[^>]+src="([^"]+)"/,
+        /<img[^>]+src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/
+      ];
+      for (const re of patterns) {
+        const m = html.match(re);
+        if (m && m[1]) { imageUrl = m[1]; break; }
+      }
       if (!imageUrl) {
         const m2 = html.match(/<img[^>]+srcset="([^"]+)"/);
         if (m2) {
@@ -85,7 +99,8 @@ export async function GET(request) {
     if (imageUrl || price) {
       await getRedis().set(cacheKey, JSON.stringify({ imageUrl, price }), { ex: TTL_SEC });
     } else {
-      await getRedis().set(cacheKey, "__none__", { ex: TTL_SEC });
+      // TTL court : on veut pouvoir retenter rapidement.
+      await getRedis().set(cacheKey, "__none__", { ex: TTL_NONE_SEC });
     }
   } catch {}
 
