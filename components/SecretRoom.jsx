@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNickname } from "./NicknameContext.jsx";
+import { getPersona, subscribePersona } from "../lib/personaStore.js";
 
 // =============================================================================
 // SECRET ROOM — salle de réunion clandestine satirique
@@ -404,9 +406,25 @@ function WallScreen({ open }) {
 export default function SecretRoom() {
   const [open, setOpen] = useState(false);
   const [userSeatId, setUserSeatId] = useState(null);
-  // Sièges remote partagés via Redis. Reçus via SeatsPoller (seats-remote-update.secretRoom).
-  // Format : [{ seatId, nickname, persona, timestamp, isYours? }]
+  // Message local : ce que TOI tu as écrit en t'asseyant. Affiché dans
+  // ta bulle au-dessus du siège, persisté serveur via POST.
+  const [userMessage, setUserMessage] = useState("");
+  // Phase d'édition (input ouvert pour taper un message)
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef(null);
+
+  // Sièges remote partagés via Redis. Reçus via SeatsPoller.
+  // Format : [{ seatId, nickname, message, persona, timestamp }]
   const [remoteSeats, setRemoteSeats] = useState([]);
+
+  // Nickname global (partagé avec le bar) + persona (pour l'avatar).
+  const { nickname } = useNickname();
+  const [persona, setPersonaState] = useState(getPersona());
+  useEffect(() => {
+    setPersonaState(getPersona());
+    return subscribePersona(setPersonaState);
+  }, []);
 
   useEffect(() => {
     function onOpen() {
@@ -427,36 +445,74 @@ export default function SecretRoom() {
   }, []);
 
   useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  useEffect(() => {
     if (!open) return;
     function onKey(e) {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !editing) {
         setOpen(false);
         setUserSeatId(null);
+        setUserMessage("");
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, editing]);
 
   if (!open) return null;
 
   function close() {
     setOpen(false);
     setUserSeatId(null);
+    setUserMessage("");
+    setEditing(false);
     // Libère le siège côté serveur si on en occupait un.
     fetch("/api/secret-room", { method: "DELETE" }).catch(() => {});
   }
 
+  // Click sur un siège vide → on s'assoit (même siège qu'avant ou nouveau)
+  // et on ouvre l'input pour taper un message.
   function takeSeat(id, e) {
     e.stopPropagation();
     setUserSeatId(id);
-    // Partage côté serveur : POST /api/secret-room. La liste sera
-    // mise à jour côté tous les visiteurs au prochain poll (~3s).
+    setEditing(true);
+    setDraft(userSeatId === id ? userMessage : "");
+  }
+
+  function commitMessage() {
+    const trimmed = draft.trim();
+    setEditing(false);
+    setUserMessage(trimmed);
+    setDraft("");
+    if (!userSeatId) return;
+    // POST live au serveur — visible par les autres visiteurs au prochain poll.
     fetch("/api/secret-room", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seatId: id })
+      body: JSON.stringify({
+        seatId: userSeatId,
+        nickname,
+        message: trimmed,
+        persona
+      })
     }).catch(() => { /* silencieux */ });
+  }
+
+  function cancelMessage() {
+    setEditing(false);
+    setDraft("");
+  }
+
+  function onMessageKey(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitMessage();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelMessage();
+    }
   }
 
   return (
@@ -514,17 +570,17 @@ export default function SecretRoom() {
           </div>
         ))}
 
-        {/* Sièges visiteurs cliquables. Si un visiteur (autre IP) est
-            assis, on affiche son avatar + nickname. Si c'est nous, on
-            montre le UserAvatar + bulle. Sinon le siège est libre. */}
+        {/* Sièges visiteurs cliquables — pattern aligné sur le bar :
+            click → input message → POST → bulle live partagée via poll.
+            Si un autre visiteur (autre IP) est assis, on affiche son
+            avatar + nickname + message. */}
         {EMPTY_SEATS.map((s) => {
           const isUser = userSeatId === s.id;
           const remote = remoteSeats.find(
             (r) => r.seatId === s.id && !isUser
           );
           return (
-            <button
-              type="button"
+            <div
               key={s.id}
               className={
                 `sr-seat sr-seat-empty` +
@@ -532,38 +588,72 @@ export default function SecretRoom() {
                 (remote ? " is-occupied-remote" : "")
               }
               style={{ left: `${s.x}%`, top: `${s.y}%` }}
-              onClick={(e) => !remote && takeSeat(s.id, e)}
-              disabled={!!remote}
-              aria-label={
-                isUser
-                  ? "Your seat"
-                  : remote
-                  ? `${remote.nickname} is here`
-                  : "Sit here"
-              }
             >
-              <div className="sr-chair">
-                <div className="sr-chair-back" />
-                <div className="sr-chair-cushion" />
-              </div>
-              {isUser ? (
-                <>
+              <button
+                type="button"
+                className="sr-seat-button"
+                onClick={(e) => !remote && takeSeat(s.id, e)}
+                onPointerDown={(e) => e.stopPropagation()}
+                disabled={!!remote}
+                aria-label={
+                  isUser
+                    ? "Your seat"
+                    : remote
+                    ? `${remote.nickname} is here`
+                    : "Sit here"
+                }
+              >
+                <div className="sr-chair">
+                  <div className="sr-chair-back" />
+                  <div className="sr-chair-cushion" />
+                </div>
+                {isUser ? (
                   <UserAvatar />
-                  <span className="sr-user-bubble">
-                    I probably shouldn’t be here.
-                  </span>
-                </>
-              ) : remote ? (
-                <>
+                ) : remote ? (
                   <UserAvatar />
-                  <span className="sr-user-bubble">
-                    {remote.nickname || "anonymous"}
-                  </span>
-                </>
-              ) : (
-                <span className="sr-empty-hint">Sit here</span>
+                ) : (
+                  <span className="sr-empty-hint">Sit here</span>
+                )}
+              </button>
+
+              {/* Bulle / input — au-dessus du siège, comme au bar */}
+              {isUser && editing && (
+                <div
+                  className="sr-seat-bubble sr-seat-bubble-input"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value.slice(0, 140))}
+                    onKeyDown={onMessageKey}
+                    onBlur={commitMessage}
+                    placeholder="say something…"
+                    maxLength={140}
+                    aria-label="Your secret room message"
+                  />
+                </div>
               )}
-            </button>
+              {isUser && !editing && userMessage && (
+                <span className="sr-seat-bubble">
+                  <em>{nickname || "anonymous"}</em>
+                  <span>{userMessage}</span>
+                </span>
+              )}
+              {remote && remote.message && (
+                <span className="sr-seat-bubble">
+                  <em>{remote.nickname || "anonymous"}</em>
+                  <span>{remote.message}</span>
+                </span>
+              )}
+              {remote && !remote.message && (
+                <span className="sr-seat-bubble sr-seat-bubble-name">
+                  {remote.nickname || "anonymous"}
+                </span>
+              )}
+            </div>
           );
         })}
       </div>

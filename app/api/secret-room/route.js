@@ -43,6 +43,7 @@ export async function POST(request) {
     return Response.json({ error: "bad seat id" }, { status: 400 });
   }
   const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
+  const message = typeof body?.message === "string" ? body.message.trim() : "";
   const persona = body?.persona && typeof body.persona === "object" ? body.persona : null;
 
   // Une seule IP active à la fois → si elle change de siège, on libère
@@ -52,7 +53,7 @@ export async function POST(request) {
     await leaveSecretSeat(existing.seatId);
   }
 
-  const entry = await takeSecretSeat({ seatId, ip, nickname, persona });
+  const entry = await takeSecretSeat({ seatId, ip, nickname, message, persona });
   return Response.json({ ok: true, entry });
 }
 
