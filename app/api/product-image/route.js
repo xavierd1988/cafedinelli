@@ -1,25 +1,27 @@
-// Récupère la photo du 1er résultat Amazon pour un mot-clé donné, avec
-// fallback automatique sur loremflickr.com quand Amazon refuse.
+// Récupère la photo du 1er résultat Amazon pour un mot-clé donné.
 //
-// Cache Redis :
-//   - hit Amazon valide        → 24h
-//   - fallback loremflickr     → 2h  (on retentera Amazon ensuite)
-//   - robot-check / impossible → 1 min (transitoire)
+// Comportement :
+//   - Amazon répond avec une URL CDN valide  → on cache 24h
+//   - Amazon block / robot-check / aucun img → on renvoie imageUrl:null
+//     et on cache "no image" pour 2h (on retentera ensuite). Le client
+//     affiche l'emoji qui est TOUJOURS correct, plutôt qu'une fausse
+//     photo qui ne correspond pas au produit.
+//
+// Anciennement on tombait sur loremflickr en fallback, mais ses photos
+// CC ne matchent que loosely les mots-clés → on voyait des photos aléa-
+// toires qui ne correspondaient pas au produit. Mieux vaut un emoji
+// précis qu'une photo trompeuse.
 //
 // Query params :
 //   ?q=<keyword>   (required)
 //   ?force=1       bypasse le cache et re-scrape Amazon
-//
-// Pourquoi un fallback ? Amazon block ~30-50% des scrapes depuis les IPs
-// datacenter AWS où tourne Vercel. Avant, ces produits restaient sur
-// l'emoji et la vitrine était à moitié vide. Maintenant on tape une
-// vraie photo Flickr CC matchée sur les mots-clés du produit — pas la
-// photo Amazon exacte mais visuellement c'est un produit cohérent.
 
 import { getRedis } from "../../../lib/redis.js";
 
 const TTL_AMAZON_SEC   = 24 * 3600;
-const TTL_FALLBACK_SEC = 2 * 3600;
+// "No image" cache : on accepte de ne pas avoir de photo pour 2h
+// avant de retenter Amazon. Préférable à servir une fausse photo.
+const TTL_NO_IMAGE_SEC = 2 * 3600;
 const TTL_ROBOT_SEC    = 60;
 
 const UA_POOL = [
@@ -40,9 +42,6 @@ function isAmazonImage(u) {
   if (!u || typeof u !== "string") return false;
   return /^https?:\/\/(m\.media-amazon\.com|images-[a-z0-9-]+\.ssl-images-amazon\.com)\//i.test(u);
 }
-function isLoremflickr(u) {
-  return typeof u === "string" && /^https?:\/\/loremflickr\.com\//i.test(u);
-}
 
 // Détecte une page de robot-check / captcha / 503.
 function looksLikeRobotCheck(html) {
@@ -55,28 +54,6 @@ function looksLikeRobotCheck(html) {
     head.includes("api-services-support@amazon.com") ||
     head.includes("automated access to amazon data")
   );
-}
-
-// Construit une URL loremflickr déterministe pour une query donnée.
-// On extrait les mots les plus distinctifs (longueur ≥ 4) comme tags
-// Flickr, et on lock le hash de la query pour qu'un même produit ait
-// toujours la même photo (cohérence visuelle entre rechargements).
-function loremflickrUrl(q) {
-  const STOP = new Set([
-    "with", "the", "and", "for", "from", "into", "your",
-    "this", "that", "best", "new"
-  ]);
-  const tags = q
-    .toLowerCase()
-    .replace(/[^a-z0-9 ]/g, " ")
-    .split(/\s+/)
-    .filter((w) => w && w.length >= 4 && !STOP.has(w))
-    .slice(0, 3);
-  const tagPath = tags.length ? tags.join(",") : encodeURIComponent(q.toLowerCase());
-  let h = 0;
-  for (let i = 0; i < q.length; i++) h = ((h << 5) - h + q.charCodeAt(i)) | 0;
-  const lock = Math.abs(h) || 1;
-  return `https://loremflickr.com/480/480/${tagPath}?lock=${lock}`;
 }
 
 export async function GET(request) {
@@ -92,18 +69,17 @@ export async function GET(request) {
     try {
       const cached = await getRedis().get(cacheKey);
       if (cached === "__none__") {
-        // Anciennes entrées __none__ : on retourne le fallback
-        // immédiatement plutôt que rien — c'est mieux qu'un emoji.
-        return Response.json({ imageUrl: loremflickrUrl(q), price: null, fallback: true });
+        // Anciennes entrées sentinelle : on renvoie pas d'image.
+        return Response.json({ imageUrl: null, price: null });
       }
       if (cached) {
         try {
           const obj = typeof cached === "string" && cached.startsWith("{")
             ? JSON.parse(cached)
             : { imageUrl: cached, price: null };
-          // URL non-Amazon ET non-loremflickr → résidu de l'ancienne version,
-          // on invalide et on re-scrape.
-          if (obj?.imageUrl && !isAmazonImage(obj.imageUrl) && !isLoremflickr(obj.imageUrl)) {
+          // URL non-Amazon → résidu de l'ancienne version (loremflickr),
+          // on invalide et on re-scrape Amazon.
+          if (obj?.imageUrl && !isAmazonImage(obj.imageUrl)) {
             // tombe dans le scrape ci-dessous
           } else {
             return Response.json(obj);
@@ -168,9 +144,11 @@ export async function GET(request) {
   }
 
   // Décision finale + cache.
-  // - Hit Amazon  → cache 24h
-  // - Sinon       → fallback loremflickr, cache 2h pour retenter Amazon
-  // - Robot-check → fallback loremflickr, cache 1 min pour retry très vite
+  // - Hit Amazon  → cache 24h, on renvoie la vraie photo
+  // - Robot-check → cache 1 min (transitoire), on renvoie null pour
+  //                 que le client affiche l'emoji et on retente vite
+  // - Aucun img   → cache 2h, on renvoie null. Préférable à une fausse
+  //                 photo qui ne correspond pas au produit.
   let response;
   if (imageUrl) {
     response = { imageUrl, price };
@@ -178,13 +156,12 @@ export async function GET(request) {
       await getRedis().set(cacheKey, JSON.stringify(response), { ex: TTL_AMAZON_SEC });
     } catch {}
   } else {
-    const fallbackUrl = loremflickrUrl(q);
-    response = { imageUrl: fallbackUrl, price, fallback: true };
+    response = { imageUrl: null, price, fallback: true };
     try {
       await getRedis().set(
         cacheKey,
         JSON.stringify(response),
-        { ex: robotCheck ? TTL_ROBOT_SEC : TTL_FALLBACK_SEC }
+        { ex: robotCheck ? TTL_ROBOT_SEC : TTL_NO_IMAGE_SEC }
       );
     } catch {}
   }
