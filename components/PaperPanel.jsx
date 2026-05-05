@@ -8,12 +8,20 @@ function formatDate(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("fr-FR", {
+  return d.toLocaleDateString("en-US", {
     weekday: "long",
-    day: "numeric",
     month: "long",
+    day: "numeric",
     year: "numeric"
   });
+}
+
+// Heure de réception (ex: "10:42 AM") — pour la ligne meta sous le titre.
+function formatTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 const dailyStories = [
@@ -789,14 +797,15 @@ export default function PaperPanel() {
         <div className="paper-masthead-capsule">
           <span className="paper-masthead-emoji">📊</span>
           <div>
-            <h2 id="paper-title">{newsletter?.subject || "Résumé Tendances"}</h2>
-            <p className="paper-date">
-              {newsletter ? formatDate(newsletter.date) : "Vendredi 1 mai 2026"}
-            </p>
+            <h2 id="paper-title">{newsletter?.subject || "Today's trend digest"}</h2>
+            {/* La date affichée est toujours AUJOURD'HUI (vue du lecteur),
+                pas la date de la newsletter — sinon on garde "lundi 4" en
+                français pendant que tout le monde est mardi. */}
+            <p className="paper-date">{formatDate(new Date().toISOString())}</p>
             <p className="paper-meta">
               {newsletter
-                ? `Newsletter du jour • reçue ${formatDate(newsletter.receivedAt)}`
-                : "Édition complète • USA • Collecte 10h30"}
+                ? `Today's edition • received at ${formatTime(newsletter.receivedAt)}`
+                : "Full edition • USA • Collected at 10:30 AM"}
             </p>
           </div>
           <span className="paper-drag-hint" aria-hidden="true">✥</span>
