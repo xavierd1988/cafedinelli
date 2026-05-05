@@ -2,14 +2,16 @@ import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../..
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
-import { recordPresence, getOnlineCount } from "../../../lib/presenceStore.js";
+import { recordPresence, getOnlineCount, extractIp } from "../../../lib/presenceStore.js";
 import { getSecretRoomSeats } from "../../../lib/secretRoomStore.js";
 import { getRedis } from "../../../lib/redis.js";
 
+// Détection d'IP centralisée dans presenceStore : couvre cf-connecting-ip,
+// true-client-ip, x-real-ip, x-vercel-forwarded-for et x-forwarded-for
+// (premier IP de la chaîne). Plus robuste que l'ancienne version locale
+// qui ne regardait que 2 headers.
 function getIp(request) {
-  const fwd = request.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
-  return request.headers.get("x-real-ip") || "127.0.0.1";
+  return extractIp(request);
 }
 
 // Anti-spam basique : 1 message / seconde par IP.
