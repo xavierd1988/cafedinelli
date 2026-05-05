@@ -434,6 +434,20 @@ export default function SecretRoom() {
     return () => window.removeEventListener("secret-room-open", onOpen);
   }, []);
 
+  // Diffuse l'état (ouvert/fermé) à toute l'app — RadioCabinet écoute pour
+  // mettre FIP en pause à l'entrée (et reprendre à la sortie si elle
+  // jouait). Le silence renforce l'ambiance de la salle secrète.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.dispatchEvent(
+        new CustomEvent("secret-room-state", { detail: { open } })
+      );
+    } catch {
+      /* dispatch silencieusement ignoré */
+    }
+  }, [open]);
+
   // Sync des sièges secret-room via le poll global (3s).
   useEffect(() => {
     function handler(e) {

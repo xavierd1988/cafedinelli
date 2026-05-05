@@ -570,6 +570,39 @@ function RadioCabinet() {
     return () => clearInterval(id);
   }, [playing]);
 
+  // Pause auto à l'ouverture de la salle secrète. On retient si la radio
+  // jouait pour pouvoir reprendre exactement là à la sortie. Si la radio
+  // était déjà en pause, l'événement est silencieusement no-op.
+  const wasPlayingBeforeSecretRef = useRef(false);
+  useEffect(() => {
+    function onSecretState(e) {
+      const isOpen = !!e.detail?.open;
+      const a = audioRef.current;
+      if (!a) return;
+      if (isOpen) {
+        wasPlayingBeforeSecretRef.current = playing;
+        if (playing) {
+          a.pause();
+          setPlaying(false);
+          setTrack(null);
+          broadcast({ playing: false, track: null });
+        }
+      } else if (wasPlayingBeforeSecretRef.current) {
+        wasPlayingBeforeSecretRef.current = false;
+        a.play()
+          .then(() => {
+            setPlaying(true);
+            broadcast({ playing: true, track: null });
+          })
+          .catch(() => {
+            /* autoplay refusé : on laisse l'utilisateur relancer */
+          });
+      }
+    }
+    window.addEventListener("secret-room-state", onSecretState);
+    return () => window.removeEventListener("secret-room-state", onSecretState);
+  }, [playing]);
+
   function togglePlay(e) {
     e.stopPropagation();
     if (!audioRef.current) return;
