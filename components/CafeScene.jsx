@@ -326,52 +326,34 @@ function LeftBuilding() {
   }, [products]);
 
   // Photos + prix produits : on hydrate chaque produit avec
-  // { imageUrl, price } quand /api/product-image (Amazon scraping +
-  // cache Redis) répond. Les produits sans image gardent leur emoji en
-  // fallback ; les produits sans prix affichent simplement "see price".
-  //
-  // STRATÉGIE DE RETRY :
-  //   1. Première passe : appel normal, le serveur lit son cache Redis.
-  //   2. Si imageUrl revient null, on retente UNE fois après 4s avec
-  //      ?force=1 → bypasse le cache Redis et re-scrape Amazon (Amazon
-  //      flaque souvent en pic, mais répond bien 4s plus tard).
-  //   3. Si toujours null après le retry, on garde l'emoji fallback.
+  // { imageUrl, price } quand /api/product-image répond. L'API tape
+  // Amazon en priorité et tombe sur loremflickr en fallback — donc
+  // imageUrl est presque toujours non-null, seuls les échecs réseau
+  // côté client laissent un emoji visible.
   const [productInfo, setProductInfo] = useState({});
+  // Set des produits dont l'<img> a échoué à charger côté navigateur
+  // (loremflickr 404, CORS, offline, etc.) — on retombe sur l'emoji.
+  const [imageErrors, setImageErrors] = useState(() => new Set());
   useEffect(() => {
     if (products.length === 0) return;
     let cancelled = false;
     const CONCURRENCY = 3;
     let i = 0;
-    const retried = new Set(); // ids déjà retentés une fois
-
-    async function fetchOne(p, force = false) {
-      const u = `/api/product-image?q=${encodeURIComponent(p.name)}${force ? "&force=1" : ""}`;
-      try {
-        const r = await fetch(u);
-        const d = await r.json();
-        if (cancelled) return null;
-        const info = { imageUrl: d?.imageUrl || null, price: d?.price || null };
-        setProductInfo((prev) => ({ ...prev, [p.id]: info }));
-        return info;
-      } catch {
-        if (cancelled) return null;
-        setProductInfo((prev) => ({ ...prev, [p.id]: { imageUrl: null, price: null } }));
-        return null;
-      }
-    }
-
     async function worker() {
       while (i < products.length && !cancelled) {
         const p = products[i++];
         if (productInfo[p.id] !== undefined) continue;
-        const info = await fetchOne(p);
-        // Retry une fois si pas d'image — souvent Amazon répond mieux à
-        // la 2e tentative (différent UA + bypass cache).
-        if (info && !info.imageUrl && !retried.has(p.id)) {
-          retried.add(p.id);
-          setTimeout(() => {
-            if (!cancelled) fetchOne(p, true);
-          }, 4000);
+        try {
+          const r = await fetch(`/api/product-image?q=${encodeURIComponent(p.name)}`);
+          const d = await r.json();
+          if (cancelled) return;
+          setProductInfo((prev) => ({
+            ...prev,
+            [p.id]: { imageUrl: d?.imageUrl || null, price: d?.price || null }
+          }));
+        } catch {
+          if (cancelled) return;
+          setProductInfo((prev) => ({ ...prev, [p.id]: { imageUrl: null, price: null } }));
         }
       }
     }
@@ -401,7 +383,8 @@ function LeftBuilding() {
       <div className={`lb-shop-products ${shopMode ? "is-visible" : ""} ${className}`}>
         {items.map((p) => {
           const info = productInfo[p.id] || {};
-          const img = info.imageUrl;
+          const errored = imageErrors.has(p.id);
+          const img = errored ? null : info.imageUrl;
           const price = info.price;
           return (
             <a
@@ -419,7 +402,16 @@ function LeftBuilding() {
                   src={img}
                   alt={p.name}
                   loading="lazy"
-                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                  onError={() => {
+                    // Loremflickr 404, CORS, offline — on bascule sur
+                    // l'emoji au lieu d'afficher une case vide.
+                    setImageErrors((prev) => {
+                      if (prev.has(p.id)) return prev;
+                      const next = new Set(prev);
+                      next.add(p.id);
+                      return next;
+                    });
+                  }}
                 />
               ) : (
                 <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
