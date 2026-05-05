@@ -308,22 +308,28 @@ function LeftBuilding() {
         // S'assurer que la vitrine est visible AVANT d'afficher le highlight
         setShopMode(true);
         setHighlightedId(bestId);
+        // Spotlight : on bloque le reste de la page pendant la durée.
+        try { document.body.classList.add("is-spotlight-active"); } catch {}
         clearTimeout(timer);
-        timer = setTimeout(() => setHighlightedId(null), 4500);
+        timer = setTimeout(() => {
+          setHighlightedId(null);
+          try { document.body.classList.remove("is-spotlight-active"); } catch {}
+        }, 3000);
       }
     }
     window.addEventListener("cafe-highlight-product", handler);
     return () => {
       window.removeEventListener("cafe-highlight-product", handler);
       clearTimeout(timer);
+      try { document.body.classList.remove("is-spotlight-active"); } catch {}
     };
   }, [products]);
 
-  // Photos produits : on hydrate chaque produit avec son imageUrl quand
-  // /api/product-image (Amazon scraping + cache Redis) répond. Les
-  // produits sans image gardent leur emoji en fallback. On lance le fetch
-  // dès que la liste produits est connue.
-  const [productImages, setProductImages] = useState({});
+  // Photos + prix produits : on hydrate chaque produit avec
+  // { imageUrl, price } quand /api/product-image (Amazon scraping +
+  // cache Redis) répond. Les produits sans image gardent leur emoji en
+  // fallback ; les produits sans prix affichent simplement "see price".
+  const [productInfo, setProductInfo] = useState({});
   useEffect(() => {
     if (products.length === 0) return;
     let cancelled = false;
@@ -332,15 +338,18 @@ function LeftBuilding() {
     async function worker() {
       while (i < products.length && !cancelled) {
         const p = products[i++];
-        if (productImages[p.id] !== undefined) continue;
+        if (productInfo[p.id] !== undefined) continue;
         try {
           const r = await fetch(`/api/product-image?q=${encodeURIComponent(p.name)}`);
           const d = await r.json();
           if (cancelled) return;
-          setProductImages((prev) => ({ ...prev, [p.id]: d?.imageUrl || null }));
+          setProductInfo((prev) => ({
+            ...prev,
+            [p.id]: { imageUrl: d?.imageUrl || null, price: d?.price || null }
+          }));
         } catch {
           if (cancelled) return;
-          setProductImages((prev) => ({ ...prev, [p.id]: null }));
+          setProductInfo((prev) => ({ ...prev, [p.id]: { imageUrl: null, price: null } }));
         }
       }
     }
@@ -369,7 +378,9 @@ function LeftBuilding() {
     return (
       <div className={`lb-shop-products ${shopMode ? "is-visible" : ""} ${className}`}>
         {items.map((p) => {
-          const img = productImages[p.id];
+          const info = productInfo[p.id] || {};
+          const img = info.imageUrl;
+          const price = info.price;
           return (
             <a
               key={p.id}
@@ -391,7 +402,9 @@ function LeftBuilding() {
               ) : (
                 <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
               )}
+              {/* Overlay nom + prix visible au hover (zoom géant) */}
               <span className="lb-shop-product-name">{p.name}</span>
+              <span className="lb-shop-product-price">{price || "see price"}</span>
             </a>
           );
         })}

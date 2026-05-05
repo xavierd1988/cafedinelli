@@ -22,12 +22,24 @@ export async function GET(request) {
   // Cache hit ?
   try {
     const cached = await getRedis().get(cacheKey);
-    if (cached === "__none__") return Response.json({ imageUrl: null });
-    if (cached) return Response.json({ imageUrl: cached });
+    if (cached === "__none__") return Response.json({ imageUrl: null, price: null });
+    if (cached) {
+      // Backward-compat : si la valeur en cache est juste une string URL
+      // (ancienne version), on la retourne sans price ; sinon objet JSON.
+      try {
+        const obj = typeof cached === "string" && cached.startsWith("{")
+          ? JSON.parse(cached)
+          : { imageUrl: cached, price: null };
+        return Response.json(obj);
+      } catch {
+        return Response.json({ imageUrl: cached, price: null });
+      }
+    }
   } catch {}
 
   // Fetch Amazon search page
   let imageUrl = null;
+  let price = null;
   try {
     const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(q)}`;
     const res = await fetch(searchUrl, {
@@ -41,11 +53,8 @@ export async function GET(request) {
     });
     if (res.ok) {
       const html = await res.text();
-      // Le 1er résultat de recherche a une <img class="s-image" ...>.
-      // On capture le src de la 1re occurrence.
       const m = html.match(/class="s-image"[^>]*src="([^"]+)"/);
       if (m && m[1]) imageUrl = m[1];
-      // Variante alternative : data-image-latency / data-image-source
       if (!imageUrl) {
         const m2 = html.match(/<img[^>]+srcset="([^"]+)"/);
         if (m2) {
@@ -53,16 +62,32 @@ export async function GET(request) {
           if (first) imageUrl = first;
         }
       }
+      // Prix : Amazon utilise <span class="a-price-whole">XX</span>
+      // <span class="a-price-fraction">YY</span> dans son markup search.
+      const pw = html.match(/class="a-price-whole">([0-9.,]+)/);
+      const pf = html.match(/class="a-price-fraction">([0-9]+)/);
+      if (pw) {
+        const whole = pw[1].replace(/[^0-9]/g, "");
+        const frac = pf ? pf[1].replace(/[^0-9]/g, "") : "00";
+        price = `$${whole}.${frac.padEnd(2, "0").slice(0, 2)}`;
+      } else {
+        // Fallback : <span class="a-offscreen">$12.34</span>
+        const po = html.match(/class="a-offscreen">\$([0-9.,]+)/);
+        if (po) price = `$${po[1]}`;
+      }
     }
   } catch (err) {
-    // timeout / network / Amazon block — on log et on fallback null.
     console.warn("/api/product-image fetch failed for", q, err?.message || err);
   }
 
-  // Cache même les "introuvables" pour ne pas re-tenter en boucle.
+  // Cache : objet JSON pour stocker imageUrl + price ensemble.
   try {
-    await getRedis().set(cacheKey, imageUrl || "__none__", { ex: TTL_SEC });
+    if (imageUrl || price) {
+      await getRedis().set(cacheKey, JSON.stringify({ imageUrl, price }), { ex: TTL_SEC });
+    } else {
+      await getRedis().set(cacheKey, "__none__", { ex: TTL_SEC });
+    }
   } catch {}
 
-  return Response.json({ imageUrl });
+  return Response.json({ imageUrl, price });
 }

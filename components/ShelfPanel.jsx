@@ -2,8 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useDragScale } from "./useDragScale.js";
+import { useNickname } from "./NicknameContext.jsx";
 import { getModulePosition } from "../lib/modulePositions.js";
+import PersonaSettings from "./PersonaSettings.jsx";
 
+// To Go Counter — bloc principal du visiteur :
+//   - Nickname éditable ("my name is …")
+//   - Engrenage de réglage persona (gender + wardrobe)
+//   - Compteurs : regulars cumulés + online en temps réel
 export default function ShelfPanel() {
   const init = getModulePosition("ShelfPanel");
   const ds = useDragScale({
@@ -13,9 +19,35 @@ export default function ShelfPanel() {
     initialScale: init.scale
   });
 
-  // - total : nombre cumulé de visiteurs (Redis cafe:regulars:total)
-  // - online : nombre de personnes actives sur le site dans les 15 dernières
-  //   secondes (Redis cafe:presence sorted set, basé sur les polls API).
+  const { nickname, setNickname, loading } = useNickname();
+  const [draft, setDraft] = useState("");
+  const [editing, setEditing] = useState(false);
+
+  // Resync brouillon quand le nom serveur arrive.
+  useEffect(() => {
+    if (!editing) setDraft(nickname);
+  }, [nickname, editing]);
+
+  function commitNickname() {
+    const trimmed = draft.trim();
+    setEditing(false);
+    if (trimmed !== nickname) setNickname(trimmed);
+  }
+  function cancelNickname() {
+    setEditing(false);
+    setDraft(nickname);
+  }
+  function onNicknameKey(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitNickname();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      cancelNickname();
+    }
+  }
+
+  // Compteurs partagés (Redis via /api/seats poll).
   const [total, setTotal] = useState(0);
   const [online, setOnline] = useState(0);
 
@@ -55,6 +87,7 @@ export default function ShelfPanel() {
       <div className="shelf-head">
         <h2 id="shelf-title">To Go Counter</h2>
       </div>
+
       <div className="shelf-stats">
         <div className="shelf-total">
           <span className="shelf-total-num">{total}</span>
@@ -63,9 +96,44 @@ export default function ShelfPanel() {
         <div className="shelf-online">
           <span className="shelf-online-dot" aria-hidden="true" />
           <span className="shelf-online-num">{online}</span>
-          <span className="shelf-online-label">{online === 1 ? "online" : "online"}</span>
+          <span className="shelf-online-label">online</span>
         </div>
       </div>
+
+      {/* Bloc nickname intégré : "my name is …" + engrenage persona,
+          placé sous les stats online. La roue est à côté du label. */}
+      <div className="shelf-nickname">
+        <div className="shelf-nickname-head">
+          <PersonaSettings />
+          <span className="shelf-nickname-eyebrow">my name is</span>
+        </div>
+        <div
+          className="shelf-nickname-field"
+          onClick={() => !editing && setEditing(true)}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {editing ? (
+            <input
+              type="text"
+              className="shelf-nickname-input"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.slice(0, 40))}
+              onKeyDown={onNicknameKey}
+              onBlur={commitNickname}
+              onPointerDown={(e) => e.stopPropagation()}
+              placeholder="?"
+              maxLength={40}
+              aria-label="Your nickname"
+            />
+          ) : (
+            <span className={`shelf-nickname-name${nickname ? "" : " is-empty"}`}>
+              {nickname || (loading ? "…" : "?")}
+            </span>
+          )}
+        </div>
+      </div>
+
       <span
         className="shelf-resize-handle"
         onPointerDown={ds.handleResizeStart}

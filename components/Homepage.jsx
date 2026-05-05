@@ -5,7 +5,6 @@ import CafeScene from "./CafeScene.jsx";
 import MobileShell from "./MobileShell.jsx";
 import ModuleNameBadge from "./ModuleNameBadge.jsx";
 import { NicknameProvider } from "./NicknameContext.jsx";
-import NicknameTag from "./NicknameTag.jsx";
 import PositionExporter from "./PositionExporter.jsx";
 import Receipt from "./Receipt.jsx";
 import SecretRoom from "./SecretRoom.jsx";
@@ -67,7 +66,6 @@ export default function Homepage() {
           <CafeScene seats={seatPositions} />
           <Receipt forceMode={forceMode} onCycleForceMode={cycleForceMode} />
           <WeatherClock />
-          <NicknameTag />
         </div>
         {/* Vue mobile : newsletter / chat / mike empilés. Masquée sur desktop via CSS. */}
         <MobileShell />

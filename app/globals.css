@@ -758,6 +758,19 @@ button {
   pointer-events: auto;
   z-index: 5;
 }
+/* Quand le pop-up est ouvert, on bump la stacking context très haut
+   pour qu'il passe au premier plan, au-dessus de tous les modules
+   de la scène (paper-shop-toggle z 30, cash-register z 19, etc.). */
+.persona-settings.is-open {
+  z-index: 9999;
+}
+/* Le shelf-panel parent doit AUSSI passer au-dessus de CafeSign (z 300)
+   et autres éléments à z élevé : on remonte sa stacking context tant
+   que le pop-up est ouvert. Sans ça, le pop-up — bien qu'à z 9999
+   localement — reste prisonnier de la stacking context parent (z 22). */
+.shelf-panel:has(.persona-settings.is-open) {
+  z-index: 9999 !important;
+}
 
 .persona-cog {
   width: 28px;
@@ -2417,7 +2430,9 @@ button {
 .bubble-portal-host {
   position: absolute;
   inset: 0;
-  z-index: 9000;
+  /* Très haut pour passer au-dessus de tous les modules de la scène
+     (porte cochère + escalier z 5, building z 4, glass z 6, etc.) */
+  z-index: 9999;
   pointer-events: none;
 }
 .bubble-portal-host > * {
@@ -2751,7 +2766,10 @@ button {
   top: 422px;
   width: 140px;
   height: 468px;
-  z-index: 5;
+  /* z 6 = au-dessus de .lb-porte-cochere (z 5). Sans ça, GROCERY qui
+     est rendu AVANT la porte dans le DOM passait dessous, et ses
+     vignettes hovered se faisaient clipper par l'arche centrale. */
+  z-index: 6;
   border-left: 2px solid rgba(28, 16, 12, 0.85);
   border-right: 2px solid rgba(28, 16, 12, 0.85);
   background:
@@ -3042,14 +3060,90 @@ button {
   background: rgba(255, 255, 255, 0.92);
   padding: 1px;
 }
+/* Le nom est masqué par défaut, révélé en gros au hover (cf bloc plus bas) */
 .lb-shop-product-name {
-  display: none; /* on cache le texte pour rester compact dans la vitrine */
+  display: none;
+}
+.lb-shop-product-price {
+  display: none;
 }
 
-/* Cadre rouge spectaculaire sur le produit cliqué dans la newsletter
-   (déclenché par "cafe-highlight-product"). Auto-disparaît ~4s. La
-   vitrine étant petite on pousse le scale pour qu'on remarque tout
-   de suite l'item dans la grille. */
+/* === HOVER : zoom géant + carte produit avec nom + prix vert ============
+   La case explose à scale(3.5) au survol, devient carte premium blanche
+   avec image grande + nom centré + prix en vert vif centré bas. */
+.lb-shop-product:hover {
+  transform: scale(3.5);
+  z-index: 50;
+  background: #ffffff;
+  border-color: #1a0e08;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 4px;
+  transition:
+    transform 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    background 200ms ease,
+    box-shadow 200ms ease;
+}
+/* L'image prend la majeure partie de la carte hovered */
+.lb-shop-product:hover .lb-shop-product-img {
+  flex: 1;
+  min-height: 0;
+  background: #ffffff;
+  padding: 2px;
+}
+.lb-shop-product:hover .lb-shop-product-emoji {
+  font-size: 36px;
+  text-align: center;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Nom visible en haut */
+.lb-shop-product:hover .lb-shop-product-name {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 4px;
+  font-weight: 600;
+  color: #1f2937;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.1px;
+  padding: 0 2px;
+  /* Conserve la lisibilité dans la case scalée */
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.8);
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-height: 12px;
+}
+/* Prix en VERT, centré, en bas */
+.lb-shop-product:hover .lb-shop-product-price {
+  display: block;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 6px;
+  font-weight: 700;
+  color: #1d8a3a;
+  text-align: center;
+  line-height: 1;
+  margin-top: auto;
+  padding: 1px 0;
+  letter-spacing: 0.2px;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+/* Cadre rouge spectaculaire sur le produit cliqué dans la newsletter.
+   Auto-disparaît ~3s + spotlight qui bloque le reste de la page. */
 .lb-shop-product.is-highlighted {
   border-color: #ff2a1a !important;
   outline: 4px solid #ff2a1a;
@@ -3078,11 +3172,24 @@ button {
   }
 }
 
-/* Quand au moins un produit est highlighted, on autorise les enfants
-   à dépasser de la vitrine (sinon les `overflow:hidden` clippent le
-   glow rouge), et on force l'opacité de la grille à 1 pour que le
-   highlight soit immédiatement visible (sans attendre le fade-in). */
-.lb-shop-window:has(.lb-shop-product.is-highlighted) {
+/* Spotlight : pendant les ~3s du highlight, on coupe les pointer-events
+   sur le reste de la page pour forcer le focus visuel sur l'item. Seuls
+   le produit highlighté et la patte toggle du paper restent cliquables. */
+.is-spotlight-active a,
+.is-spotlight-active button {
+  pointer-events: none;
+}
+.is-spotlight-active .lb-shop-product.is-highlighted,
+.is-spotlight-active .paper-shop-toggle,
+.is-spotlight-active .paper-shop-toggle * {
+  pointer-events: auto;
+}
+
+/* Quand au moins un produit est highlighted ou hovered, on autorise les
+   enfants à dépasser de la vitrine (sinon les `overflow:hidden` clippent
+   le glow rouge ou la carte hover scalée). */
+.lb-shop-window:has(.lb-shop-product.is-highlighted),
+.lb-shop-window:has(.lb-shop-product:hover) {
   overflow: visible;
 }
 .lb-shop-products:has(.lb-shop-product.is-highlighted) {
@@ -6464,11 +6571,12 @@ button {
 
 /* === BULLE CONVERSATION MIKE (desktop, partagée via Redis) === */
 .mike-bubble {
-  width: 320px !important;
+  width: 220px !important;
   min-height: auto !important;
-  padding: 26px 22px 18px !important;
+  padding: 18px 16px 14px !important;
   text-align: left !important;
   display: block !important;
+  font-size: 11px !important;
 }
 
 .mike-bubble-close {
@@ -7516,6 +7624,116 @@ button {
   letter-spacing: 1.4px;
 }
 
+/* === Bloc nickname intégré dans le To Go Counter (sous les stats) ====== */
+.shelf-nickname {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 14px 6px 10px;
+  margin-top: 10px;
+  border-top: 1px dotted rgba(245, 192, 112, 0.32);
+}
+/* "my name is" + roue de réglage sur la même ligne — molette poussée
+   à gauche, label centré dans l'espace restant. */
+.shelf-nickname-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  width: 100%;
+  margin-bottom: 4px;
+}
+.shelf-nickname-head .shelf-nickname-eyebrow {
+  flex: 1;
+  text-align: center;
+  margin-right: 38px;
+}
+.shelf-nickname-eyebrow {
+  color: #ff8db1;
+  font-family: "VT323", monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 0 0 4px rgba(255, 141, 177, 0.45);
+  line-height: 1;
+}
+/* Nickname plus grand */
+.shelf-nickname-field {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(245, 192, 112, 0.32);
+  transition: border-color 200ms ease;
+}
+.shelf-nickname-field:hover {
+  border-bottom-color: rgba(255, 200, 130, 0.6);
+}
+.shelf-nickname-name,
+.shelf-nickname-input {
+  font-family: "VT323", monospace;
+  font-size: 36px;
+  color: #ffe4ad;
+  letter-spacing: 1.4px;
+  line-height: 1.05;
+  text-shadow:
+    0 0 8px rgba(255, 184, 74, 0.6),
+    0 0 18px rgba(255, 138, 50, 0.35);
+}
+.shelf-nickname-name.is-empty {
+  color: rgba(255, 232, 192, 0.45);
+  text-shadow: none;
+}
+.shelf-nickname-input {
+  flex: 1;
+  background: transparent;
+  border: 0;
+  outline: none;
+  text-align: center;
+  padding: 0;
+  caret-color: #ffe4ad;
+  min-width: 0;
+}
+.shelf-nickname-input::placeholder {
+  color: rgba(255, 232, 192, 0.4);
+}
+/* Molette de PersonaSettings posée juste à droite du nickname (inline,
+   pas absolute), bien visible avec icône SVG. */
+.shelf-nickname .persona-settings {
+  position: relative;
+  flex-shrink: 0;
+}
+.shelf-nickname .persona-cog {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(245, 192, 112, 0.5);
+  border-radius: 50%;
+  background: rgba(15, 8, 5, 0.6);
+  color: #ffd890;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease, transform 220ms ease, border-color 180ms ease;
+}
+.shelf-nickname .persona-cog:hover {
+  background: rgba(241, 178, 104, 0.18);
+  color: #fff5d8;
+  border-color: rgba(255, 210, 140, 0.85);
+  transform: rotate(60deg);
+}
+.shelf-nickname .persona-cog svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
 /* Stats du To Go Counter : total + last 3 */
 .shelf-stats {
   display: flex;
@@ -7783,8 +8001,8 @@ button {
   position: absolute;
   left: 50%;
   bottom: 152px;
-  width: 130px;
-  min-height: 56px;
+  width: 100px;
+  min-height: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
