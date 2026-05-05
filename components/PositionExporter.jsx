@@ -22,7 +22,8 @@ const MODULES = [
   { selector: ".cafe-door-module",                  file: "CafeDoor.jsx" },
   { selector: ".seats-counter",                     file: "SeatsCounter.jsx" },
   { selector: ".black-backdrop",                    file: "BlackBackdrop.jsx" },
-  { selector: ".checkered-floor",                   file: "CheckeredFloor.jsx" }
+  { selector: ".checkered-floor",                   file: "CheckeredFloor.jsx" },
+  { selector: ".bordeaux-backdrop",                 file: "BordeauxBackdrop.jsx" }
 ];
 
 function parseTransform(str = "") {
@@ -62,7 +63,8 @@ export default function PositionExporter() {
       if (
         selector === ".paper-panel" ||
         selector === ".black-backdrop" ||
-        selector === ".checkered-floor"
+        selector === ".checkered-floor" ||
+        selector === ".bordeaux-backdrop"
       ) {
         const w = parseFloat(el.style.width);
         const h = parseFloat(el.style.height);

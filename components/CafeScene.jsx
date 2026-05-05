@@ -3,6 +3,7 @@ import { getModulePosition } from "../lib/modulePositions.js";
 import { getEditMode, setEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
+import BordeauxBackdrop from "./BordeauxBackdrop.jsx";
 import CafeDoor from "./CafeDoor.jsx";
 import CafeSign from "./CafeSign.jsx";
 import CheckeredFloor from "./CheckeredFloor.jsx";
@@ -140,45 +141,130 @@ function CafeUpperFloor() {
 //   - un socle (lb-base)
 // =============================================================================
 
-// 17 fenêtres par étage, espacement 94px, couvrent toute la largeur (1600).
+// 17 fenêtres par étage, espacement 94px. Toute la rangée a été décalée
+// très légèrement vers la gauche (-16px) par rapport aux positions
+// d'origine pour mieux s'aligner avec la façade.
 const WINDOW_LEFTS = [
-  40, 134, 228, 322, 416, 510, 604, 698, 792,
-  886, 980, 1074, 1168, 1262, 1356, 1450, 1544
+  24, 118, 212, 306, 400, 494, 588, 682, 776,
+  870, 964, 1058, 1152, 1246, 1340, 1434, 1528
 ];
 
-// 5 étages résidentiels. Le building a été étendu de 200px vers le haut
-// (CSS top:-200) donc tous les top internes sont décalés de +200. 2
-// nouvelles rangées au sommet (top 30/130 = scene y -170/-70) et les 3
-// d'origine en bas (top 230/330/430 = scene y 30/130/230).
+// 4 étages résidentiels. La rangée du bas (top:430), qui longeait
+// directement la corniche au-dessus des magasins/storefront, a été
+// retirée pour ne pas se cogner visuellement aux awnings des shops.
 const buildingFloors = [
   { top: 30,  windows: WINDOW_LEFTS },
   { top: 130, windows: WINDOW_LEFTS },
   { top: 230, windows: WINDOW_LEFTS },
-  { top: 330, windows: WINDOW_LEFTS },
-  { top: 430, windows: WINDOW_LEFTS }
+  { top: 330, windows: WINDOW_LEFTS }
 ];
 
-// pattern damier alterné par étage (5 rangées)
+// Une fenêtre sur deux allumée, en damier (rangées paires/impaires
+// décalées d'un cran) → effet "immeuble vivant" sans tout cramer.
 const litMap = [
   WINDOW_LEFTS.map((_, i) => i % 2 === 0),
   WINDOW_LEFTS.map((_, i) => i % 2 === 1),
   WINDOW_LEFTS.map((_, i) => i % 2 === 0),
-  WINDOW_LEFTS.map((_, i) => i % 2 === 1),
-  WINDOW_LEFTS.map((_, i) => i % 2 === 0)
+  WINDOW_LEFTS.map((_, i) => i % 2 === 1)
 ];
 
 function LeftBuilding() {
+  // Produits du jour + état "shop mode" (controlled by PaperPanel via events).
+  // Quand shop mode est ON, on remplit les vitrines GROCERY (15) et MOTOS
+  // (15 — affichés en plus des silhouettes de motos). Chaque case est un
+  // <a> qui pointe vers Amazon dans un nouvel onglet.
+  const [products, setProducts] = useState([]);
+  const [shopMode, setShopMode] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (Array.isArray(data?.products)) setProducts(data.products);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    function handler(e) { setShopMode(!!e.detail?.open); }
+    window.addEventListener("cafe-shop-mode-change", handler);
+    return () => window.removeEventListener("cafe-shop-mode-change", handler);
+  }, []);
+
+  // 30 produits répartis sur les 3 vitrines, dimensionné en proportion
+  // de la largeur de chaque shop (GROCERY 250px, FLORIST 160px, MOTOS
+  // 380px).
+  const groceryProducts = products.slice(0, 12);
+  const floristProducts = products.slice(12, 18);
+  const motosProducts   = products.slice(18, 30);
+
+  function trackClick(p) {
+    try {
+      window.dispatchEvent(new CustomEvent("product_clicked", {
+        detail: { id: p.id, name: p.name }
+      }));
+    } catch {}
+  }
+
+  function ShopProductCells({ items, className = "" }) {
+    if (!items.length) return null;
+    return (
+      <div className={`lb-shop-products ${shopMode ? "is-visible" : ""} ${className}`}>
+        {items.map((p) => (
+          <a
+            key={p.id}
+            href={p.amazonUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="lb-shop-product"
+            title={p.name}
+            onClick={() => trackClick(p)}
+          >
+            <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
+            <span className="lb-shop-product-name">{p.name}</span>
+          </a>
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <section className="left-building" aria-hidden="true" data-file="CafeScene.jsx::LeftBuilding">
+    <section
+      className={`left-building${shopMode ? " is-shop-mode" : ""}`}
+      aria-hidden="true"
+      data-file="CafeScene.jsx::LeftBuilding"
+    >
       {buildingFloors.map((floor, fi) => (
         <div className="lb-floor" key={fi} style={{ top: `${floor.top}px` }}>
-          {floor.windows.map((x, wi) => (
-            <span
-              key={wi}
-              className={`lb-window${litMap[fi][wi] ? " is-lit" : ""}`}
-              style={{ left: `${x}px` }}
-            />
-          ))}
+          {floor.windows.map((x, wi) => {
+            // Reflet unique par fenêtre, déterministe via (fi, wi) :
+            // - angle entre 95° et 165° (varie par index combiné)
+            // - position du début entre 5% et 35%
+            // - intensité entre 0.06 et 0.26
+            const seed = fi * 7 + wi * 13;
+            const angle = 95 + (seed % 70);
+            const start = 5 + ((seed * 3) % 30);
+            const mid = start + 12 + ((seed * 5) % 14);
+            const end = mid + 14 + ((seed * 2) % 18);
+            const alpha = 0.06 + ((seed * 11) % 21) / 100; // 0.06..0.26
+            return (
+              <span
+                key={wi}
+                className={`lb-window${litMap[fi][wi] ? " is-lit" : ""}`}
+                style={{
+                  left: `${x}px`,
+                  "--w-reflect-angle": `${angle}deg`,
+                  "--w-reflect-start": `${start}%`,
+                  "--w-reflect-mid": `${mid}%`,
+                  "--w-reflect-end": `${end}%`,
+                  "--w-reflect-alpha": alpha
+                }}
+              />
+            );
+          })}
         </div>
       ))}
       <div className="lb-string-course" />
@@ -198,6 +284,7 @@ function LeftBuilding() {
           <span className="lb-shop-glow" />
           <span className="lb-shop-shelf lb-shop-shelf-top" />
           <span className="lb-shop-shelf lb-shop-shelf-mid" />
+          {ShopProductCells({ items: groceryProducts })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -208,6 +295,7 @@ function LeftBuilding() {
           <span className="lb-shop-glow" />
           <span className="lb-shop-shelf lb-shop-shelf-top" />
           <span className="lb-shop-shelf lb-shop-shelf-mid" />
+          {ShopProductCells({ items: floristProducts })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -229,29 +317,10 @@ function LeftBuilding() {
       </div>
       <div className="lb-shop lb-shop-c">
         <div className="lb-shop-awning lb-shop-awning-moto" />
-        <div className="lb-shop-sign">MOTOS</div>
+        <div className="lb-shop-sign">HARDWARE</div>
         <div className="lb-shop-window">
           <span className="lb-shop-glow" />
-          {/* 2 silhouettes de moto en vitrine. Chaque moto = 2 roues +
-              un cadre + un guidon, positionnée absolue dans la fenêtre. */}
-          <span className="lb-moto lb-moto-1" aria-hidden="true">
-            <span className="lb-moto-wheel lb-moto-wheel-rear" />
-            <span className="lb-moto-wheel lb-moto-wheel-front" />
-            <span className="lb-moto-frame" />
-            <span className="lb-moto-tank" />
-            <span className="lb-moto-seat" />
-            <span className="lb-moto-handle" />
-            <span className="lb-moto-fork" />
-          </span>
-          <span className="lb-moto lb-moto-2" aria-hidden="true">
-            <span className="lb-moto-wheel lb-moto-wheel-rear" />
-            <span className="lb-moto-wheel lb-moto-wheel-front" />
-            <span className="lb-moto-frame" />
-            <span className="lb-moto-tank" />
-            <span className="lb-moto-seat" />
-            <span className="lb-moto-handle" />
-            <span className="lb-moto-fork" />
-          </span>
+          {ShopProductCells({ items: motosProducts })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -915,6 +984,8 @@ export default function CafeScene({ seats }) {
             AVANT le glass dans le DOM pour que le glass paint au-dessus
             quand les z-index sont égaux. */}
         <BlackBackdrop />
+        {/* Aplat bordeaux très foncé, draggable + resizable. */}
+        <BordeauxBackdrop />
         {/* Sol en damier bordeaux/noir, draggable + resizable. */}
         <CheckeredFloor />
         {/* Taxi NYC : traverse la rue de droite à gauche au clic sur

@@ -185,13 +185,168 @@ const insights = [
 ];
 
 // Highlight {tokens} as colored badges in body text
+function fireProductClick(label) {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name: label } }));
+    // Tout clic sur un lien Amazon (inline ou flèche) rétracte le journal
+    // sur la droite et fait apparaître le store derrière.
+    window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
+  } catch {
+    /* analytics hook silently ignored */
+  }
+}
+
+function amazonSearchUrl(query) {
+  const q = encodeURIComponent(String(query || "").trim()).replace(/%20/g, "+");
+  return `https://www.amazon.com/s?k=${q}`;
+}
+
+// Enrichit le HTML brut de la newsletter avec des liens Amazon. Le mail
+// reçu dans Redis est du HTML "tel quel" (souvent sans <a> sur les noms
+// de produits). On parcourt les text nodes et, pour chaque produit du
+// jour qui apparaît littéralement dans le texte, on remplace la première
+// occurrence par <a href="amazon..."> autour du nom. Pas de match dans
+// les <a> déjà présents, ni dans <script> / <style>. SSR-safe (no-op si
+// pas de window/DOMParser).
+function enrichHtmlWithProductLinks(html, products) {
+  if (!html || !Array.isArray(products) || products.length === 0) return html;
+  if (typeof window === "undefined" || typeof DOMParser === "undefined") return html;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(`<div id="root">${html}</div>`, "text/html");
+  const root = doc.getElementById("root");
+  if (!root) return html;
+
+  // Pour chaque produit on génère plusieurs variantes de matching :
+  // 1) le nom complet (ex: "Apple AirPods Pro 3")
+  // 2) le nom sans le numéro / version final (ex: "Apple AirPods Pro")
+  // 3) le bigramme principal (ex: "AirPods Pro") si pertinent
+  // 4) le mot le plus distinctif (le plus long mot >=5 chars, ex: "AirPods")
+  // Les stop-words communs sont exclus des variantes courtes.
+  const STOPWORDS = new Set([
+    "the", "a", "an", "of", "and", "with", "for", "to", "in", "on",
+    "set", "kit", "pack", "box", "bag", "case",
+    "le", "la", "les", "un", "une", "des", "de", "du", "et", "avec"
+  ]);
+  function makeVariants(name) {
+    const variants = new Set();
+    const trimmed = name.trim();
+    if (trimmed.length >= 3) variants.add(trimmed);
+    const tokens = trimmed.split(/\s+/);
+    // Sans le dernier token s'il est petit (numéro / version)
+    if (tokens.length > 2 && tokens[tokens.length - 1].length <= 3) {
+      variants.add(tokens.slice(0, -1).join(" "));
+    }
+    // Bigrammes "significatifs" (les 2 mots du milieu si >= 4 chars chacun)
+    for (let i = 0; i < tokens.length - 1; i++) {
+      const a = tokens[i];
+      const b = tokens[i + 1];
+      if (a.length >= 4 && b.length >= 3 && !STOPWORDS.has(a.toLowerCase()) && !STOPWORDS.has(b.toLowerCase())) {
+        variants.add(`${a} ${b}`);
+      }
+    }
+    // Mot le plus long (>=5 chars, pas un stopword) → souvent le plus
+    // distinctif (ex: "AirPods" dans "Apple AirPods Pro 3")
+    let longest = "";
+    for (const t of tokens) {
+      const clean = t.replace(/[^A-Za-zÀ-ÿ0-9]/g, "");
+      if (clean.length >= 5 && !STOPWORDS.has(clean.toLowerCase()) && clean.length > longest.length) {
+        longest = clean;
+      }
+    }
+    if (longest) variants.add(longest);
+    return Array.from(variants);
+  }
+
+  // Aplatit en {variant, product} pour pouvoir trier par longueur DESC
+  // global : un long nom complet a priorité sur un mot seul.
+  const matchers = [];
+  for (const p of products) {
+    if (!p || typeof p.name !== "string" || p.name.length < 3) continue;
+    for (const v of makeVariants(p.name)) {
+      matchers.push({ variant: v, product: p });
+    }
+  }
+  matchers.sort((a, b) => b.variant.length - a.variant.length);
+  if (matchers.length === 0) return html;
+
+  // Suit lesquels ont déjà été linkés — un produit n'est wrappé qu'une seule
+  // fois dans toute la newsletter, pour éviter une mer de liens identiques.
+  const linkedNames = new Set();
+
+  function escapeRegex(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function walk(node) {
+    if (node.nodeType === 3) {
+      // Text node
+      const text = node.nodeValue;
+      if (!text || text.trim().length === 0) return;
+      for (const { variant, product } of matchers) {
+        if (linkedNames.has(product.name)) continue;
+        const re = new RegExp(`\\b${escapeRegex(variant)}\\b`, "i");
+        const m = text.match(re);
+        if (!m) continue;
+        // Split en 3 : avant / match / après
+        const before = text.slice(0, m.index);
+        const after = text.slice(m.index + m[0].length);
+        const a = doc.createElement("a");
+        a.href = product.amazonUrl || amazonSearchUrl(product.name);
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.className = "paper-link";
+        a.setAttribute("data-product-name", product.name);
+        a.textContent = m[0];
+        const parent = node.parentNode;
+        if (before) parent.insertBefore(doc.createTextNode(before), node);
+        parent.insertBefore(a, node);
+        if (after) {
+          const tailNode = doc.createTextNode(after);
+          parent.insertBefore(tailNode, node);
+          parent.removeChild(node);
+          linkedNames.add(product.name);
+          // Le reste pourra encore matcher d'AUTRES produits dans `after`
+          walk(tailNode);
+          return;
+        }
+        parent.removeChild(node);
+        linkedNames.add(product.name);
+        return;
+      }
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "a" || tag === "script" || tag === "style" || tag === "code") return;
+    const children = Array.from(node.childNodes);
+    for (const c of children) walk(c);
+  }
+
+  walk(root);
+  return root.innerHTML;
+}
+
+// Chaque mot/expression mis en {accolades} dans le body devient un lien
+// inline vers Amazon — c'est la couche commerciale discrète directement
+// dans le texte de la newsletter, sans CTA séparée.
 function HighlightedBody({ text }) {
   const parts = text.split(/(\{[^}]+\})/g);
   return (
     <>
       {parts.map((part, i) =>
         part.startsWith("{") && part.endsWith("}") ? (
-          <span className="paper-badge" key={i}>{part.slice(1, -1)}</span>
+          <a
+            key={i}
+            className="paper-badge paper-link"
+            href={amazonSearchUrl(part.slice(1, -1))}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => fireProductClick(part.slice(1, -1))}
+          >
+            {part.slice(1, -1)}
+          </a>
         ) : (
           <span key={i}>{part}</span>
         )
@@ -210,47 +365,104 @@ function MetricBadge({ value }) {
   return <span className={`paper-metric${positive ? " is-up" : ""}`}>{value}</span>;
 }
 
+// Petite flèche posée à droite de chaque ligne ranked. C'est le "Buy it"
+// version inline : on clique → onglet Amazon vers le keyword.
+function BuyArrow({ keyword }) {
+  return (
+    <a
+      className="paper-buy-arrow"
+      href={amazonSearchUrl(keyword)}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => fireProductClick(keyword)}
+      aria-label={`Buy it — ${keyword}`}
+      title="Buy it"
+    >
+      →
+    </a>
+  );
+}
+
 function RankedList({ rows, kind }) {
   return (
     <ol className="paper-list">
-      {rows.map((row, index) => (
-        <li className="paper-list-row" key={index}>
-          <span className="paper-rank">{index + 1}</span>
-          {kind === "google" ? (
-            <>
-              <span className="paper-list-label">{row[0]}</span>
-              <span className="paper-list-meta">
-                <MetricBadge value={row[1]} />
-                <span className="paper-list-volume">{row[2]}</span>
-              </span>
-            </>
-          ) : kind === "amazonBest" ? (
-            <>
-              <span className="paper-list-label">
-                <strong>{row[0]}</strong>
-                {row[1] !== "—" && <em> — {row[1]}</em>}
-              </span>
-              <span className="paper-rank-tag">{row[2]}</span>
-            </>
-          ) : kind === "movers" ? (
-            <>
-              <span className="paper-list-label">
-                <strong>{row[0]}</strong>
-                {row[1] !== "—" && <em> — {row[1]}</em>}
-              </span>
-              <MetricBadge value={row[2]} />
-            </>
-          ) : (
-            <>
-              <span className="paper-list-label">
-                <strong>{row[0]}</strong>
-                {row[1] && <em> — {row[1]}</em>}
-              </span>
-              <span className="paper-list-volume">{row[2]}</span>
-            </>
-          )}
-        </li>
-      ))}
+      {rows.map((row, index) => {
+        const keyword = row[0];
+        return (
+          <li className="paper-list-row" key={index}>
+            <span className="paper-rank">{index + 1}</span>
+            {kind === "google" ? (
+              <>
+                <a
+                  className="paper-list-label paper-link"
+                  href={amazonSearchUrl(keyword)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => fireProductClick(keyword)}
+                >
+                  {keyword}
+                </a>
+                <span className="paper-list-meta">
+                  <MetricBadge value={row[1]} />
+                  <span className="paper-list-volume">{row[2]}</span>
+                  <BuyArrow keyword={keyword} />
+                </span>
+              </>
+            ) : kind === "amazonBest" ? (
+              <>
+                <span className="paper-list-label">
+                  <a
+                    className="paper-link"
+                    href={amazonSearchUrl(keyword)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => fireProductClick(keyword)}
+                  ><strong>{keyword}</strong></a>
+                  {row[1] !== "—" && <em> — {row[1]}</em>}
+                </span>
+                <span className="paper-list-meta">
+                  <span className="paper-rank-tag">{row[2]}</span>
+                  <BuyArrow keyword={keyword} />
+                </span>
+              </>
+            ) : kind === "movers" ? (
+              <>
+                <span className="paper-list-label">
+                  <a
+                    className="paper-link"
+                    href={amazonSearchUrl(keyword)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => fireProductClick(keyword)}
+                  ><strong>{keyword}</strong></a>
+                  {row[1] !== "—" && <em> — {row[1]}</em>}
+                </span>
+                <span className="paper-list-meta">
+                  <MetricBadge value={row[2]} />
+                  <BuyArrow keyword={keyword} />
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="paper-list-label">
+                  <a
+                    className="paper-link"
+                    href={amazonSearchUrl(keyword)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => fireProductClick(keyword)}
+                  ><strong>{keyword}</strong></a>
+                  {row[1] && <em> — {row[1]}</em>}
+                </span>
+                <span className="paper-list-meta">
+                  <span className="paper-list-volume">{row[2]}</span>
+                  <BuyArrow keyword={keyword} />
+                </span>
+              </>
+            )}
+          </li>
+        );
+      })}
     </ol>
   );
 }
@@ -274,7 +486,50 @@ export default function PaperPanel() {
   const [size, setSize] = useState(init.size);
   const [dragging, setDragging] = useState(false);
   const [resizing, setResizing] = useState(false);
+  // Shop mode : clic sur "Buy it" → le journal slide vers la droite (et
+  // descend en z-index pour passer derrière le bar) ; l'étagère du store
+  // (rendue dans Homepage) apparaît dans la zone restée libre.
+  const [shopMode, setShopMode] = useState(false);
+  function openShelf(slug) {
+    if (typeof window !== "undefined") {
+      try {
+        window.dispatchEvent(new CustomEvent("buy_it_clicked", {
+          detail: { article: slug || null }
+        }));
+      } catch {}
+    }
+    setShopMode(true);
+  }
+  // Sync sortant : on broadcast les changements de shop mode pour que le
+  // LeftBuilding (vitrines de produits) puisse réagir.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", {
+        detail: { open: shopMode, source: "paper" }
+      }));
+    } catch {}
+  }, [shopMode]);
+  // Sync entrant : tout clic sur un lien Amazon (inline ou flèche) re-
+  // dispatche cet event pour rétracter le journal vers la droite. On
+  // ignore les events qu'on a nous-même émis (source: "paper") pour ne
+  // pas créer de boucle.
+  useEffect(() => {
+    function onChange(e) {
+      if (e.detail?.source === "paper") return;
+      const open = !!e.detail?.open;
+      setShopMode((prev) => (prev === open ? prev : open));
+    }
+    window.addEventListener("cafe-shop-mode-change", onChange);
+    return () => window.removeEventListener("cafe-shop-mode-change", onChange);
+  }, []);
+  useEffect(() => {
+    function onClose() { setShopMode(false); }
+    window.addEventListener("cafe-shop-mode-close", onClose);
+    return () => window.removeEventListener("cafe-shop-mode-close", onClose);
+  }, []);
   const [newsletter, setNewsletter] = useState(null);
+  const [products, setProducts] = useState([]);
 
   // Charge la newsletter du jour (postée par le script automatique).
   useEffect(() => {
@@ -289,6 +544,25 @@ export default function PaperPanel() {
       cancelled = true;
     };
   }, []);
+
+  // Charge les 30 produits du jour pour pouvoir injecter des liens Amazon
+  // dans le texte HTML de la newsletter (même logique que LeftBuilding).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && Array.isArray(data?.products)) setProducts(data.products);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  // Newsletter HTML enrichi de liens Amazon autour des produits du jour.
+  // Recalculé seulement quand la newsletter ou la liste produits change.
+  const enrichedNewsletterHtml = newsletter?.html
+    ? enrichHtmlWithProductLinks(newsletter.html, products)
+    : null;
 
   function getScale() {
     return Math.min(window.innerWidth / 1600, window.innerHeight / 900) || 1;
@@ -355,18 +629,61 @@ export default function PaperPanel() {
     window.addEventListener("pointerup", handleUp);
   }
 
+  // En shop mode : on ajoute un offset X au transform inline pour faire
+  // glisser le journal vers la droite, et la classe .is-shop-mode baisse
+  // son z-index pour qu'il passe derrière le bar. Le slide est calé sur
+  // la largeur du paper pour qu'il se rétracte (presque) entièrement.
+  const SHOP_SLIDE_X = Math.max(900, size.width - 60);
+  const composedX = offset.x + (shopMode ? SHOP_SLIDE_X : 0);
+
   return (
     <section
-      className={`paper-panel${resizing ? " is-resizing" : ""}`}
+      className={
+        `paper-panel` +
+        (resizing ? " is-resizing" : "") +
+        (dragging ? " is-dragging" : "") +
+        (shopMode ? " is-shop-mode" : "")
+      }
       id="the-paper"
       aria-labelledby="paper-title"
       data-file="PaperPanel.jsx"
       style={{
         width: `${size.width}px`,
         height: `${size.height}px`,
-        transform: `translate(${offset.x}px, ${offset.y}px)`
+        transform: `translate(${composedX}px, ${offset.y}px)`
       }}
     >
+      {/* Patte verticale qui dépasse à gauche du paper. Composée de deux
+          zones empilées :
+            - haut : poignée de drag (déplacement libre du journal),
+            - bas  : flèche toggle qui envoie/ramène le paper en position A/B. */}
+      <div className={`paper-shop-toggle${shopMode ? " is-on" : ""}`}>
+        <div
+          className="paper-shop-toggle-drag"
+          onPointerDown={handleDragStart}
+          aria-label="Drag the paper"
+          title="Drag"
+        >
+          <span aria-hidden="true">≡</span>
+        </div>
+        <button
+          type="button"
+          className="paper-shop-toggle-arrow"
+          onClick={() => {
+            if (shopMode) {
+              setShopMode(false);
+              try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
+            } else {
+              openShelf("toggle");
+            }
+          }}
+          aria-label={shopMode ? "Back to the paper (position A)" : "Send the paper to the right (position B)"}
+          title={shopMode ? "Back to the paper" : "Send to position B"}
+        >
+          <span aria-hidden="true">{shopMode ? "←" : "→"}</span>
+        </button>
+      </div>
+
       <header
         className={`paper-masthead paper-drag-handle${dragging ? " is-dragging" : ""}`}
         onPointerDown={handleDragStart}
@@ -389,10 +706,27 @@ export default function PaperPanel() {
       </header>
 
       <div className="paper-scroll">
+        <div className="paper-scroll-content">
         {newsletter ? (
           <div
             className="paper-newsletter-html"
-            dangerouslySetInnerHTML={{ __html: newsletter.html }}
+            dangerouslySetInnerHTML={{ __html: enrichedNewsletterHtml || newsletter.html }}
+            onClick={(e) => {
+              // Délégation : tout clic sur un <a> dans le HTML email
+              // active le shop mode (le journal slide vers la droite,
+              // le store apparaît). Le href s'ouvre normalement dans un
+              // nouvel onglet via target="_blank" si présent dans le HTML.
+              const link = e.target.closest && e.target.closest("a");
+              if (!link) return;
+              try {
+                window.dispatchEvent(new CustomEvent("product_clicked", {
+                  detail: { name: (link.textContent || "").trim().slice(0, 80) }
+                }));
+                window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", {
+                  detail: { open: true }
+                }));
+              } catch {}
+            }}
           />
         ) : (
           <>
@@ -441,6 +775,7 @@ export default function PaperPanel() {
             <p className="paper-footer">Rapport généré automatiquement • xavier.dinelli@gmail.com</p>
           </>
         )}
+        </div>
       </div>
       <div
         className="paper-resize-handle"

@@ -41,9 +41,7 @@ button {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 72% 48%, rgba(173, 87, 37, 0.2), transparent 42%),
-    linear-gradient(180deg, #050404 0%, #110b0a 54%, #040303 100%);
+  background: #000000;
 }
 
 /* Décalage global : 100% des éléments visibles desktop sont poussés vers
@@ -1301,9 +1299,7 @@ button {
    au bord gauche/haut, on évite ainsi qu'un bandeau bleu apparaisse.
    Le ciel/bleu reste appliqué seulement à l'intérieur de .scene-stage. */
 .homepage.is-day {
-  background:
-    radial-gradient(circle at 72% 48%, rgba(173, 87, 37, 0.2), transparent 42%),
-    linear-gradient(180deg, #050404 0%, #110b0a 54%, #040303 100%);
+  background: #000000;
 }
 
 .homepage.is-day .scene-stage {
@@ -2158,8 +2154,10 @@ button {
   top: 470px;
   width: 200px;
   height: 200px;
-  /* clairement derrière .cash-register (19) */
-  z-index: 12;
+  /* Avancée à 75 → passe au-dessus du cafe-module (70 = counter), du
+     cash-register (18) et de tout le bloc glass/backdrop/door. Reste
+     sous .seat.is-latest (500) et les bulles (9000). */
+  z-index: 75;
   pointer-events: auto;
   cursor: grab;
   font-family: "VT323", monospace;
@@ -2459,7 +2457,12 @@ button {
 
 .scene-vignette {
   box-shadow: inset 0 0 180px rgba(0, 0, 0, 0.94);
-  z-index: 50;
+  /* z-index baissé pour ne plus passer par-dessus le paper-panel
+     (z-index 11) ni les autres modules flottants (cash-register 19,
+     shelf-panel 11, etc). Il continue à assombrir le ciel/building
+     (z-index < 9) pour l'ambiance Hopper. */
+  z-index: 9;
+  pointer-events: none;
 }
 
 .street-base {
@@ -2652,8 +2655,19 @@ button {
   width: 52px;
   height: 70px;
   border: 2px solid rgba(228, 184, 122, 0.46);
+  /* Reflet par fenêtre : angle, position et intensité paramétrés via
+     custom properties qu'on injecte en inline style côté JSX selon
+     l'index (fi, wi). Du coup chaque vitre attrape la lumière
+     différemment, comme un vrai immeuble. */
   background:
-    linear-gradient(135deg, rgba(255, 207, 130, 0.1), transparent 50%),
+    linear-gradient(
+      var(--w-reflect-angle, 135deg),
+      transparent var(--w-reflect-start, 0%),
+      rgba(255, 230, 180, var(--w-reflect-alpha, 0.18)) var(--w-reflect-mid, 30%),
+      rgba(255, 210, 150, calc(var(--w-reflect-alpha, 0.18) * 0.4)) var(--w-reflect-end, 50%),
+      transparent calc(var(--w-reflect-end, 50%) + 10%)
+    ),
+    linear-gradient(135deg, rgba(255, 207, 130, 0.06), transparent 50%),
     rgba(7, 6, 6, 0.86);
   box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.6), 0 0 12px rgba(232, 149, 67, 0.06);
 }
@@ -2679,14 +2693,14 @@ button {
     0 0 22px rgba(255, 168, 78, 0.16);
 }
 
-/* Vitrine du rez-de-chaussée */
+/* Vitrine du rez-de-chaussée. Étendue +30% en hauteur (468 vs 360
+   d'origine), top remonté de 108px pour garder le bas au même niveau. */
 .lb-storefront {
   position: absolute;
   left: 40px;
-  /* +200 pour compenser le building top:-200. */
-  top: 530px;
+  top: 422px;
   width: 620px;
-  height: 360px;
+  height: 468px;
   border-top: 1px solid rgba(232, 177, 101, 0.24);
   border-bottom: 1px solid rgba(232, 177, 101, 0.22);
   background:
@@ -2729,13 +2743,14 @@ button {
 }
 
 /* Modules vitrine décoratifs entre vitrine et bar */
-/* Commerces style old grocery — étage du bas */
+/* Commerces style old grocery — étage du bas. Hauteur 468px (30% de
+   plus que les 360 d'origine), top remonté de 108px → ils restent
+   ancrés sur le sol et grandissent vers le haut. */
 .lb-shop {
   position: absolute;
-  /* +200 pour compenser le building top:-200. */
-  top: 530px;
+  top: 422px;
   width: 140px;
-  height: 360px;
+  height: 468px;
   z-index: 5;
   border-left: 2px solid rgba(28, 16, 12, 0.85);
   border-right: 2px solid rgba(28, 16, 12, 0.85);
@@ -2748,23 +2763,32 @@ button {
    à droite avec 20px de gap entre chaque. */
 /* Ordre dans la rue (gauche → droite) : MOTOS, [porte cochère], GROCERY,
    FLORIST. La porte cochère prend ~100px entre MOTOS et GROCERY. */
-.lb-shop-c { left: calc(150px - 1cm); width: 380px; height: 380px; }
-.lb-shop-a { left: calc(660px - 1cm); width: 250px; }
-.lb-shop-b { left: calc(930px - 1cm); width: 160px; }
+/* Tout l'ensemble shops + porte cochère décalé de 130px vers la gauche
+   par rapport à la position précédente. */
+/* lb-shop-c (MOTOS) réduit : width 380→320, height 494→444. Le top
+   est descendu à 466 pour garder le bas à la même hauteur que les
+   autres shops (bottom inchangé). */
+.lb-shop-c { left: calc(100px - 1cm); width: 300px; top: 426px; height: 484px; }
+/* GROCERY et FLORIST élargies vers la droite (left inchangé, width
+   augmentée). FLORIST décalé de +100px à droite pour suivre la nouvelle
+   fin de GROCERY tout en gardant un gap de 20px. */
+.lb-shop-a { left: calc(530px - 1cm); width: 275px; }
+.lb-shop-b { left: calc(825px - 1cm); width: 175px; }
 
 /* === PORTE COCHÈRE ========================================================
    Grande arche en bois sombre type immeuble haussmannien. Mêmes top/height
    que les shops voisins pour aligner les bases au sol. */
 .lb-porte-cochere {
   position: absolute;
-  /* Aligné sur les shops : top:530px (= scene y 330) */
-  top: 530px;
-  /* Entre MOTOS (se termine à calc(150-1cm)+380 = calc(530-1cm)) et
-     GROCERY (commence à calc(660-1cm)) — 130px disponibles, on prend
+  /* Aligné sur les shops élargis : top:422px (était 530), height:468
+     (était 360) → +30% en hauteur, ancré sur le même bas. */
+  top: 422px;
+  /* Entre MOTOS (se termine à calc(20-1cm)+380 = calc(400-1cm)) et
+     GROCERY (commence à calc(530-1cm)) — 130px disponibles, on prend
      110px et on laisse 10px de gap de chaque côté. */
-  left: calc(540px - 1cm);
+  left: calc(410px - 1cm);
   width: 110px;
-  height: 360px;
+  height: 468px;
   z-index: 5;
   background: linear-gradient(180deg, #060403 0%, #110906 60%, #050302 100%);
   border-radius: 55px 55px 0 0;
@@ -2940,6 +2964,71 @@ button {
     inset 0 0 28px rgba(0, 0, 0, 0.7),
     inset 0 0 0 1px rgba(232, 175, 99, 0.3);
   overflow: hidden;
+}
+
+/* === Produits posés sur les étagères des shops ============================
+   Visibles uniquement quand shop mode est actif (PaperPanel a glissé en
+   position B). 30 produits du jour répartis entre les 3 vitrines en
+   fonction de leur largeur. Chaque case est cliquable et ouvre Amazon.
+   Grilles dimensionnées pour que chaque vitrine se remplisse exactement
+   (pas de dernière rangée vide). */
+.lb-shop-products {
+  position: absolute;
+  inset: 6px;
+  display: grid;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 4px;
+  padding: 4px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 600ms ease 100ms;
+  z-index: 4;
+}
+/* GROCERY (250px wide, 12 produits) → 4 cols × 3 rows = 12 ✓ */
+.lb-shop-a .lb-shop-products { grid-template-columns: repeat(4, 1fr); }
+/* FLORIST (160px wide, 6 produits)  → 2 cols × 3 rows = 6 ✓ */
+.lb-shop-b .lb-shop-products { grid-template-columns: repeat(2, 1fr); }
+/* MOTOS (380px wide, 12 produits)   → 6 cols × 2 rows = 12 ✓ */
+.lb-shop-c .lb-shop-products { grid-template-columns: repeat(4, 1fr); }
+.lb-shop-products.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lb-shop-product {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-decoration: none;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 240, 210, 0.85), rgba(245, 220, 175, 0.55) 70%),
+    rgba(20, 12, 8, 0.5);
+  border: 1px solid rgba(255, 220, 160, 0.45);
+  border-radius: 3px;
+  padding: 2px;
+  box-shadow:
+    inset 0 0 4px rgba(0, 0, 0, 0.4),
+    0 1px 1px rgba(0, 0, 0, 0.35);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  overflow: hidden;
+}
+.lb-shop-product:hover {
+  transform: translateY(-1px) scale(1.04);
+  border-color: rgba(255, 240, 200, 0.85);
+  box-shadow:
+    inset 0 0 6px rgba(255, 200, 100, 0.3),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  z-index: 5;
+}
+.lb-shop-product-emoji {
+  font-size: 16px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+}
+.lb-shop-product-name {
+  display: none; /* on cache le texte pour rester compact dans la vitrine */
 }
 
 .lb-shop-glow {
@@ -3187,8 +3276,9 @@ button {
   top: 128px;
   width: 300px;
   height: 500px;
-  /* glass = 6, black-backdrop = 7, cash-register = 18 → 8 met la porte au-dessus du backdrop noir. */
-  z-index: 8;
+  /* Avancée : glass=14, black-backdrop=15 → porte=16 reste juste au-
+     dessus du backdrop. Toujours sous le cash-register (18). */
+  z-index: 16;
   /* Toujours cliquable : on a un toggle ouvert/fermé qui doit marcher en
      prod aussi. Le drag/resize sont gated par EDIT_MODE côté JS. */
   pointer-events: auto;
@@ -5059,9 +5149,39 @@ button {
   position: absolute;
   left: 0;
   top: 0;
-  /* Au-dessus du glass (6), sous la porte (8). */
-  z-index: 7;
-  background: rgba(0, 0, 0, 0.88);
+  /* Avancé : glass à 14, porte à 16 → backdrop à 15 reste sandwich entre
+     les deux. Tout l'ensemble est au-dessus des shops et du building. */
+  z-index: 15;
+  /* Le haut + le coin haut-gauche reçoivent une lueur chaude. Le coin
+     a un halo radial plus marqué (lumière qui frappe l'angle), le reste
+     du haut a un highlight horizontal subtil, et le bas reste opaque. */
+  background:
+    /* Halo radial chaud accentué dans le coin haut-gauche */
+    radial-gradient(circle at 0% 0%,
+      rgba(255, 220, 150, 0.7) 0%,
+      rgba(255, 160, 80, 0.4) 14%,
+      rgba(180, 80, 30, 0.18) 32%,
+      transparent 55%),
+    /* Highlight horizontal très fin tout en haut */
+    linear-gradient(180deg,
+      rgba(255, 200, 130, 0.42) 0px,
+      rgba(255, 180, 110, 0.18) 6px,
+      transparent 16px),
+    /* Halo radial chaud centré en haut */
+    radial-gradient(ellipse at 50% 0%,
+      rgba(255, 180, 100, 0.45) 0%,
+      rgba(180, 80, 30, 0.22) 18%,
+      transparent 45%),
+    /* Aplat noir transparent (fond du backdrop) */
+    rgba(0, 0, 0, 0.88);
+  border-top: 1px solid rgba(255, 200, 130, 0.5);
+  border-left: 1px solid rgba(255, 200, 130, 0.4);
+  box-shadow:
+    inset 0 -8px 18px rgba(0, 0, 0, 0.55),
+    inset 0 6px 14px rgba(255, 180, 100, 0.18),
+    inset 8px 8px 22px rgba(255, 180, 100, 0.28),
+    -4px -4px 16px rgba(255, 180, 100, 0.28),
+    0 -4px 14px rgba(255, 180, 100, 0.22);
   pointer-events: none;
 }
 
@@ -5087,14 +5207,113 @@ button {
 }
 /* === END BLACK BACKDROP ==================================================== */
 
+/* === BORDEAUX BACKDROP (aplat bordeaux très foncé, draggable+resizable) === */
+.bordeaux-backdrop {
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* z-index 2 → niveau de la distant-skyline. */
+  z-index: 2;
+  /* Texture brique : 3 couches superposées + gradient bordeaux foncé.
+     Le décalage 1 brique sur 2 (quinconce) est géré dans ::before. */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 21px,
+      rgba(10, 2, 4, 0.85) 21px 23px,
+      transparent 23px 44px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 20px,
+      rgba(10, 2, 4, 0.9) 20px 22px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0) 0 16px,
+      rgba(0, 0, 0, 0.18) 16px 22px
+    ),
+    linear-gradient(180deg, #3a0810 0%, #260509 50%, #150307 100%);
+  background-size:
+    44px 44px,
+    100% 22px,
+    100% 22px,
+    100% 100%;
+  border: 1px solid rgba(78, 12, 18, 0.6);
+  pointer-events: none;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Quinconce : 2e grille de joints verticaux décalée d'une demi-brique
+   (22px) et masquée pour ne rendre qu'une rangée sur 2 → appareillage
+   de briques classique. */
+.bordeaux-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 21px,
+    rgba(10, 2, 4, 0.85) 21px 23px,
+    transparent 23px 44px
+  );
+  background-size: 44px 44px;
+  background-position: 22px 0;
+  -webkit-mask-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 22px,
+    #000 22px 44px
+  );
+  mask-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 22px,
+    #000 22px 44px
+  );
+}
+
+/* Quelques highlights de lumière sur des briques au hasard (patine). */
+.bordeaux-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 28%, rgba(255, 220, 180, 0.05), transparent 14%),
+    radial-gradient(circle at 65% 18%, rgba(255, 200, 160, 0.04), transparent 12%),
+    radial-gradient(circle at 82% 64%, rgba(255, 220, 180, 0.05), transparent 16%),
+    radial-gradient(circle at 35% 82%, rgba(255, 200, 160, 0.04), transparent 14%);
+  mix-blend-mode: screen;
+}
+
+.homepage:not(.is-frozen) .bordeaux-backdrop {
+  pointer-events: auto;
+  cursor: grab;
+}
+.homepage:not(.is-frozen) .bordeaux-backdrop.is-dragging {
+  cursor: grabbing;
+}
+
+.bordeaux-backdrop-resize-handle {
+  bottom: -10px;
+  right: -10px;
+  position: absolute;
+}
+
+.bordeaux-backdrop:hover > .cafe-resize-handle,
+.bordeaux-backdrop.is-dragging > .cafe-resize-handle {
+  opacity: 1;
+}
+/* === END BORDEAUX BACKDROP ================================================= */
+
 /* === CHECKERED FLOOR (sol damier bordeaux + noir) ========================= */
 .checkered-floor {
   position: absolute;
   left: 0;
   top: 0;
-  /* z-index 8 : au-dessus de la porte (7), du fond noir et du glass-wrap (6),
-     mais sous le register (18) et le counter cluster (70). */
-  z-index: 8;
+  /* z-index 22 : au-dessus de la corner-curve (20), du register (19) et de
+     la radio (17). Reste sous le counter cluster (70) si présent. */
+  z-index: 22;
   background-color: #0a0303;
   /* Damier diagonal (carreaux en losanges) : deux linear-gradients à 45°
      décalés d'une demi-tile → chaque carreau bordeaux est un losange,
@@ -5233,7 +5452,7 @@ button {
   top: -272px;
   width: 96px;
   height: 1035px;
-  z-index: 5;
+  z-index: 20;
   clip-path: polygon(40% 0, 100% 0, 100% 100%, 43% 100%, 9% 95%, 1% 13%);
   background: #2a1612;
   border-left: 2px solid #f1b268;
@@ -5453,7 +5672,10 @@ button {
 .cafe-glass-wrap {
   position: absolute;
   inset: 0;
-  z-index: 6;
+  /* Avancé de 6 → 14 pour passer devant les vitrines des shops (z-5)
+     et le building (z-4). Reste sous le register (18) et le counter
+     cluster (70). */
+  z-index: 14;
   pointer-events: none;
   transform: translate(0, 62px) scale(0.69, 0.92);
   transform-origin: 1520px center;
@@ -5921,24 +6143,60 @@ button {
   height: 318px;
   pointer-events: none;
   clip-path: polygon(0 12%, 100% 0, 100% 94%, 0 100%);
+  /* Verre éclairci : opacités réduites + chaude lueur jaune renforcée
+     pour faire transparaître l'intérieur du café. */
   background:
-    linear-gradient(90deg, rgba(255, 190, 93, 0.18), rgba(255, 210, 125, 0.07) 30%, rgba(30, 15, 12, 0.58) 88%),
-    radial-gradient(ellipse at 45% 62%, rgba(229, 124, 53, 0.24), transparent 52%),
-    linear-gradient(180deg, rgba(20, 13, 11, 0.78), rgba(6, 5, 4, 0.88));
-  border-top: 1px solid rgba(255, 211, 142, 0.28);
-  border-bottom: 1px solid rgba(255, 211, 142, 0.2);
-  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.58), 0 18px 50px rgba(0, 0, 0, 0.38);
+    linear-gradient(90deg, rgba(255, 200, 110, 0.22), rgba(255, 220, 145, 0.12) 30%, rgba(40, 22, 15, 0.42) 88%),
+    radial-gradient(ellipse at 45% 62%, rgba(255, 168, 88, 0.32), transparent 52%),
+    linear-gradient(180deg, rgba(48, 30, 20, 0.42), rgba(20, 13, 10, 0.6));
+  border-top: 1px solid rgba(255, 220, 160, 0.42);
+  border-bottom: 1px solid rgba(255, 220, 160, 0.32);
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.4), 0 22px 60px rgba(0, 0, 0, 0.4);
+}
+
+/* Plus d'effet vitre : 4 reflets diagonaux + 1 highlight horizontal en
+   haut + halo glow latéral, pour donner l'impression d'un panneau de
+   verre épais qui attrape la lumière de la rue. */
+.cafe-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* Pluie de reflets verticaux subtils (verre légèrement strié) */
+  background:
+    repeating-linear-gradient(105deg,
+      transparent 0 22px,
+      rgba(255, 235, 184, 0.04) 22px 23px,
+      transparent 23px 78px),
+    /* Long reflet diagonal lumineux, principal */
+    linear-gradient(108deg,
+      transparent 18%,
+      rgba(255, 240, 200, 0.18) 25%,
+      rgba(255, 220, 160, 0.06) 32%,
+      transparent 40%),
+    /* Bandeau horizontal lumineux en haut (reflet plafond) */
+    linear-gradient(180deg,
+      rgba(255, 230, 180, 0.18) 0%,
+      rgba(255, 220, 160, 0.04) 12%,
+      transparent 28%);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  pointer-events: none;
 }
 
 .cafe-glass::after {
   content: "";
   position: absolute;
   inset: -10px;
+  /* Gros reflets diagonaux qui dépassent du clip pour un effet "verre
+     qui dépasse du cadre" (highlight extérieur). */
   background:
-    linear-gradient(111deg, transparent 10%, rgba(255, 235, 184, 0.12) 22%, transparent 36%),
-    linear-gradient(104deg, transparent 58%, rgba(255, 205, 130, 0.08) 62%, transparent 75%);
+    linear-gradient(111deg, transparent 8%, rgba(255, 235, 184, 0.18) 22%, rgba(255, 220, 160, 0.06) 32%, transparent 40%),
+    linear-gradient(104deg, transparent 56%, rgba(255, 205, 130, 0.14) 64%, transparent 78%),
+    /* Petit éclat secondaire en bas-droite */
+    linear-gradient(118deg, transparent 78%, rgba(255, 215, 150, 0.1) 86%, transparent 94%);
   mix-blend-mode: screen;
-  opacity: 0.9;
+  opacity: 1;
+  pointer-events: none;
 }
 
 .interior-ceiling,
@@ -6014,11 +6272,11 @@ button {
 .silhouette-a {
   left: 160px;
   bottom: 25px;  /* descendue de 30px */
-  opacity: 0.92;
+  opacity: 1;
   filter: none;
   background:
-    radial-gradient(circle at 50% 18%, rgba(2, 1, 1, 1) 0 14px, transparent 15px),
-    linear-gradient(180deg, transparent 28px, rgba(2, 1, 1, 0.98) 29px);
+    radial-gradient(circle at 50% 18%, #000 0 14px, transparent 15px),
+    linear-gradient(180deg, transparent 28px, #000 29px);
 }
 
 .silhouette-b {
@@ -6027,11 +6285,11 @@ button {
   width: 60px;
   transform: scale(0.84);
   transform-origin: bottom center;
-  opacity: 0.92;
+  opacity: 1;
   filter: none;
   background:
-    radial-gradient(circle at 50% 18%, rgba(2, 1, 1, 1) 0 14px, transparent 15px),
-    linear-gradient(180deg, transparent 28px, rgba(2, 1, 1, 0.98) 29px);
+    radial-gradient(circle at 50% 18%, #000 0 14px, transparent 15px),
+    linear-gradient(180deg, transparent 28px, #000 29px);
 }
 
 /* Silhouettes intérieures interactives (Mike + a/c) : capturent leurs propres
@@ -6264,15 +6522,15 @@ button {
   width: 60px;
   /* Allongée vers le bas : on diminue bottom (descend plus bas) et on
      augmente height de la même valeur pour que le haut ne bouge pas. */
-  bottom: 40px;
+  bottom: 32px;
   height: 95px;
   transform: scale(0.88);
   transform-origin: bottom center;
-  opacity: 0.92;
+  opacity: 1;
   filter: none;
   background:
-    radial-gradient(circle at 50% 18%, rgba(2, 1, 1, 1) 0 14px, transparent 15px),
-    linear-gradient(180deg, transparent 28px, rgba(2, 1, 1, 0.98) 29px);
+    radial-gradient(circle at 50% 18%, #000 0 14px, transparent 15px),
+    linear-gradient(180deg, transparent 28px, #000 29px);
 }
 
 .mullion {
@@ -6302,12 +6560,21 @@ button {
   flex-direction: column;
   color: #1f2937;
   background: #f5f7fb;
-  border-radius: 14px;
+  /* Coins du haut bien arrondis (24px), bas plus discret (14px). */
+  border-radius: 24px 24px 14px 14px;
   box-shadow:
     0 30px 70px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(255, 255, 255, 0.08);
-  overflow: hidden;
+  /* overflow:visible pour laisser dépasser la patte du toggle (paper-
+     shop-toggle) à gauche du paper. Sert de poignée pour ramener le
+     journal quand il est rétracté derrière le bar. */
+  overflow: visible;
   font-family: "Segoe UI", Inter, system-ui, sans-serif;
+}
+/* Le scroll garde son propre clipping pour ne pas faire déborder le
+   contenu et garder le radius en bas du panel. */
+.paper-scroll {
+  border-radius: 0 0 14px 14px;
 }
 
 .paper-panel.is-resizing {
@@ -6345,10 +6612,13 @@ button {
   border-color: #ffb84a;
 }
 
-/* En-tête : capsule navy + poignée pour drag */
+/* En-tête : capsule navy + poignée pour drag.
+   border-radius matche le haut du paper-panel pour que le fond crème
+   du masthead suive bien la courbure des coins supérieurs. */
 .paper-masthead {
   padding: 18px 22px 16px;
   background: #f5f7fb;
+  border-radius: 24px 24px 0 0;
 }
 
 .paper-drag-handle {
@@ -6422,6 +6692,328 @@ button {
   padding: 4px 18px 16px;
   scrollbar-width: thin;
   scrollbar-color: rgba(100, 116, 139, 0.4) transparent;
+  /* On a besoin de relative pour que .shelf-view (absolute, inset:0)
+     s'aligne sur la zone scroll et fade par-dessus le contenu paper. */
+  position: relative;
+}
+
+/* Slide du journal vers la droite quand on entre en shop mode. La z-index
+   tombe pour passer derrière le bar et les modules flottants du café. */
+.paper-panel {
+  transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 500ms ease,
+              z-index 0ms 700ms;
+  will-change: transform;
+}
+.paper-panel.is-dragging,
+.paper-panel.is-resizing {
+  /* Drag fluide : on coupe les transitions tant que l'utilisateur tient. */
+  transition: none;
+}
+.paper-panel.is-shop-mode {
+  /* Pas de z-index drop : le journal reste devant le cafe-glass et ses
+     gradients sombres pour éviter qu'une couche sombre se superpose à
+     la newsletter quand elle slide. La patte rouge top-left reste donc
+     toujours cliquable, peu importe la position. */
+  transition: transform 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Wrapper du contenu paper — fade out subtil quand le journal passe en
+   shop mode (le contenu s'efface un peu pour laisser respirer l'étagère). */
+.paper-scroll-content {
+  transition: opacity 520ms ease, transform 520ms ease;
+}
+.paper-scroll-content.is-hidden {
+  opacity: 0.45;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
+/* === Toggle carré pour envoyer le journal en position A ou B ===========
+   Petit bouton dans le coin haut-gauche du paper-panel. Clic → le
+   journal slide vers la droite (position B = à côté du bar). Re-clic →
+   il revient en place (position A). */
+/* Patte verticale qui dépasse à gauche du paper-panel : sert de poignée
+   pour rétracter / ramener le journal. Quand le paper est en position
+   B (rétracté derrière le bar), seule cette patte reste visible passé
+   l'angle du bar — ce qui permet d'attraper le journal pour le ramener. */
+/* Patte plus large et plus foncée. 2 zones empilées :
+   - haut : drag handle (déplace tout le paper-panel)
+   - bas  : flèche toggle (envoie / ramène en position A/B). */
+.paper-shop-toggle {
+  position: absolute;
+  top: 12px;
+  left: -121px;
+  width: 121px;
+  height: 100px;
+  border: 1.5px solid #02060e;
+  border-right: 0;
+  background: linear-gradient(180deg, #1e3a8a 0%, #172554 50%, #0a0f1f 100%);
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 16px 0 0 16px;
+  z-index: 30;
+  box-shadow:
+    -5px 8px 18px rgba(0, 0, 0, 0.55),
+    inset 1px 0 0 rgba(255, 255, 255, 0.28),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  transition: left 220ms ease, box-shadow 220ms ease;
+}
+.paper-shop-toggle:hover {
+  left: -130px;
+  box-shadow:
+    -7px 10px 22px rgba(0, 0, 0, 0.6),
+    inset 1px 0 0 rgba(255, 255, 255, 0.32),
+    inset 0 -10px 18px rgba(0, 0, 0, 0.45);
+}
+.paper-shop-toggle.is-on {
+  background: linear-gradient(180deg, #0a0f1f 0%, #02060e 100%);
+}
+
+/* Zone haute : drag handle pour déplacer le paper en libre. */
+.paper-shop-toggle-drag {
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  user-select: none;
+  touch-action: none;
+}
+.paper-shop-toggle-drag:active { cursor: grabbing; }
+
+/* Zone basse : bouton toggle ← / →. */
+.paper-shop-toggle-arrow {
+  flex: 1 1 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+  font-family: inherit;
+  transition: background 200ms ease;
+}
+.paper-shop-toggle-arrow:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* === Liens inline dans la newsletter (mots {accolades} → Amazon) ======== */
+.paper-link {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(31, 41, 55, 0.32);
+  transition: border-color 180ms ease, color 180ms ease;
+}
+.paper-link:hover {
+  border-bottom-color: #1f2937;
+  color: #1f2937;
+}
+
+/* La pastille .paper-badge devient un lien — on garde l'apparence pill
+   mais on enlève le border-bottom du paper-link générique. */
+.paper-badge.paper-link {
+  border-bottom: 0;
+  text-decoration: none;
+}
+
+/* === Flèche "Buy it" à droite de chaque ligne ranked =================== */
+.paper-list-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.paper-buy-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(31, 41, 55, 0.4);
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: #1f2937;
+  text-decoration: none;
+  background: transparent;
+  transition: background 200ms ease, color 200ms ease, transform 180ms ease;
+  flex-shrink: 0;
+}
+.paper-buy-arrow:hover {
+  background: #1f2937;
+  color: #fff;
+  transform: translateX(2px);
+}
+
+/* === Étagère "On the shelf" =================================================
+   Rendue dans Homepage à côté du PaperPanel. Position absolue qui couvre
+   approximativement la zone où le journal était posé : quand le paper
+   slide vers la droite, on découvre l'étagère qui était là toute le long.
+   Vibe boutique physique du café : tons crème/bois, pas de pitch ecom. */
+.store-shelf {
+  position: absolute;
+  /* Position calée sur l'emplacement du PaperPanel (left:90, top:160) avec
+     un peu plus de largeur. Ajuste si tu déplaces le PaperPanel. */
+  left: 90px;
+  top: 160px;
+  width: 720px;
+  max-width: calc(100vw - 60px);
+  height: 760px;
+  max-height: calc(100vh - 200px);
+  z-index: 9;          /* sous PaperPanel.normal (11), au-dessus de la scène */
+  padding: 26px 26px 28px;
+  background:
+    /* Bandes d'étagère subtiles (lignes de bois horizontales) */
+    repeating-linear-gradient(180deg,
+      rgba(122, 78, 36, 0) 0 188px,
+      rgba(122, 78, 36, 0.18) 188px 191px,
+      rgba(122, 78, 36, 0) 191px 192px),
+    linear-gradient(180deg, #f3ecd9 0%, #e9dec0 100%);
+  border-radius: 14px;
+  box-shadow:
+    0 30px 70px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px rgba(122, 78, 36, 0.12);
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 600ms ease 100ms,
+              transform 600ms cubic-bezier(0.4, 0, 0.2, 1) 100ms;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 70, 30, 0.35) transparent;
+}
+.store-shelf.is-visible {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.store-shelf::-webkit-scrollbar { width: 8px; }
+.store-shelf::-webkit-scrollbar-thumb {
+  background: rgba(100, 70, 30, 0.35);
+  border-radius: 4px;
+}
+
+.store-shelf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(60, 40, 20, 0.18);
+  margin-bottom: 22px;
+}
+.store-shelf-title {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #2a1d10;
+  letter-spacing: 0.4px;
+}
+.store-shelf-back {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: #6e4a18;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  padding: 4px 6px;
+  transition: color 200ms ease;
+}
+.store-shelf-back:hover { color: #2a1d10; text-decoration: underline; }
+.store-shelf-loading {
+  margin: 40px 0;
+  text-align: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  color: rgba(60, 40, 20, 0.55);
+}
+
+/* Grille auto-fit qui accueille les 30 produits en lignes propres. */
+.store-shelf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 26px 14px;
+}
+
+/* Carte produit individuelle — case bois clair posée sur la planche. */
+.store-product {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+.store-product::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 14%;
+  right: 14%;
+  height: 4px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(60, 30, 10, 0.28), transparent 70%);
+  pointer-events: none;
+}
+.store-product-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(255, 240, 210, 0.6), transparent 70%),
+    linear-gradient(180deg, #faf3e0 0%, #ece0c2 100%);
+  border: 1px solid rgba(60, 40, 20, 0.2);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 14px rgba(60, 30, 10, 0.08),
+    0 2px 4px rgba(60, 30, 10, 0.12);
+  margin-bottom: 8px;
+}
+.store-product-emoji {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 3px rgba(60, 30, 10, 0.18));
+}
+.store-product-name {
+  margin: 0 0 4px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #2a1d10;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+  min-height: 30px;
+}
+.store-product-view {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: #6e4a18;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding: 2px 4px;
+  transition: color 200ms ease, border-color 200ms ease;
+}
+.store-product-view:hover {
+  color: #2a1d10;
+  border-bottom-color: #2a1d10;
 }
 
 .paper-scroll::-webkit-scrollbar {
@@ -6670,8 +7262,8 @@ button {
   top: 386px;
   width: 220px;
   min-height: 230px;
-  /* derrière la radio (12) */
-  z-index: 11;
+  /* avancé devant la radio (12) et le cash-register (19) */
+  z-index: 22;
   padding: 12px 14px;
   color: #ffd890;
   background:
@@ -6878,11 +7470,13 @@ button {
   height: 55px;
   z-index: 24;
   clip-path: polygon(0 4%, 100% 0, 100% 57%, 5% 100%);
+  /* Plateau du bar plus sombre — bois acajou foncé qui descend dans le
+     marron presque noir. */
   background:
-    linear-gradient(178deg, rgba(166, 72, 36, 0.92), rgba(63, 24, 19, 0.96) 64%, rgba(28, 13, 12, 0.98)),
-    linear-gradient(90deg, rgba(255, 191, 101, 0.18), transparent 48%);
-  border-top: 1px solid rgba(255, 198, 111, 0.34);
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.36), inset 0 12px 24px rgba(255, 169, 71, 0.08);
+    linear-gradient(178deg, #4a1d10 0%, #2a0d08 55%, #140604 100%),
+    linear-gradient(90deg, rgba(255, 169, 71, 0.08), transparent 48%);
+  border-top: 1px solid #c8924c;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.55), inset 0 8px 18px rgba(0, 0, 0, 0.3);
 }
 
 .counter-front {
@@ -6893,12 +7487,13 @@ button {
   height: 104px;
   z-index: 23;
   clip-path: polygon(0 0, 100% 0, 100% 58%, 6% 100%, 0 90%);
+  /* Façade du bar bois plein, opaque. */
   background:
-    linear-gradient(95deg, rgba(31, 13, 12, 0.96), rgba(89, 33, 25, 0.94) 42%, rgba(27, 13, 12, 0.98)),
+    linear-gradient(95deg, #1f0d0c 0%, #5e2419 42%, #1c0d0c 100%),
     repeating-linear-gradient(90deg, rgba(255, 206, 135, 0.08) 0 1px, transparent 1px 110px);
-  border-top: 1px solid rgba(255, 197, 109, 0.28);
+  border-top: 1px solid #ffc56d;
   border-bottom: 1px solid rgba(255, 197, 109, 0.2);
-  box-shadow: inset 0 22px 32px rgba(255, 141, 54, 0.05), 0 20px 54px rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 22px 32px rgba(255, 141, 54, 0.06), 0 20px 54px rgba(0, 0, 0, 0.55);
 }
 
 .counter-rail {
@@ -7216,7 +7811,8 @@ button {
 .receipt {
   position: fixed;
   left: 14px;
-  right: 244px;
+  /* Bord droit à 105px (+30% : 150 × 0.7). */
+  right: 105px;
   top: 14px;
   z-index: 55;
   display: flex;
