@@ -329,27 +329,49 @@ function LeftBuilding() {
   // { imageUrl, price } quand /api/product-image (Amazon scraping +
   // cache Redis) répond. Les produits sans image gardent leur emoji en
   // fallback ; les produits sans prix affichent simplement "see price".
+  //
+  // STRATÉGIE DE RETRY :
+  //   1. Première passe : appel normal, le serveur lit son cache Redis.
+  //   2. Si imageUrl revient null, on retente UNE fois après 4s avec
+  //      ?force=1 → bypasse le cache Redis et re-scrape Amazon (Amazon
+  //      flaque souvent en pic, mais répond bien 4s plus tard).
+  //   3. Si toujours null après le retry, on garde l'emoji fallback.
   const [productInfo, setProductInfo] = useState({});
   useEffect(() => {
     if (products.length === 0) return;
     let cancelled = false;
     const CONCURRENCY = 3;
     let i = 0;
+    const retried = new Set(); // ids déjà retentés une fois
+
+    async function fetchOne(p, force = false) {
+      const u = `/api/product-image?q=${encodeURIComponent(p.name)}${force ? "&force=1" : ""}`;
+      try {
+        const r = await fetch(u);
+        const d = await r.json();
+        if (cancelled) return null;
+        const info = { imageUrl: d?.imageUrl || null, price: d?.price || null };
+        setProductInfo((prev) => ({ ...prev, [p.id]: info }));
+        return info;
+      } catch {
+        if (cancelled) return null;
+        setProductInfo((prev) => ({ ...prev, [p.id]: { imageUrl: null, price: null } }));
+        return null;
+      }
+    }
+
     async function worker() {
       while (i < products.length && !cancelled) {
         const p = products[i++];
         if (productInfo[p.id] !== undefined) continue;
-        try {
-          const r = await fetch(`/api/product-image?q=${encodeURIComponent(p.name)}`);
-          const d = await r.json();
-          if (cancelled) return;
-          setProductInfo((prev) => ({
-            ...prev,
-            [p.id]: { imageUrl: d?.imageUrl || null, price: d?.price || null }
-          }));
-        } catch {
-          if (cancelled) return;
-          setProductInfo((prev) => ({ ...prev, [p.id]: { imageUrl: null, price: null } }));
+        const info = await fetchOne(p);
+        // Retry une fois si pas d'image — souvent Amazon répond mieux à
+        // la 2e tentative (différent UA + bypass cache).
+        if (info && !info.imageUrl && !retried.has(p.id)) {
+          retried.add(p.id);
+          setTimeout(() => {
+            if (!cancelled) fetchOne(p, true);
+          }, 4000);
         }
       }
     }
