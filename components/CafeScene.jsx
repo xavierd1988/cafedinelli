@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { getEditMode, setEditMode } from "../lib/editMode.js";
+import { getEditMode, setEditMode, useEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
 import BordeauxBackdrop from "./BordeauxBackdrop.jsx";
@@ -87,7 +87,7 @@ function DistantSkyline() {
 // Étage supérieur du café : SAME wrapper que le cafe-glass (cafe-cluster-bg)
 // donc soumis au même scale du wrapper. 2 étages de fenêtres alignés sur
 // les meneaux 2, 4, 6, 8 du cafe-glass (en coords pré-scale).
-function CafeUpperFloor({ muted }) {
+function CafeUpperFloor() {
   const init = getModulePosition("CafeUpperFloor");
   const ds = useDragScale({
     scaled: true,
@@ -125,47 +125,6 @@ function CafeUpperFloor({ muted }) {
           />
         ))
       )}
-      {/* Chat Pixoo mute — visuel seulement, le clic est géré par l'overlay
-          dans scene-stage qui contourne le pointer-events:none du cafe-cluster. */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          left: "200px",
-          top: "490px",
-          width: "70px",
-          height: "96px",
-          pointerEvents: "none",
-          zIndex: 5,
-        }}
-      >
-        {muted && (
-          <svg
-            viewBox="0 0 54 80"
-            width="70"
-            height="96"
-            aria-hidden="true"
-            style={{ display: "block" }}
-          >
-            {/* Oreille gauche */}
-            <path d="M14 26 L8 4 L28 18 Z" fill="#0d0b09" />
-            {/* Oreille droite */}
-            <path d="M40 26 L48 4 L32 18 Z" fill="#0d0b09" />
-            {/* Tête */}
-            <ellipse cx="27" cy="34" rx="16" ry="14" fill="#0d0b09" />
-            {/* Corps */}
-            <ellipse cx="28" cy="62" rx="19" ry="20" fill="#0d0b09" />
-            {/* Queue */}
-            <path
-              d="M10 76 Q 1 64 3 50 Q 5 38 13 43"
-              stroke="#0d0b09"
-              strokeWidth="6"
-              fill="none"
-              strokeLinecap="round"
-            />
-          </svg>
-        )}
-      </div>
       <CafeChildResize onPointerDown={ds.handleResizeStart} />
     </section>
   );
@@ -1251,10 +1210,25 @@ function CounterModule({ seats }) {
   );
 }
 
-export default function CafeScene({ seats }) {
-  const scale = useSceneScale();
-
+// ─── PixooMuteCat ────────────────────────────────────────────────────────────
+// Silhouette chat dans la fenêtre du haut — toggle mute Pixoo au clic.
+// Direct child de scene-stage → pas bloqué par pointer-events:none du cafe-cluster.
+// En edit mode (caisse → "7") : draggable + resize W/H indépendants via poignées.
+// Le tooltip affiche offset + taille pour faciliter le bake dans modulePositions.js.
+function PixooMuteCat() {
+  const init = getModulePosition("PixooMuteCat");
+  const ds = useDraggable({
+    scaled: true,
+    name: "PixooMuteCat",
+    initialOffset: (init && init.offset) || { x: 1040, y: 186 },
+  });
+  const [size, setSize] = useState(
+    (init && init.size) || { width: 70, height: 96 }
+  );
+  const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
+  const muteRef = useRef(null);
+
   useEffect(() => {
     fetch("/api/pixoo")
       .then((r) => r.json())
@@ -1262,25 +1236,124 @@ export default function CafeScene({ seats }) {
       .catch(() => {});
   }, []);
 
-  // Overlay click — séparé du visuel pour contourner pointer-events:none
-  // du .cafe-cluster. Ref-based pour distinguer clic vs drag.
-  const muteRef = useRef(null);
-  function handleMuteDown(e) {
-    e.stopPropagation();
-    muteRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-  }
-  function handleMuteUp(e) {
-    e.stopPropagation();
-    const s = muteRef.current;
-    muteRef.current = null;
-    if (!s) return;
-    if (Math.abs(e.clientX - s.x) < 10 && Math.abs(e.clientY - s.y) < 10 && Date.now() - s.t < 600) {
-      fetch("/api/pixoo", { method: "POST" })
-        .then((r) => r.json())
-        .then((d) => setMuted(!!d.muted))
-        .catch(() => {});
+  function handleWidthResize(e) {
+    if (!getEditMode()) return;
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX;
+    const startW = size.width;
+    const sc = Math.min(window.innerWidth / 1600, window.innerHeight / 900) || 1;
+    function move(ev) { setSize((s) => ({ ...s, width: Math.max(20, startW + (ev.clientX - startX) / sc) })); }
+    function up() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
     }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
+
+  function handleHeightResize(e) {
+    if (!getEditMode()) return;
+    e.preventDefault(); e.stopPropagation();
+    const startY = e.clientY;
+    const startH = size.height;
+    const sc = Math.min(window.innerWidth / 1600, window.innerHeight / 900) || 1;
+    function move(ev) { setSize((s) => ({ ...s, height: Math.max(20, startH + (ev.clientY - startY) / sc) })); }
+    function up() {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    }
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
+
+  return (
+    <div
+      data-file="CafeScene.jsx::PixooMuteCat"
+      title={
+        editMode
+          ? `PixooMuteCat  x:${Math.round(ds.offset.x)} y:${Math.round(ds.offset.y)}  ${Math.round(size.width)}×${Math.round(size.height)}`
+          : muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"
+      }
+      style={{
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: `${size.width}px`,
+        height: `${size.height}px`,
+        transform: `translate(${ds.offset.x}px, ${ds.offset.y}px)`,
+        transformOrigin: "top left",
+        cursor: editMode ? (ds.dragging ? "grabbing" : "grab") : "pointer",
+        pointerEvents: "auto",
+        zIndex: 500,
+        outline: editMode ? "1px dashed rgba(255,200,0,0.6)" : "none",
+      }}
+      onPointerDown={(e) => {
+        if (getEditMode()) { ds.handleDragStart(e); }
+        else { e.stopPropagation(); muteRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }; }
+      }}
+      onPointerUp={(e) => {
+        if (!getEditMode()) {
+          e.stopPropagation();
+          const s = muteRef.current; muteRef.current = null;
+          if (!s) return;
+          if (Math.abs(e.clientX - s.x) < 10 && Math.abs(e.clientY - s.y) < 10 && Date.now() - s.t < 600) {
+            fetch("/api/pixoo", { method: "POST" })
+              .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
+          }
+        }
+      }}
+      onPointerCancel={() => { muteRef.current = null; }}
+    >
+      {editMode && (
+        <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.dragging} label="PixooMuteCat" />
+      )}
+      {/* Poignée resize largeur — bord droit */}
+      {editMode && (
+        <div
+          onPointerDown={handleWidthResize}
+          title="← Largeur →"
+          style={{
+            position: "absolute", right: 0, top: "50%",
+            transform: "translateY(-50%)",
+            width: 8, height: 24,
+            background: "rgba(255,200,0,0.7)",
+            cursor: "ew-resize", zIndex: 2,
+          }}
+        />
+      )}
+      {/* Poignée resize hauteur — bord bas */}
+      {editMode && (
+        <div
+          onPointerDown={handleHeightResize}
+          title="↕ Hauteur"
+          style={{
+            position: "absolute", bottom: 0, left: "50%",
+            transform: "translateX(-50%)",
+            width: 24, height: 8,
+            background: "rgba(255,200,0,0.7)",
+            cursor: "ns-resize", zIndex: 2,
+          }}
+        />
+      )}
+      {(muted || editMode) && (
+        <svg viewBox="0 0 54 80" width="100%" height="100%" aria-hidden="true" style={{ display: "block" }}>
+          <path d="M14 26 L8 4 L28 18 Z" fill="#0d0b09" />
+          <path d="M40 26 L48 4 L32 18 Z" fill="#0d0b09" />
+          <ellipse cx="27" cy="34" rx="16" ry="14" fill="#0d0b09" />
+          <ellipse cx="28" cy="62" rx="19" ry="20" fill="#0d0b09" />
+          <path d="M10 76 Q 1 64 3 50 Q 5 38 13 43" stroke="#0d0b09" strokeWidth="6" fill="none" strokeLinecap="round" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
+export default function CafeScene({ seats }) {
+  const scale = useSceneScale();
 
   return (
     <div className="scene-viewport" data-file="CafeScene.jsx::scene-viewport">
@@ -1309,7 +1382,7 @@ export default function CafeScene({ seats }) {
         </div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
-            <CafeUpperFloor muted={muted} />
+            <CafeUpperFloor />
           </div>
           <div className="cafe-cluster cafe-cluster-fg">
             <CounterModule seats={seats} />
@@ -1326,26 +1399,8 @@ export default function CafeScene({ seats }) {
         <CafeSign />
         <PaperPanel />
         <ShelfPanel />
-        {/* Overlay mute Pixoo — direct child de scene-stage, au-dessus de tout
-            (z:500). Contourne le pointer-events:none du .cafe-cluster/.cafe-upper.
-            Coordonnées calculées depuis les transforms composés de cafe-cluster-bg
-            + CafeUpperFloor pour couvrir la fenêtre inférieure gauche. */}
-        <div
-          onPointerDown={handleMuteDown}
-          onPointerUp={handleMuteUp}
-          onPointerCancel={() => { muteRef.current = null; }}
-          title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
-          style={{
-            position: "absolute",
-            left: "1040px",
-            top: "186px",
-            width: "120px",
-            height: "155px",
-            cursor: "pointer",
-            pointerEvents: "auto",
-            zIndex: 500,
-          }}
-        />
+        {/* Chat mute Pixoo — draggable + resizable en edit mode (caisse → "7"). */}
+        <PixooMuteCat />
         <div className="street-base" aria-hidden="true" />
         <div className="scene-vignette" aria-hidden="true" />
         <div id="bubble-portal-host" className="bubble-portal-host" aria-hidden="true" />
