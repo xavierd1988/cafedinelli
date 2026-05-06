@@ -101,6 +101,23 @@ function CafeUpperFloor({ muted, onToggle }) {
     { top: 230, height: 168, lit: [false, true, false, true] },
     { top: 410, height: 138, lit: [true, false, true, false] }
   ];
+
+  // Click detection robuste (même pattern que CashRegister) pour éviter
+  // les conflits avec le système de drag de useDragScale.
+  const catDownRef = useRef(null);
+  function handleCatDown(e) {
+    e.stopPropagation();
+    catDownRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  }
+  function handleCatUp(e) {
+    e.stopPropagation();
+    const start = catDownRef.current;
+    catDownRef.current = null;
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    if (dx < 8 && dy < 8 && Date.now() - start.t < 600) onToggle();
+  }
   return (
     <section
       className={`cafe-upper${ds.interacting ? " is-dragging" : ""}`}
@@ -125,47 +142,46 @@ function CafeUpperFloor({ muted, onToggle }) {
           />
         ))
       )}
-      {/* Chat Pixoo mute — fenêtre inférieure gauche (floor 2, left 117).
-          Coordonnées locales de CafeUpperFloor. Zone cliquable toujours présente,
-          silhouette visible uniquement quand muted=true. */}
+      {/* Chat Pixoo mute — côté droit de la fenêtre inférieure gauche
+          (floor 2, left 117). Plus petit, centré à droite dans la fenêtre.
+          Zone cliquable toujours présente (curseur pointer). */}
       <div
-        onClick={onToggle}
+        onPointerDown={handleCatDown}
+        onPointerUp={handleCatUp}
+        onPointerCancel={() => { catDownRef.current = null; }}
         title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
         style={{
           position: "absolute",
-          left: "117px",
-          top: "410px",
-          width: "190px",
-          height: "138px",
+          left: "200px",
+          top: "418px",
+          width: "70px",
+          height: "96px",
           cursor: "pointer",
           pointerEvents: "auto",
           zIndex: 5,
-          display: "flex",
-          alignItems: "flex-end",
-          justifyContent: "center",
         }}
       >
         {muted && (
           <svg
-            viewBox="0 0 90 130"
-            width="110"
-            height="132"
+            viewBox="0 0 54 80"
+            width="70"
+            height="96"
             aria-hidden="true"
             style={{ display: "block" }}
           >
             {/* Oreille gauche */}
-            <path d="M23 38 L14 6 L42 30 Z" fill="#0d0b09" />
+            <path d="M14 26 L8 4 L28 18 Z" fill="#0d0b09" />
             {/* Oreille droite */}
-            <path d="M67 38 L78 6 L56 30 Z" fill="#0d0b09" />
+            <path d="M40 26 L48 4 L32 18 Z" fill="#0d0b09" />
             {/* Tête */}
-            <ellipse cx="45" cy="50" rx="26" ry="23" fill="#0d0b09" />
+            <ellipse cx="27" cy="34" rx="16" ry="14" fill="#0d0b09" />
             {/* Corps */}
-            <ellipse cx="46" cy="100" rx="32" ry="34" fill="#0d0b09" />
+            <ellipse cx="28" cy="62" rx="19" ry="20" fill="#0d0b09" />
             {/* Queue */}
             <path
-              d="M15 128 Q 1 108 5 82 Q 9 60 24 69"
+              d="M10 76 Q 1 64 3 50 Q 5 38 13 43"
               stroke="#0d0b09"
-              strokeWidth="9"
+              strokeWidth="6"
               fill="none"
               strokeLinecap="round"
             />
