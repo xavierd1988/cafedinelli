@@ -21,9 +21,16 @@ const COOLDOWN_MS = 1000;
 
 export async function GET(request) {
   const ip = getIp(request);
+  // Le client SSE/polling envoie un sessionId stable par onglet ; on
+  // l'utilise comme partie de la clé présence pour distinguer 2 onglets
+  // qui partagent la même IP (NAT, partage de WiFi, etc.).
+  const sid = new URL(request.url).searchParams.get("sid") || null;
   // Record this poll as a presence ping AVANT de lire le compteur,
   // pour que le visiteur en cours soit déjà compté dans sa propre réponse.
-  await recordPresence(ip);
+  const isNew = await recordPresence(ip, sid);
+  if (isNew) {
+    try { invalidateCafeState(); } catch {}
+  }
 
   // Helper résilient : si une promesse rejette (ex: Redis throttle),
   // on remplace par une valeur sûre plutôt que de faire planter

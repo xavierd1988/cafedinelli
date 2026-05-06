@@ -24,6 +24,28 @@ const FALLBACK_POLL_INTERVAL_MS = 6000;
 // la connexion est foireuse et on bascule en polling fallback.
 const SSE_HEALTH_TIMEOUT_MS = 35_000;
 
+// Identifiant stable de l'onglet courant. Stocké en sessionStorage
+// (donc UNIQUE par onglet et persistant à travers les reconnexions
+// SSE / le refresh du même onglet). Sert au compteur "online" pour
+// distinguer 2 onglets sur la même IP comme 2 visiteurs distincts —
+// sinon le NAT (WiFi maison + smartphone) collapse le compte.
+function getOrCreateSessionId() {
+  if (typeof window === "undefined") return null;
+  try {
+    const KEY = "cafe-session-id";
+    let sid = window.sessionStorage.getItem(KEY);
+    if (!sid) {
+      sid = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      window.sessionStorage.setItem(KEY, sid);
+    }
+    return sid;
+  } catch {
+    return null;
+  }
+}
+
 function dispatchPayload(data) {
   if (!data || typeof data !== "object") return;
   const payload = {
@@ -54,10 +76,12 @@ export default function SeatsPoller() {
     function startFallbackPolling() {
       // Plan B : polling /api/seats. Plus lent, plus cher en Redis, mais
       // ça marche partout. On augmente l'intervalle pour économiser.
+      const sid = getOrCreateSessionId();
+      const url = sid ? `/api/seats?sid=${encodeURIComponent(sid)}` : "/api/seats";
       async function tick() {
         if (cancelled) return;
         try {
-          const res = await fetch("/api/seats", { cache: "no-store" });
+          const res = await fetch(url, { cache: "no-store" });
           const data = await res.json();
           if (!cancelled) dispatchPayload(data);
         } catch {
@@ -70,7 +94,9 @@ export default function SeatsPoller() {
 
     function startSSE() {
       try {
-        es = new EventSource("/api/stream");
+        const sid = getOrCreateSessionId();
+        const url = sid ? `/api/stream?sid=${encodeURIComponent(sid)}` : "/api/stream";
+        es = new EventSource(url);
       } catch {
         // EventSource non supporté (très vieux browser) → fallback direct
         startFallbackPolling();

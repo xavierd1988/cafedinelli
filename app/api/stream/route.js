@@ -59,6 +59,11 @@ function sseComment(text) {
 
 export async function GET(request) {
   const ip = extractIp(request);
+  // sessionId fourni par le client (sessionStorage) → permet de compter
+  // 2 onglets sur la même IP comme 2 visiteurs distincts. Fallback sur
+  // l'IP seule si absent (ancienne version du client).
+  const url = new URL(request.url);
+  const sessionId = url.searchParams.get("sid") || null;
   const startedAt = Date.now();
   let lastSig = "";
 
@@ -66,7 +71,7 @@ export async function GET(request) {
     async start(controller) {
       // 1. Snapshot initial (avec recordPresence à la connexion)
       try {
-        const initial = await getCafeState(ip, { recordPing: true });
+        const initial = await getCafeState(ip, { recordPing: true, sessionId });
         lastSig = snapshotSignature(initial);
         controller.enqueue(sseEvent("snapshot", initial));
       } catch {
@@ -95,7 +100,7 @@ export async function GET(request) {
           // connexion, et la fenêtre de présence est de 15s alors que les
           // reconnexions SSE sont ~24s → on remet le ping dans le tick
           // pour rester "online" pendant la connexion longue.
-          const state = await getCafeState(ip, { recordPing: true });
+          const state = await getCafeState(ip, { recordPing: true, sessionId });
           const sig = snapshotSignature(state);
           if (sig !== lastSig) {
             lastSig = sig;
