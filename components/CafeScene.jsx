@@ -87,7 +87,7 @@ function DistantSkyline() {
 // Étage supérieur du café : SAME wrapper que le cafe-glass (cafe-cluster-bg)
 // donc soumis au même scale du wrapper. 2 étages de fenêtres alignés sur
 // les meneaux 2, 4, 6, 8 du cafe-glass (en coords pré-scale).
-function CafeUpperFloor({ muted, onToggle }) {
+function CafeUpperFloor({ muted }) {
   const init = getModulePosition("CafeUpperFloor");
   const ds = useDragScale({
     scaled: true,
@@ -101,23 +101,6 @@ function CafeUpperFloor({ muted, onToggle }) {
     { top: 230, height: 168, lit: [false, true, false, true] },
     { top: 410, height: 138, lit: [true, false, true, false] }
   ];
-
-  // Click detection robuste (même pattern que CashRegister) pour éviter
-  // les conflits avec le système de drag de useDragScale.
-  const catDownRef = useRef(null);
-  function handleCatDown(e) {
-    e.stopPropagation();
-    catDownRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-  }
-  function handleCatUp(e) {
-    e.stopPropagation();
-    const start = catDownRef.current;
-    catDownRef.current = null;
-    if (!start) return;
-    const dx = Math.abs(e.clientX - start.x);
-    const dy = Math.abs(e.clientY - start.y);
-    if (dx < 8 && dy < 8 && Date.now() - start.t < 600) onToggle();
-  }
   return (
     <section
       className={`cafe-upper${ds.interacting ? " is-dragging" : ""}`}
@@ -142,22 +125,17 @@ function CafeUpperFloor({ muted, onToggle }) {
           />
         ))
       )}
-      {/* Chat Pixoo mute — côté droit de la fenêtre inférieure gauche
-          (floor 2, left 117). Plus petit, centré à droite dans la fenêtre.
-          Zone cliquable toujours présente (curseur pointer). */}
+      {/* Chat Pixoo mute — visuel seulement, le clic est géré par l'overlay
+          dans scene-stage qui contourne le pointer-events:none du cafe-cluster. */}
       <div
-        onPointerDown={handleCatDown}
-        onPointerUp={handleCatUp}
-        onPointerCancel={() => { catDownRef.current = null; }}
-        title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
+        aria-hidden="true"
         style={{
           position: "absolute",
           left: "200px",
           top: "418px",
           width: "70px",
           height: "96px",
-          cursor: "pointer",
-          pointerEvents: "auto",
+          pointerEvents: "none",
           zIndex: 5,
         }}
       >
@@ -1273,59 +1251,6 @@ function CounterModule({ seats }) {
   );
 }
 
-// Silhouette chat — apparaît dans le panneau gauche de la vitre quand le Pixoo est muté.
-// Clique sur la zone (visible ou non) pour basculer le mute.
-function PixooCatWindow({ muted, onToggle }) {
-  return (
-    <div
-      onClick={onToggle}
-      title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
-      aria-label={muted ? "Unmute Pixoo" : "Mute Pixoo"}
-      style={{
-        position: "absolute",
-        /* Panneau gauche de la cafe-glass (coords du cafe-glass-wrap).
-           La vitre commence à left:610, top:303, h:318.
-           On se cale dans le premier panneau (jusqu'au premier meneau x:680)
-           en bas de la vitre. */
-        left: "612px",
-        top: "510px",
-        width: "64px",
-        height: "110px",
-        cursor: "pointer",
-        pointerEvents: "auto",
-        zIndex: 20,
-      }}
-    >
-      {muted && (
-        <svg
-          viewBox="0 0 64 110"
-          width="64"
-          height="110"
-          aria-hidden="true"
-          style={{ display: "block" }}
-        >
-          {/* Oreille gauche */}
-          <path d="M18 32 L11 8 L32 27 Z" fill="#0a0806" />
-          {/* Oreille droite */}
-          <path d="M46 32 L55 8 L36 27 Z" fill="#0a0806" />
-          {/* Tête */}
-          <ellipse cx="32" cy="40" rx="19" ry="17" fill="#0a0806" />
-          {/* Corps */}
-          <ellipse cx="33" cy="78" rx="22" ry="28" fill="#0a0806" />
-          {/* Queue — part du bas-gauche du corps, s'enroule vers la gauche */}
-          <path
-            d="M12 100 Q 1 84 4 64 Q 7 48 18 54"
-            stroke="#0a0806"
-            strokeWidth="7"
-            fill="none"
-            strokeLinecap="round"
-          />
-        </svg>
-      )}
-    </div>
-  );
-}
-
 export default function CafeScene({ seats }) {
   const scale = useSceneScale();
 
@@ -1336,12 +1261,25 @@ export default function CafeScene({ seats }) {
       .then((d) => setMuted(!!d.muted))
       .catch(() => {});
   }, []);
-  function toggleMute(e) {
+
+  // Overlay click — séparé du visuel pour contourner pointer-events:none
+  // du .cafe-cluster. Ref-based pour distinguer clic vs drag.
+  const muteRef = useRef(null);
+  function handleMuteDown(e) {
     e.stopPropagation();
-    fetch("/api/pixoo", { method: "POST" })
-      .then((r) => r.json())
-      .then((d) => setMuted(!!d.muted))
-      .catch(() => {});
+    muteRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+  }
+  function handleMuteUp(e) {
+    e.stopPropagation();
+    const s = muteRef.current;
+    muteRef.current = null;
+    if (!s) return;
+    if (Math.abs(e.clientX - s.x) < 10 && Math.abs(e.clientY - s.y) < 10 && Date.now() - s.t < 600) {
+      fetch("/api/pixoo", { method: "POST" })
+        .then((r) => r.json())
+        .then((d) => setMuted(!!d.muted))
+        .catch(() => {});
+    }
   }
 
   return (
@@ -1371,7 +1309,7 @@ export default function CafeScene({ seats }) {
         </div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
-            <CafeUpperFloor muted={muted} onToggle={toggleMute} />
+            <CafeUpperFloor muted={muted} />
           </div>
           <div className="cafe-cluster cafe-cluster-fg">
             <CounterModule seats={seats} />
@@ -1388,6 +1326,26 @@ export default function CafeScene({ seats }) {
         <CafeSign />
         <PaperPanel />
         <ShelfPanel />
+        {/* Overlay mute Pixoo — direct child de scene-stage, au-dessus de tout
+            (z:500). Contourne le pointer-events:none du .cafe-cluster/.cafe-upper.
+            Coordonnées calculées depuis les transforms composés de cafe-cluster-bg
+            + CafeUpperFloor pour couvrir la fenêtre inférieure gauche. */}
+        <div
+          onPointerDown={handleMuteDown}
+          onPointerUp={handleMuteUp}
+          onPointerCancel={() => { muteRef.current = null; }}
+          title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
+          style={{
+            position: "absolute",
+            left: "1040px",
+            top: "130px",
+            width: "120px",
+            height: "155px",
+            cursor: "pointer",
+            pointerEvents: "auto",
+            zIndex: 500,
+          }}
+        />
         <div className="street-base" aria-hidden="true" />
         <div className="scene-vignette" aria-hidden="true" />
         <div id="bubble-portal-host" className="bubble-portal-host" aria-hidden="true" />
