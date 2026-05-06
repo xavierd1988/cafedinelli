@@ -343,8 +343,23 @@ function LeftBuilding() {
       while (i < products.length && !cancelled) {
         const p = products[i++];
         if (productInfo[p.id] !== undefined) continue;
+        // 1. Image hardcodée dans productsStore → on l'utilise directement,
+        //    aucun appel réseau, photo 100% précise et instantanée.
+        if (p.image) {
+          setProductInfo((prev) => ({
+            ...prev,
+            [p.id]: { imageUrl: p.image, price: null }
+          }));
+          continue;
+        }
+        // 2. ASIN connu → /api/product-image?asin=… qui scrape la page
+        //    produit (résultat plus précis que la recherche).
+        // 3. Sinon → fallback recherche par nom (comportement historique).
+        const params = p.asin
+          ? `asin=${encodeURIComponent(p.asin)}&q=${encodeURIComponent(p.name)}`
+          : `q=${encodeURIComponent(p.name)}`;
         try {
-          const r = await fetch(`/api/product-image?q=${encodeURIComponent(p.name)}`);
+          const r = await fetch(`/api/product-image?${params}`);
           const d = await r.json();
           if (cancelled) return;
           setProductInfo((prev) => ({

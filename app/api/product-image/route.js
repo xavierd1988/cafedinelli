@@ -59,10 +59,13 @@ function looksLikeRobotCheck(html) {
 export async function GET(request) {
   const url = new URL(request.url);
   const q = (url.searchParams.get("q") || "").trim();
+  const asin = (url.searchParams.get("asin") || "").trim().toUpperCase();
   const force = url.searchParams.get("force") === "1";
-  if (!q) return Response.json({ error: "missing q" }, { status: 400 });
+  if (!q && !asin) return Response.json({ error: "missing q or asin" }, { status: 400 });
 
-  const cacheKey = `cafe:img:${q.toLowerCase()}`;
+  // Cache key : ASIN > query. Permet de partager le cache entre tous les
+  // requêtes qui ciblent le même produit, peu importe le mot-clé tapé.
+  const cacheKey = asin ? `cafe:img:asin:${asin}` : `cafe:img:${q.toLowerCase()}`;
 
   // Cache hit (sauf si ?force=1)
   if (!force) {
@@ -91,15 +94,22 @@ export async function GET(request) {
     } catch {}
   }
 
-  // Fetch Amazon search page
+  // Fetch Amazon. Deux modes :
+  // - mode ASIN (préféré) : on tape directement /dp/{ASIN}, qui retourne
+  //   la fiche produit. Une seule image principale, pas d'ambiguïté de
+  //   "premier résultat de recherche aléatoire". Beaucoup plus précis.
+  // - mode RECHERCHE (fallback) : /s?k={query}, on prend la 1re vignette.
   let imageUrl = null;
   let price = null;
   let robotCheck = false;
   try {
-    const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(q)}`;
-    const res = await fetch(searchUrl, {
+    const targetUrl = asin
+      ? `https://www.amazon.com/dp/${encodeURIComponent(asin)}`
+      : `https://www.amazon.com/s?k=${encodeURIComponent(q)}`;
+    const seed = asin || q;
+    const res = await fetch(targetUrl, {
       headers: {
-        "User-Agent": pickUA(q),
+        "User-Agent": pickUA(seed),
         "Accept-Language": "en-US,en;q=0.9",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       },
@@ -109,24 +119,47 @@ export async function GET(request) {
       const html = await res.text();
       robotCheck = looksLikeRobotCheck(html);
       if (!robotCheck) {
-        const patterns = [
-          /class="s-image"[^>]*src="([^"]+)"/,
-          /<img[^>]+class="[^"]*s-image[^"]*"[^>]+src="([^"]+)"/,
-          /<img[^>]+data-image-source-density="1"[^>]+src="([^"]+)"/,
-          /<img[^>]+src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/
-        ];
-        for (const re of patterns) {
-          const m = html.match(re);
-          if (m && m[1] && isAmazonImage(m[1])) { imageUrl = m[1]; break; }
-        }
-        if (!imageUrl) {
-          const m2 = html.match(/<img[^>]+srcset="([^"]+)"/);
-          if (m2) {
-            const first = m2[1].split(",")[0]?.trim().split(" ")[0];
-            if (first && isAmazonImage(first)) imageUrl = first;
+        if (asin) {
+          // === Page produit : extraction ciblée ===
+          // 1. landingImage (l'élément officiel du carousel principal)
+          const lp = html.match(/id="landingImage"[^>]+src="([^"]+)"/i);
+          if (lp && isAmazonImage(lp[1])) imageUrl = lp[1];
+          if (!imageUrl) {
+            // 2. data-old-hires (URL haute résolution stockée par Amazon)
+            const hi = html.match(/data-old-hires="([^"]+)"/);
+            if (hi && isAmazonImage(hi[1])) imageUrl = hi[1];
+          }
+          if (!imageUrl) {
+            // 3. dynamic image data (objet JSON inline)
+            const dyn = html.match(/"hiRes":"(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/);
+            if (dyn && isAmazonImage(dyn[1])) imageUrl = dyn[1];
+          }
+          if (!imageUrl) {
+            // 4. fallback : 1er <img src> sur le CDN Amazon
+            const m = html.match(/<img[^>]+src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/);
+            if (m && isAmazonImage(m[1])) imageUrl = m[1];
+          }
+        } else {
+          // === Page recherche : 1re vignette s-image ===
+          const patterns = [
+            /class="s-image"[^>]*src="([^"]+)"/,
+            /<img[^>]+class="[^"]*s-image[^"]*"[^>]+src="([^"]+)"/,
+            /<img[^>]+data-image-source-density="1"[^>]+src="([^"]+)"/,
+            /<img[^>]+src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/
+          ];
+          for (const re of patterns) {
+            const m = html.match(re);
+            if (m && m[1] && isAmazonImage(m[1])) { imageUrl = m[1]; break; }
+          }
+          if (!imageUrl) {
+            const m2 = html.match(/<img[^>]+srcset="([^"]+)"/);
+            if (m2) {
+              const first = m2[1].split(",")[0]?.trim().split(" ")[0];
+              if (first && isAmazonImage(first)) imageUrl = first;
+            }
           }
         }
-        // Prix
+        // Prix (même extraction pour les 2 modes)
         const pw = html.match(/class="a-price-whole">([0-9.,]+)/);
         const pf = html.match(/class="a-price-fraction">([0-9]+)/);
         if (pw) {
@@ -140,7 +173,7 @@ export async function GET(request) {
       }
     }
   } catch (err) {
-    console.warn("/api/product-image fetch failed for", q, err?.message || err);
+    console.warn("/api/product-image fetch failed for", asin || q, err?.message || err);
   }
 
   // Décision finale + cache.
