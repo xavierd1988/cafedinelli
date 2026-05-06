@@ -132,7 +132,7 @@ function CafeUpperFloor({ muted }) {
         style={{
           position: "absolute",
           left: "200px",
-          top: "418px",
+          top: "490px",
           width: "70px",
           height: "96px",
           pointerEvents: "none",
@@ -1338,7 +1338,7 @@ export default function CafeScene({ seats }) {
           style={{
             position: "absolute",
             left: "1040px",
-            top: "130px",
+            top: "186px",
             width: "120px",
             height: "155px",
             cursor: "pointer",
