@@ -41,12 +41,12 @@ export default function PixooMute() {
       <style>{`
         .pixoo-mute-wrap {
           position: absolute;
-          left: 656px;
-          top: 254px;
+          left: 960px;
+          top: 262px;
           width: 72px;
           height: 56px;
           cursor: pointer;
-          z-index: 15;
+          z-index: 30;
           user-select: none;
         }
         .pixoo-mute-window {
