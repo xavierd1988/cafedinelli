@@ -72,15 +72,35 @@ export default function PersonaSettings() {
 
           <div className="persona-row">
             <span className="persona-row-label">Gender</span>
-            <div className="persona-segments">
+            <div className="persona-segments persona-segments-gender">
               {GENDERS.map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
-                  className={`persona-seg${persona.gender === opt.value ? " is-on" : ""}`}
+                  className={`persona-seg persona-seg-gender${persona.gender === opt.value ? " is-on" : ""}`}
                   onClick={() => update({ gender: opt.value })}
+                  aria-label={opt.label}
+                  title={opt.label}
                 >
-                  {opt.label}
+                  {opt.value === "m" ? (
+                    /* Pictogramme toilettes-homme : tête ronde + corps trapèze */
+                    <svg viewBox="0 0 40 80" aria-hidden="true">
+                      <circle cx="20" cy="11" r="8" fill="currentColor" />
+                      <path
+                        d="M 8 28 L 32 28 L 28 56 L 30 80 L 22 80 L 20 60 L 18 80 L 10 80 L 12 56 Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  ) : (
+                    /* Pictogramme toilettes-femme : tête ronde + robe triangulaire */
+                    <svg viewBox="0 0 40 80" aria-hidden="true">
+                      <circle cx="20" cy="11" r="8" fill="currentColor" />
+                      <path
+                        d="M 8 28 L 32 28 L 38 60 L 28 60 L 30 80 L 22 80 L 20 64 L 18 80 L 10 80 L 12 60 L 2 60 Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  )}
                 </button>
               ))}
             </div>
