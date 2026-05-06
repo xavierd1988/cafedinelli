@@ -87,7 +87,7 @@ function DistantSkyline() {
 // Étage supérieur du café : SAME wrapper que le cafe-glass (cafe-cluster-bg)
 // donc soumis au même scale du wrapper. 2 étages de fenêtres alignés sur
 // les meneaux 2, 4, 6, 8 du cafe-glass (en coords pré-scale).
-function CafeUpperFloor() {
+function CafeUpperFloor({ muted, onToggle }) {
   const init = getModulePosition("CafeUpperFloor");
   const ds = useDragScale({
     scaled: true,
@@ -125,6 +125,53 @@ function CafeUpperFloor() {
           />
         ))
       )}
+      {/* Chat Pixoo mute — fenêtre inférieure gauche (floor 2, left 117).
+          Coordonnées locales de CafeUpperFloor. Zone cliquable toujours présente,
+          silhouette visible uniquement quand muted=true. */}
+      <div
+        onClick={onToggle}
+        title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
+        style={{
+          position: "absolute",
+          left: "117px",
+          top: "410px",
+          width: "190px",
+          height: "138px",
+          cursor: "pointer",
+          pointerEvents: "auto",
+          zIndex: 5,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "center",
+        }}
+      >
+        {muted && (
+          <svg
+            viewBox="0 0 90 130"
+            width="110"
+            height="132"
+            aria-hidden="true"
+            style={{ display: "block" }}
+          >
+            {/* Oreille gauche */}
+            <path d="M23 38 L14 6 L42 30 Z" fill="#0d0b09" />
+            {/* Oreille droite */}
+            <path d="M67 38 L78 6 L56 30 Z" fill="#0d0b09" />
+            {/* Tête */}
+            <ellipse cx="45" cy="50" rx="26" ry="23" fill="#0d0b09" />
+            {/* Corps */}
+            <ellipse cx="46" cy="100" rx="32" ry="34" fill="#0d0b09" />
+            {/* Queue */}
+            <path
+              d="M15 128 Q 1 108 5 82 Q 9 60 24 69"
+              stroke="#0d0b09"
+              strokeWidth="9"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </svg>
+        )}
+      </div>
       <CafeChildResize onPointerDown={ds.handleResizeStart} />
     </section>
   );
@@ -1305,11 +1352,10 @@ export default function CafeScene({ seats }) {
         <Taxi />
         <div className="cafe-glass-wrap">
           <CafeGlass />
-          <PixooCatWindow muted={muted} onToggle={toggleMute} />
         </div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
-            <CafeUpperFloor />
+            <CafeUpperFloor muted={muted} onToggle={toggleMute} />
           </div>
           <div className="cafe-cluster cafe-cluster-fg">
             <CounterModule seats={seats} />
