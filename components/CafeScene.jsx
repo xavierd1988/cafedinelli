@@ -15,7 +15,6 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
-import PixooMute from "./PixooMute.jsx";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -1211,8 +1210,76 @@ function CounterModule({ seats }) {
   );
 }
 
+// Silhouette chat — apparaît dans le panneau gauche de la vitre quand le Pixoo est muté.
+// Clique sur la zone (visible ou non) pour basculer le mute.
+function PixooCatWindow({ muted, onToggle }) {
+  return (
+    <div
+      onClick={onToggle}
+      title={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
+      aria-label={muted ? "Unmute Pixoo" : "Mute Pixoo"}
+      style={{
+        position: "absolute",
+        /* Panneau gauche de la cafe-glass (coords du cafe-glass-wrap).
+           La vitre commence à left:610, top:303, h:318.
+           On se cale dans le premier panneau (jusqu'au premier meneau x:680)
+           en bas de la vitre. */
+        left: "612px",
+        top: "510px",
+        width: "64px",
+        height: "110px",
+        cursor: "pointer",
+        pointerEvents: "auto",
+        zIndex: 20,
+      }}
+    >
+      {muted && (
+        <svg
+          viewBox="0 0 64 110"
+          width="64"
+          height="110"
+          aria-hidden="true"
+          style={{ display: "block" }}
+        >
+          {/* Oreille gauche */}
+          <path d="M18 32 L11 8 L32 27 Z" fill="#0a0806" />
+          {/* Oreille droite */}
+          <path d="M46 32 L55 8 L36 27 Z" fill="#0a0806" />
+          {/* Tête */}
+          <ellipse cx="32" cy="40" rx="19" ry="17" fill="#0a0806" />
+          {/* Corps */}
+          <ellipse cx="33" cy="78" rx="22" ry="28" fill="#0a0806" />
+          {/* Queue — part du bas-gauche du corps, s'enroule vers la gauche */}
+          <path
+            d="M12 100 Q 1 84 4 64 Q 7 48 18 54"
+            stroke="#0a0806"
+            strokeWidth="7"
+            fill="none"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 export default function CafeScene({ seats }) {
   const scale = useSceneScale();
+
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    fetch("/api/pixoo")
+      .then((r) => r.json())
+      .then((d) => setMuted(!!d.muted))
+      .catch(() => {});
+  }, []);
+  function toggleMute(e) {
+    e.stopPropagation();
+    fetch("/api/pixoo", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => setMuted(!!d.muted))
+      .catch(() => {});
+  }
 
   return (
     <div className="scene-viewport" data-file="CafeScene.jsx::scene-viewport">
@@ -1236,7 +1303,10 @@ export default function CafeScene({ seats }) {
             CornerCurve2. Posé AVANT le glass dans le DOM + z-index 5
             pour passer derrière la vitrine. */}
         <Taxi />
-        <div className="cafe-glass-wrap"><CafeGlass /></div>
+        <div className="cafe-glass-wrap">
+          <CafeGlass />
+          <PixooCatWindow muted={muted} onToggle={toggleMute} />
+        </div>
         <div className="cafe-module" data-file="CafeScene.jsx::cafe-module">
           <div className="cafe-cluster cafe-cluster-bg">
             <CafeUpperFloor />
@@ -1256,7 +1326,6 @@ export default function CafeScene({ seats }) {
         <CafeSign />
         <PaperPanel />
         <ShelfPanel />
-        <PixooMute />
         <div className="street-base" aria-hidden="true" />
         <div className="scene-vignette" aria-hidden="true" />
         <div id="bubble-portal-host" className="bubble-portal-host" aria-hidden="true" />
