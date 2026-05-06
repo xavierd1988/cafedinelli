@@ -15,6 +15,7 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
+import PixooMute from "./PixooMute.jsx";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -1255,6 +1256,7 @@ export default function CafeScene({ seats }) {
         <CafeSign />
         <PaperPanel />
         <ShelfPanel />
+        <PixooMute />
         <div className="street-base" aria-hidden="true" />
         <div className="scene-vignette" aria-hidden="true" />
         <div id="bubble-portal-host" className="bubble-portal-host" aria-hidden="true" />
