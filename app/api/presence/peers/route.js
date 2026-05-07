@@ -32,16 +32,31 @@ export async function GET(request) {
   const peersDecorated = peers
     .map((p) => ({
       ip: p.ip,
+      sessionId: p.sessionId,
+      member: p.member,
       lastSeen: p.lastSeen,
       ageMs: now - p.lastSeen,
-      isMe: p.ip === me
+      isMe: p.ip === me,
+      isLocalhost: p.ip === "::1" || p.ip === "127.0.0.1"
     }))
     .sort((a, b) => a.ageMs - b.ageMs);
+
+  // Décompose pour clarté : sessions réelles (hors localhost), nb d'IPs
+  // uniques (utile pour repérer le NAT collapse), nb d'onglets distincts.
+  const realPeers = peersDecorated.filter((p) => !p.isLocalhost);
+  const uniqueIps = new Set(realPeers.map((p) => p.ip));
+  const uniqueSessions = new Set(realPeers.map((p) => p.sessionId).filter(Boolean));
 
   return Response.json({
     me,
     candidates,
-    count: peers.length,
+    summary: {
+      totalEntries: peers.length,
+      realVisitors: realPeers.length,        // sessions réelles (hors localhost)
+      uniqueIps: uniqueIps.size,             // nb d'IPs distinctes
+      uniqueSessions: uniqueSessions.size,   // nb d'onglets distincts
+      localhostNoise: peers.length - realPeers.length
+    },
     peers: peersDecorated
   });
 }
