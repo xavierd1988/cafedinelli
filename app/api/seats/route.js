@@ -1,4 +1,4 @@
-import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../../lib/seatStore.js";
+import { recordSeatMessage, getActiveSeats, findActiveSeatForIp, leaveSeatForIp } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
@@ -114,4 +114,16 @@ export async function POST(request) {
   // cache read) sans reconstruire le snapshot lui-même (~150ms).
   await refreshCafeState();
   return Response.json({ ok: true, entry, regulars });
+}
+
+// DELETE = "je quitte mon siège". Libère l'entrée Redis pour que le
+// visiteur puisse en prendre un autre tout de suite sans attendre les
+// 120s d'expiration. Déclenché par le clic sur la silhouette côté client.
+export async function DELETE(request) {
+  const ip = getIp(request);
+  const left = await leaveSeatForIp(ip);
+  if (left) {
+    await refreshCafeState();
+  }
+  return Response.json({ ok: true, left });
 }

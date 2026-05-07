@@ -207,6 +207,9 @@ export default function Seat({ seat }) {
     // Empêche le prochain poll de re-appliquer mon propre message déjà
     // envoyé (qui reste 2 min côté serveur pour les autres visiteurs).
     lastSeenTimestampRef.current = Date.now();
+    // Libère le siège côté serveur immédiatement — sinon mon IP reste
+    // verrouillée 120s et un POST sur un AUTRE siège retournerait 409.
+    fetch("/api/seats", { method: "DELETE" }).catch(() => {});
   }
 
   function commit() {
