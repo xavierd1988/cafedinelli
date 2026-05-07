@@ -169,6 +169,12 @@ export default function Seat({ seat }) {
     if (!activeNickname) {
       setActiveNickname(nickname || "anonymous");
     }
+    // Réserve mySeat dès le clic pour bloquer le clic sur les autres
+    // tabourets pendant la saisie. Sans ça, getMySeat() reste null
+    // jusqu'au commit() et l'user pouvait cliquer ailleurs entre-temps.
+    // Si l'user annule sans envoyer, cancel() libère ce slot.
+    setMySeat(id);
+    lastSourceRef.current = "local";
   }
 
   function commit() {
@@ -242,7 +248,13 @@ export default function Seat({ seat }) {
     setEditing(false);
     setDraft("");
     // Idem cancel : retirer la silhouette si elle n'avait pas de message réel.
-    if (!activeMessage) setActiveNickname("");
+    if (!activeMessage) {
+      setActiveNickname("");
+      // Pas de message envoyé → on libère le slot mySeat réservé par
+      // handleClick, pour que l'user puisse cliquer un autre tabouret.
+      if (getMySeat() === id) setMySeat(null);
+      lastSourceRef.current = null;
+    }
   }
 
   function handleKeyDown(e) {
