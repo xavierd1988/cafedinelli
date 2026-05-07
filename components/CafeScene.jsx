@@ -1227,7 +1227,6 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
-  const muteRef = useRef(null);
 
   useEffect(() => {
     fetch("/api/pixoo")
@@ -1291,22 +1290,13 @@ function PixooMuteCat() {
         zIndex: 500,
         outline: editMode ? "1px dashed rgba(255,200,0,0.6)" : "none",
       }}
-      onPointerDown={(e) => {
-        if (getEditMode()) { ds.handleDragStart(e); }
-        else { e.stopPropagation(); muteRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }; }
+      onPointerDown={ds.handleDragStart}
+      onClick={(e) => {
+        if (getEditMode()) return;
+        e.stopPropagation();
+        fetch("/api/pixoo", { method: "POST" })
+          .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
       }}
-      onPointerUp={(e) => {
-        if (!getEditMode()) {
-          e.stopPropagation();
-          const s = muteRef.current; muteRef.current = null;
-          if (!s) return;
-          if (Math.abs(e.clientX - s.x) < 10 && Math.abs(e.clientY - s.y) < 10 && Date.now() - s.t < 600) {
-            fetch("/api/pixoo", { method: "POST" })
-              .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
-          }
-        }
-      }}
-      onPointerCancel={() => { muteRef.current = null; }}
     >
       {editMode && (
         <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.dragging} label="PixooMuteCat" />
@@ -1340,7 +1330,7 @@ function PixooMuteCat() {
         />
       )}
       {(muted || editMode) && (
-        <svg viewBox="0 0 54 80" width="100%" height="100%" aria-hidden="true" style={{ display: "block" }}>
+        <svg viewBox="0 0 54 80" width="100%" height="100%" aria-hidden="true" style={{ display: "block", pointerEvents: "none" }}>
           <path d="M14 26 L8 4 L28 18 Z" fill="#0d0b09" />
           <path d="M40 26 L48 4 L32 18 Z" fill="#0d0b09" />
           <ellipse cx="27" cy="34" rx="16" ry="14" fill="#0d0b09" />
