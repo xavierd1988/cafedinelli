@@ -148,48 +148,48 @@ export default function Seat({ seat }) {
   }, [activeNickname]);
 
   function handleClick(e) {
-    // Si je suis déjà assis ailleurs ou ici-occupé-par-un-autre : rien.
     const mySeatId = getMySeat();
     const isMine = mySeatId === id;
     const isAnotherSeatTaken = mySeatId !== null && !isMine;
     const isRemoteOccupied = showPerson && lastSourceRef.current === "remote";
+
+    // Tabouret occupé par quelqu'un d'autre, ou je suis déjà ailleurs : rien.
     if (isAnotherSeatTaken || isRemoteOccupied) {
       e.stopPropagation();
       return;
     }
-    if (editing) return;
 
-    // Click sur MON propre tabouret quand je suis déjà assis (silhouette
-    // visible, message envoyé ou pas) : action "leave" → libère le siège
-    // immédiatement, retire ma silhouette/bulle, je peux aller cliquer
-    // un autre tabouret. Sans ça, j'étais coincé jusqu'au timeout 2 min.
-    if (isMine && showPerson) {
+    // 2e click sur MON propre tabouret :
+    //   - si la bulle est vide (pas encore de message envoyé) → LEAVE
+    //   - si un message a déjà été envoyé (activeMessage présent) → no-op
+    //     (on protège le message qui est dans la bulle, pas de clic
+    //     accidentel qui efface tout).
+    if (isMine) {
       e.stopPropagation();
-      clearTimeout(messageTimerRef.current);
-      clearTimeout(personTimerRef.current);
-      setActiveMessage("");
-      setActiveNickname("");
-      setDraft("");
-      if (getMySeat() === id) setMySeat(null);
-      lastSourceRef.current = null;
+      if (!activeMessage) {
+        clearTimeout(messageTimerRef.current);
+        clearTimeout(personTimerRef.current);
+        setActiveMessage("");
+        setActiveNickname("");
+        setEditing(false);
+        setDraft("");
+        if (getMySeat() === id) setMySeat(null);
+        lastSourceRef.current = null;
+      }
       return;
     }
 
+    // 1er click sur un tabouret libre : on s'assoit + bulle s'ouvre.
     e.stopPropagation();
     clearTimeout(messageTimerRef.current);
     setActiveMessage("");
     setEditing(true);
     setDraft("");
-    // Silhouette apparaît immédiatement au clic sur le tabouret (avant
-    // même qu'un message soit envoyé). Si l'utilisateur annule, on la
-    // retire dans cancel()/commit() vide.
     if (!activeNickname) {
       setActiveNickname(nickname || "anonymous");
     }
-    // Réserve mySeat dès le clic pour bloquer le clic sur les autres
-    // tabourets pendant la saisie. Sans ça, getMySeat() reste null
-    // jusqu'au commit() et l'user pouvait cliquer ailleurs entre-temps.
-    // Si l'user annule sans envoyer, cancel() libère ce slot.
+    // Réserve mySeat dès le clic pour bloquer les autres tabourets pendant
+    // la saisie. Libéré dans cancel() si l'user ferme sans envoyer.
     setMySeat(id);
     lastSourceRef.current = "local";
   }
