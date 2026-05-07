@@ -1227,12 +1227,8 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
-  // downRef : position du pointerdown pour distinguer tap (dist<8px) vs drag.
-  // On utilise onPointerUp et non onClick car handleDragStart appelle
-  // e.preventDefault() sur pointerdown → Chromium supprime l'événement click.
-  const downRef = useRef(null);
 
-  // Poll toutes les 3s pour que tous les visiteurs voient l'état en temps réel.
+  // Poll toutes les secondes → sync temps réel pour tous les visiteurs.
   useEffect(() => {
     function sync() {
       fetch("/api/pixoo")
@@ -1241,9 +1237,15 @@ function PixooMuteCat() {
         .catch(() => {});
     }
     sync();
-    const id = setInterval(sync, 3000);
+    const id = setInterval(sync, 1000);
     return () => clearInterval(id);
   }, []);
+
+  function toggleMute(e) {
+    e.stopPropagation();
+    fetch("/api/pixoo", { method: "POST" })
+      .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
+  }
 
   function handleWidthResize(e) {
     if (!getEditMode()) return;
@@ -1283,11 +1285,6 @@ function PixooMuteCat() {
     <div
       className="pixoo-mute-cat"
       data-file="CafeScene.jsx::PixooMuteCat"
-      title={
-        editMode
-          ? `PixooMuteCat  x:${Math.round(ds.offset.x)} y:${Math.round(ds.offset.y)}  ${Math.round(size.width)}×${Math.round(size.height)}`
-          : muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"
-      }
       style={{
         position: "absolute",
         left: 0,
@@ -1296,31 +1293,36 @@ function PixooMuteCat() {
         height: `${size.height}px`,
         transform: `translate(${ds.offset.x}px, ${ds.offset.y}px)`,
         transformOrigin: "top left",
-        cursor: editMode ? (ds.dragging ? "grabbing" : "grab") : "pointer",
         pointerEvents: "auto",
         zIndex: 500,
         outline: editMode ? "1px dashed rgba(255,200,0,0.6)" : "none",
       }}
-      onPointerDown={(e) => {
-        downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
-        ds.handleDragStart(e); // no-op hors edit mode ; preventDefault en edit mode
-      }}
-      onPointerUp={(e) => {
-        const s = downRef.current;
-        downRef.current = null;
-        if (!s) return;
-        const dist = Math.hypot(e.clientX - s.x, e.clientY - s.y);
-        // Tap court (< 8px, < 600ms) → toggle mute, qu'on soit en edit mode ou non
-        if (dist < 8 && Date.now() - s.t < 600) {
-          e.stopPropagation();
-          fetch("/api/pixoo", { method: "POST" })
-            .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
-        }
-      }}
-      onPointerCancel={() => { downRef.current = null; }}
+      onPointerDown={ds.handleDragStart}
     >
+      {/* Bouton invisible qui couvre toute la zone — useDraggable ignore les
+          clics sur <button> (vérifie e.target.tagName), donc drag et toggle
+          ne peuvent pas entrer en conflit. */}
+      <button
+        aria-label={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
+        title={
+          editMode
+            ? `PixooMuteCat  x:${Math.round(ds.offset.x)} y:${Math.round(ds.offset.y)}  ${Math.round(size.width)}×${Math.round(size.height)}`
+            : muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"
+        }
+        onClick={toggleMute}
+        style={{
+          position: "absolute", inset: 0,
+          background: "none", border: "none",
+          cursor: "pointer", padding: 0,
+          zIndex: 1,
+        }}
+      />
       {editMode && (
-        <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.dragging} label="PixooMuteCat" />
+        <CafeDragKnob
+          onPointerDown={(e) => { e.stopPropagation(); ds.handleDragStart(e); }}
+          dragging={ds.dragging}
+          label="PixooMuteCat"
+        />
       )}
       {/* Poignée resize largeur — bord droit */}
       {editMode && (
