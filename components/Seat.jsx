@@ -147,63 +147,74 @@ export default function Seat({ seat }) {
     if (!activeNickname) setSeatPersona(null);
   }, [activeNickname]);
 
-  function handleClick(e) {
+  // 3 actions indépendantes, 3 cibles distinctes :
+  //   1. handleSeatClick     → click sur le tabouret  → SIT (silhouette + bulle)
+  //   2. (bubble onClick)    → click dans la bulle    → OPEN EDITOR (peut taper)
+  //   3. handleSilhouetteClick → click sur la silhouette → LEAVE (libère le siège)
+  //
+  // Chaque action est strictement séparée. Cliquer le tabouret n'ouvre PAS
+  // l'éditeur, ne fait QUE faire apparaître la silhouette + bulle vide.
+  // Pour parler il faut cliquer la bulle. Pour quitter il faut cliquer la
+  // silhouette. Tabourets voisins jamais parasités par mon état.
+  function handleSeatClick(e) {
     const mySeatId = getMySeat();
     const isMine = mySeatId === id;
     const isAnotherSeatTaken = mySeatId !== null && !isMine;
     const isRemoteOccupied = showPerson && lastSourceRef.current === "remote";
 
-    // Tabouret occupé par quelqu'un d'autre, ou je suis déjà ailleurs : rien.
+    // Tabouret occupé par quelqu'un d'autre, ou je suis assis ailleurs : rien.
     if (isAnotherSeatTaken || isRemoteOccupied) {
       e.stopPropagation();
       return;
     }
-
-    // 2e click sur MON propre tabouret = LEAVE, toujours. Peu importe que
-    // j'aie déjà envoyé un message ou pas — clic = "je quitte". Ça libère
-    // mySeat pour que je puisse cliquer un autre tabouret.
-    //
-    // Le message déjà envoyé reste sauvegardé côté serveur (les autres
-    // visiteurs continueront à le voir jusqu'au TTL 2 min) ; c'est juste
-    // mon état local qui se reset.
-    if (isMine) {
+    // Déjà assis ici : rien (pas de re-toggle, le user clique la silhouette
+    // pour quitter).
+    if (isMine && showPerson) {
       e.stopPropagation();
-      clearTimeout(messageTimerRef.current);
-      clearTimeout(personTimerRef.current);
-      setActiveMessage("");
-      setActiveNickname("");
-      setEditing(false);
-      setDraft("");
-      if (getMySeat() === id) setMySeat(null);
-      lastSourceRef.current = null;
-      // Empêche le prochain poll de re-appliquer mon propre message sur
-      // ce siège (sinon ma silhouette reviendrait quelques secondes après).
-      lastSeenTimestampRef.current = Date.now();
       return;
     }
 
-    // 1er click sur un tabouret libre : on s'assoit + bulle s'ouvre.
     e.stopPropagation();
-    clearTimeout(messageTimerRef.current);
-    setActiveMessage("");
-    setEditing(true);
-    setDraft("");
+    // SIT : silhouette + bulle apparaissent. Pas d'éditeur ouvert.
     if (!activeNickname) {
       setActiveNickname(nickname || "anonymous");
     }
-    // Réserve mySeat dès le clic pour bloquer les autres tabourets pendant
-    // la saisie. Libéré dans cancel() si l'user ferme sans envoyer.
     setMySeat(id);
     lastSourceRef.current = "local";
+    // Reset des timers : on est frais, pas en train d'expirer.
+    clearTimeout(messageTimerRef.current);
+    clearTimeout(personTimerRef.current);
+    setActiveMessage("");
+    setEditing(false);
+    setDraft("");
+  }
+
+  // Click sur la silhouette = LEAVE (libère totalement le siège). Seule la
+  // mienne est cliquable (la classe is-remote-occupied bloque le pointer).
+  function handleSilhouetteClick(e) {
+    e.stopPropagation();
+    if (lastSourceRef.current === "remote") return;
+    if (getMySeat() !== id) return;
+
+    clearTimeout(messageTimerRef.current);
+    clearTimeout(personTimerRef.current);
+    setActiveMessage("");
+    setActiveNickname("");
+    setEditing(false);
+    setDraft("");
+    setMySeat(null);
+    lastSourceRef.current = null;
+    // Empêche le prochain poll de re-appliquer mon propre message déjà
+    // envoyé (qui reste 2 min côté serveur pour les autres visiteurs).
+    lastSeenTimestampRef.current = Date.now();
   }
 
   function commit() {
     const trimmed = draft.trim();
     setEditing(false);
     if (!trimmed) {
-      // Aucun message → on retire le silhouette qu'on avait fait apparaître
-      // au clic, sauf si une silhouette préexistait (message déjà actif).
-      if (!activeMessage) setActiveNickname("");
+      // Submit vide : on ferme juste l'éditeur. L'user reste assis (silhouette
+      // + bulle vide). Pour quitter le siège, il doit cliquer la silhouette.
       return;
     }
 
@@ -265,16 +276,10 @@ export default function Seat({ seat }) {
   }
 
   function cancel() {
+    // Escape ou click ailleurs : ferme juste l'éditeur. L'user reste assis
+    // (silhouette + bulle vide). Pour quitter le siège, click la silhouette.
     setEditing(false);
     setDraft("");
-    // Idem cancel : retirer la silhouette si elle n'avait pas de message réel.
-    if (!activeMessage) {
-      setActiveNickname("");
-      // Pas de message envoyé → on libère le slot mySeat réservé par
-      // handleClick, pour que l'user puisse cliquer un autre tabouret.
-      if (getMySeat() === id) setMySeat(null);
-      lastSourceRef.current = null;
-    }
   }
 
   function handleKeyDown(e) {
@@ -287,7 +292,12 @@ export default function Seat({ seat }) {
     }
   }
 
-  const showBubble = editing || !!activeMessage;
+  // Bulle visible dans 3 cas :
+  //   - je suis en train d'éditer (input ouvert)
+  //   - il y a un message actif (envoyé)
+  //   - je suis assis localement sans message encore (placeholder "Click to talk")
+  const isMyLocalSeat = getMySeat() === id && lastSourceRef.current === "local";
+  const showBubble = editing || !!activeMessage || (isMyLocalSeat && showPerson);
   const showPerson = !!activeNickname;
 
   useEffect(() => {
@@ -346,11 +356,15 @@ export default function Seat({ seat }) {
           maxLength={140}
           onPointerDown={(e) => e.stopPropagation()}
         />
-      ) : (
+      ) : activeMessage ? (
         <>
           {activeNickname && <em>{activeNickname}</em>}
           <span>{activeMessage}</span>
         </>
+      ) : (
+        // Bulle vide : je suis assis mais je n'ai pas encore parlé. Hint
+        // pour cliquer la bulle pour ouvrir l'input.
+        <span className="bubble-hint">Say something…</span>
       )}
     </span>
   ) : null;
@@ -377,9 +391,9 @@ export default function Seat({ seat }) {
         return (
         <span
           className={`seat-person${lastSourceRef.current === "remote" ? " is-remote-occupied" : " seat-person-clickable"} persona-${p.gender} wig-${p.gender}-${p.wig} jacket-${p.gender}-${p.jacket} pants-${p.gender}-${p.pants} shoes-${p.gender}-${p.shoes}`}
-          aria-label={lastSourceRef.current === "remote" ? `Seat ${id} occupied` : `Talk as person at seat ${id}`}
+          aria-label={lastSourceRef.current === "remote" ? `Seat ${id} occupied` : `Leave seat ${id}`}
           role="button"
-          onClick={handleClick}
+          onClick={handleSilhouetteClick}
         >
           <span className="person-wig" />
           <span className="person-head" />
@@ -400,7 +414,7 @@ export default function Seat({ seat }) {
       <button
         type="button"
         className="seat"
-        onClick={handleClick}
+        onClick={handleSeatClick}
         aria-label={
           activeMessage ? `Seat ${id}: ${activeMessage}` : `Take seat ${id}`
         }
