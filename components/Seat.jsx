@@ -158,6 +158,23 @@ export default function Seat({ seat }) {
       return;
     }
     if (editing) return;
+
+    // Click sur MON propre tabouret quand je suis déjà assis (silhouette
+    // visible, message envoyé ou pas) : action "leave" → libère le siège
+    // immédiatement, retire ma silhouette/bulle, je peux aller cliquer
+    // un autre tabouret. Sans ça, j'étais coincé jusqu'au timeout 2 min.
+    if (isMine && showPerson) {
+      e.stopPropagation();
+      clearTimeout(messageTimerRef.current);
+      clearTimeout(personTimerRef.current);
+      setActiveMessage("");
+      setActiveNickname("");
+      setDraft("");
+      if (getMySeat() === id) setMySeat(null);
+      lastSourceRef.current = null;
+      return;
+    }
+
     e.stopPropagation();
     clearTimeout(messageTimerRef.current);
     setActiveMessage("");
