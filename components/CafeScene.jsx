@@ -1271,6 +1271,7 @@ function PixooMuteCat() {
 
   return (
     <div
+      className="pixoo-mute-cat"
       data-file="CafeScene.jsx::PixooMuteCat"
       title={
         editMode
@@ -1292,7 +1293,9 @@ function PixooMuteCat() {
       }}
       onPointerDown={ds.handleDragStart}
       onClick={(e) => {
-        if (getEditMode()) return;
+        /* Pas de guard getEditMode() : le toggle doit marcher même en edit
+           mode. Les navigateurs ne déclenchent pas click après un vrai drag
+           (déplacement > quelques px), donc pas de risque de toggle accidentel. */
         e.stopPropagation();
         fetch("/api/pixoo", { method: "POST" })
           .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});

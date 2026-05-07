@@ -23,7 +23,8 @@ const MODULES = [
   { selector: ".seats-counter",                     file: "SeatsCounter.jsx" },
   { selector: ".black-backdrop",                    file: "BlackBackdrop.jsx" },
   { selector: ".checkered-floor",                   file: "CheckeredFloor.jsx" },
-  { selector: ".bordeaux-backdrop",                 file: "BordeauxBackdrop.jsx" }
+  { selector: ".bordeaux-backdrop",                 file: "BordeauxBackdrop.jsx" },
+  { selector: ".pixoo-mute-cat",                    file: "PixooMuteCat" }
 ];
 
 function parseTransform(str = "") {
@@ -64,7 +65,8 @@ export default function PositionExporter() {
         selector === ".paper-panel" ||
         selector === ".black-backdrop" ||
         selector === ".checkered-floor" ||
-        selector === ".bordeaux-backdrop"
+        selector === ".bordeaux-backdrop" ||
+        selector === ".pixoo-mute-cat"
       ) {
         const w = parseFloat(el.style.width);
         const h = parseFloat(el.style.height);
