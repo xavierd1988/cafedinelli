@@ -159,23 +159,26 @@ export default function Seat({ seat }) {
       return;
     }
 
-    // 2e click sur MON propre tabouret :
-    //   - si la bulle est vide (pas encore de message envoyé) → LEAVE
-    //   - si un message a déjà été envoyé (activeMessage présent) → no-op
-    //     (on protège le message qui est dans la bulle, pas de clic
-    //     accidentel qui efface tout).
+    // 2e click sur MON propre tabouret = LEAVE, toujours. Peu importe que
+    // j'aie déjà envoyé un message ou pas — clic = "je quitte". Ça libère
+    // mySeat pour que je puisse cliquer un autre tabouret.
+    //
+    // Le message déjà envoyé reste sauvegardé côté serveur (les autres
+    // visiteurs continueront à le voir jusqu'au TTL 2 min) ; c'est juste
+    // mon état local qui se reset.
     if (isMine) {
       e.stopPropagation();
-      if (!activeMessage) {
-        clearTimeout(messageTimerRef.current);
-        clearTimeout(personTimerRef.current);
-        setActiveMessage("");
-        setActiveNickname("");
-        setEditing(false);
-        setDraft("");
-        if (getMySeat() === id) setMySeat(null);
-        lastSourceRef.current = null;
-      }
+      clearTimeout(messageTimerRef.current);
+      clearTimeout(personTimerRef.current);
+      setActiveMessage("");
+      setActiveNickname("");
+      setEditing(false);
+      setDraft("");
+      if (getMySeat() === id) setMySeat(null);
+      lastSourceRef.current = null;
+      // Empêche le prochain poll de re-appliquer mon propre message sur
+      // ce siège (sinon ma silhouette reviendrait quelques secondes après).
+      lastSeenTimestampRef.current = Date.now();
       return;
     }
 
