@@ -41,8 +41,11 @@ export async function GET(request) {
     }))
     .sort((a, b) => a.ageMs - b.ageMs);
 
-  // Décompose pour clarté : sessions réelles (hors localhost), nb d'IPs
-  // uniques (utile pour repérer le NAT collapse), nb d'onglets distincts.
+  // Décompose pour clarté.
+  // displayCount = ce que voit le visiteur dans le panel public
+  //              = nombre d'IPs uniques (hors localhost).
+  // realSessions = nombre d'entrées sorted-set hors localhost
+  //              (i.e. nb d'onglets * NAT collapse, infos debug).
   const realPeers = peersDecorated.filter((p) => !p.isLocalhost);
   const uniqueIps = new Set(realPeers.map((p) => p.ip));
   const uniqueSessions = new Set(realPeers.map((p) => p.sessionId).filter(Boolean));
@@ -51,8 +54,9 @@ export async function GET(request) {
     me,
     candidates,
     summary: {
+      displayCount: uniqueIps.size,          // ← ce qu'affiche le panel UI
       totalEntries: peers.length,
-      realVisitors: realPeers.length,        // sessions réelles (hors localhost)
+      realSessions: realPeers.length,        // sessions réelles (hors localhost)
       uniqueIps: uniqueIps.size,             // nb d'IPs distinctes
       uniqueSessions: uniqueSessions.size,   // nb d'onglets distincts
       localhostNoise: peers.length - realPeers.length
