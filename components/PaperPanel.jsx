@@ -666,6 +666,21 @@ export default function PaperPanel() {
     return () => { cancelled = true; };
   }, []);
 
+  // Date affichée dans le masthead. Calculée CÔTÉ CLIENT uniquement pour
+  // contourner le cache CDN/SSR qui pouvait figer "Tuesday" pour tous les
+  // visiteurs jusqu'au prochain build. Refresh toutes les 60s au cas où
+  // la session traverse minuit. SSR renvoie une chaîne vide → la place
+  // est gardée par "&nbsp;" dans le JSX.
+  const [todayStr, setTodayStr] = useState("");
+  useEffect(() => {
+    function tick() {
+      setTodayStr(formatDate(new Date().toISOString()));
+    }
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // Newsletter HTML enrichi de liens Amazon autour des produits du jour.
   // Recalculé seulement quand la newsletter ou la liste produits change.
   const enrichedNewsletterHtml = newsletter?.html
@@ -801,7 +816,7 @@ export default function PaperPanel() {
             {/* La date affichée est toujours AUJOURD'HUI (vue du lecteur),
                 pas la date de la newsletter — sinon on garde "lundi 4" en
                 français pendant que tout le monde est mardi. */}
-            <p className="paper-date">{formatDate(new Date().toISOString())}</p>
+            <p className="paper-date">{todayStr || " "}</p>
             <p className="paper-meta">
               {newsletter
                 ? `Today's edition • received at ${formatTime(newsletter.receivedAt)}`
