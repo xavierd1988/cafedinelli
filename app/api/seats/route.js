@@ -1,4 +1,4 @@
-import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../../lib/seatStore.js";
+import { recordSeatMessage, getActiveSeats, findActiveSeatForIp, releaseSeat } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
@@ -98,13 +98,12 @@ export async function POST(request) {
   }
 
   // Une seule silhouette active par IP : si cette IP est déjà à un autre
-  // siège (encore "actif" = posté il y a < 60s), on refuse le nouveau post.
+  // siège, on libère silencieusement l'ancien avant de claim le nouveau —
+  // c'est exactement le pattern de /api/secret-room. Permet au visiteur
+  // de changer de siège après un LEAVE local sans rester bloqué 120s.
   const existing = await findActiveSeatForIp(ip);
   if (existing && existing.id !== id) {
-    return Response.json(
-      { error: "already seated", seatId: existing.id },
-      { status: 409 }
-    );
+    await releaseSeat(existing.id);
   }
 
   const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
