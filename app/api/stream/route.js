@@ -32,13 +32,14 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-// Intervalle entre 2 ticks de re-lecture côté serveur. Plus c'est court,
-// plus c'est réactif côté UX, mais plus c'est gourmand en Redis.
-// Baissé à 500ms pour que les messages bar/secret room arrivent sur le
-// Pixoo en sub-seconde. La cache cafe:state (1.2s) absorbe la majorité
-// des ticks → on ne fait pas 2.4× plus de rebuilds, juste 2.4× plus de
-// petites lectures de cache (cheap).
-const TICK_MS = 500;
+// Intervalle entre 2 ticks de re-lecture côté serveur. La cache
+// cafe:state (1.2s) absorbe la majorité des ticks → la plupart sont
+// des lectures de cache (1 op, ~10ms). Baissé à 200ms pour que les
+// messages atterrissent sur le Pixoo en sub-300ms.
+// Le client peut overrider via ?tick=NNN (ms) entre 100 et 1500.
+const DEFAULT_TICK_MS = 200;
+const MIN_TICK_MS = 100;
+const MAX_TICK_MS = 1500;
 
 // Ferme proprement la connexion avant la limite Vercel pour que le
 // navigateur reconnecte cleanly. 24s de durée + reconnexion auto = pas
@@ -72,6 +73,13 @@ export async function GET(request) {
   // par le dashboard Pixoo pour ne pas polluer le compteur online.
   const silent = url.searchParams.get("silent") === "1";
   const recordPing = !silent;
+  // ?tick=NNN (ms) → vitesse de polling personnalisée. Le Pixoo dashboard
+  // utilise tick=150 pour un push quasi-instantané ; le navigateur reste
+  // sur 200ms par défaut.
+  const tickQuery = Number(url.searchParams.get("tick"));
+  const TICK_MS = Number.isFinite(tickQuery)
+    ? Math.max(MIN_TICK_MS, Math.min(MAX_TICK_MS, tickQuery))
+    : DEFAULT_TICK_MS;
   const startedAt = Date.now();
   let lastSig = "";
 
