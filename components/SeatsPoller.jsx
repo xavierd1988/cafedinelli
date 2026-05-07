@@ -58,7 +58,8 @@ function dispatchPayload(data) {
     eye: data.eye && typeof data.eye === "object" ? data.eye : null,
     taxi: data.taxi && typeof data.taxi === "object" ? data.taxi : null,
     online: typeof data.online === "number" ? data.online : 0,
-    secretRoom: Array.isArray(data.secretRoom) ? data.secretRoom : []
+    secretRoom: Array.isArray(data.secretRoom) ? data.secretRoom : [],
+    pixooMuted: typeof data.pixooMuted === "boolean" ? data.pixooMuted : false
   };
   window.dispatchEvent(
     new CustomEvent("seats-remote-update", { detail: payload })

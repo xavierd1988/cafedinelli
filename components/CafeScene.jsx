@@ -1227,21 +1227,27 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
-  // Guard : bloque le poll pendant qu'un toggle POST est en vol pour éviter
-  // la race condition GET-après-POST qui écrase l'état local.
+  // Bloque la mise à jour SSE pendant qu'un toggle est en vol (évite
+  // que le snapshot suivant n'écrase l'état optimiste avant la confirmation).
   const pendingRef = useRef(false);
 
+  // Lecture initiale rapide + écoute du bus SSE (seats-remote-update).
+  // Quand quelqu'un toggle, le POST invalide le snapshot → tous les clients
+  // SSE reçoivent pixooMuted mis à jour dans le tick suivant (~1.2s).
   useEffect(() => {
-    function sync() {
+    fetch("/api/pixoo")
+      .then((r) => r.json())
+      .then((d) => { if (!pendingRef.current) setMuted(!!d.muted); })
+      .catch(() => {});
+
+    function onUpdate(e) {
       if (pendingRef.current) return;
-      fetch("/api/pixoo")
-        .then((r) => r.json())
-        .then((d) => setMuted(!!d.muted))
-        .catch(() => {});
+      if (typeof e.detail?.pixooMuted === "boolean") {
+        setMuted(e.detail.pixooMuted);
+      }
     }
-    sync();
-    const id = setInterval(sync, 2000);
-    return () => clearInterval(id);
+    window.addEventListener("seats-remote-update", onUpdate);
+    return () => window.removeEventListener("seats-remote-update", onUpdate);
   }, []);
 
   function toggleMute(e) {
