@@ -1227,24 +1227,31 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
+  // Guard : bloque le poll pendant qu'un toggle POST est en vol pour éviter
+  // la race condition GET-après-POST qui écrase l'état local.
+  const pendingRef = useRef(false);
 
-  // Poll toutes les secondes → sync temps réel pour tous les visiteurs.
   useEffect(() => {
     function sync() {
+      if (pendingRef.current) return;
       fetch("/api/pixoo")
         .then((r) => r.json())
         .then((d) => setMuted(!!d.muted))
         .catch(() => {});
     }
     sync();
-    const id = setInterval(sync, 1000);
+    const id = setInterval(sync, 2000);
     return () => clearInterval(id);
   }, []);
 
   function toggleMute(e) {
     e.stopPropagation();
+    pendingRef.current = true;
+    setMuted((prev) => !prev); // mise à jour optimiste immédiate
     fetch("/api/pixoo", { method: "POST" })
-      .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
+      .then((r) => r.json())
+      .then((d) => { setMuted(!!d.muted); pendingRef.current = false; })
+      .catch(() => { setMuted((prev) => !prev); pendingRef.current = false; });
   }
 
   function handleWidthResize(e) {
