@@ -1,4 +1,4 @@
-import { recordSeatMessage, getActiveSeats, findActiveSeatForIp } from "../../../lib/seatStore.js";
+import { recordSeatMessage, getActiveSeats, findActiveSeatForIp, markSeatReleased } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
@@ -97,14 +97,15 @@ export async function POST(request) {
     return Response.json({ error: "empty message" }, { status: 400 });
   }
 
-  // Une seule silhouette active par IP : si cette IP est déjà à un autre
-  // siège (encore "actif" = posté il y a < 60s), on refuse le nouveau post.
+  // Si le visiteur change de siège, on ne SUPPRIME PAS son ancien
+  // message — on le marque juste "released" pour libérer le verrou IP.
+  // L'entrée garde son timestamp + son message, donc les autres
+  // visiteurs continuent de voir ce qu'il a dit pendant les ~120s
+  // restants avant expiration naturelle. Permet au visiteur de poster
+  // sur un nouveau siège sans 409 ET sans effacer ses messages déjà dits.
   const existing = await findActiveSeatForIp(ip);
   if (existing && existing.id !== id) {
-    return Response.json(
-      { error: "already seated", seatId: existing.id },
-      { status: 409 }
-    );
+    await markSeatReleased(existing.id);
   }
 
   const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
