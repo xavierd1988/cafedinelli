@@ -297,8 +297,11 @@ export default function Seat({ seat }) {
   //   - il y a un message actif (envoyé)
   //   - je suis assis localement sans message encore (placeholder "Click to talk")
   const isMyLocalSeat = getMySeat() === id && lastSourceRef.current === "local";
-  const showBubble = editing || !!activeMessage || (isMyLocalSeat && showPerson);
+  // showPerson DOIT être déclaré avant showBubble : ce dernier le lit dans
+  // le 3e cas (assis sans message encore). const = temporal dead zone si
+  // l'ordre est inversé → ReferenceError au render → Seat crash.
   const showPerson = !!activeNickname;
+  const showBubble = editing || !!activeMessage || (isMyLocalSeat && showPerson);
 
   useEffect(() => {
     window.dispatchEvent(
