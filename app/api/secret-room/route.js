@@ -1,13 +1,14 @@
-// Sièges partagés de la pièce secrète. Pattern identique à /api/seats
-// mais limité à un set de seatId arbitraires (e1, e2, …) plutôt qu'à
-// 1..6.
+// Sièges partagés de la pièce secrète. Architecturalement, ce sont les
+// 7e et 8e sièges du café — même pattern que /api/seats (POST + GET +
+// DELETE, soft-release sur changement de siège), simplement séparés
+// dans un autre hash Redis pour ne pas mélanger les rendus visuels.
 
 import {
   takeSecretSeat,
-  leaveSecretSeat,
   leaveSecretSeatForIp,
   getSecretRoomSeats,
-  findSecretSeatForIp
+  findSecretSeatForIp,
+  markSecretSeatReleased
 } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 
@@ -39,7 +40,13 @@ export async function POST(request) {
   } catch {
     return Response.json({ error: "invalid json" }, { status: 400 });
   }
-  const seatId = typeof body?.seatId === "string" ? body.seatId.trim() : "";
+  // seatId accepté en string ou number — normalize en string pour Redis.
+  // Frontend envoie maintenant 7 / 8 (numérique) pour matcher l'archi
+  // unifiée avec le bar (sièges 1-6 + 7-8).
+  const rawSeatId = body?.seatId;
+  const seatId = (rawSeatId !== undefined && rawSeatId !== null)
+    ? String(rawSeatId).trim()
+    : "";
   if (!seatId) {
     return Response.json({ error: "bad seat id" }, { status: 400 });
   }
@@ -47,11 +54,13 @@ export async function POST(request) {
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   const persona = body?.persona && typeof body.persona === "object" ? body.persona : null;
 
-  // Une seule IP active à la fois → si elle change de siège, on libère
-  // l'ancien automatiquement avant d'en prendre un nouveau.
+  // Soft-release : si l'IP change de siège (7 → 8 ou bar → secret),
+  // on marque l'ancien comme released SANS l'effacer. L'entrée garde
+  // son timestamp + son message → les autres visiteurs continuent de
+  // voir ce qu'il a dit pendant les ~120s restants. Identique au bar.
   const existing = await findSecretSeatForIp(ip);
   if (existing && existing.seatId !== seatId) {
-    await leaveSecretSeat(existing.seatId);
+    await markSecretSeatReleased(existing.seatId);
   }
 
   const entry = await takeSecretSeat({ seatId, ip, nickname, message, persona });

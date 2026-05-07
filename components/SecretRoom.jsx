@@ -60,9 +60,12 @@ const CHARACTERS = [
   }
 ];
 
+// Architecturalement ce sont les 7e et 8e siège du café (le bar a les
+// IDs 1-6, la salle secrète prolonge avec 7-8). Le rendu reste séparé
+// dans la modale, mais la logique POST/release/seat-swap est identique.
 const EMPTY_SEATS = [
-  { id: "e1", x: 15, y: 52 },   // 180° — pointe gauche du fer à cheval
-  { id: "e2", x: 85, y: 52 }    // 0°   — pointe droite du fer à cheval
+  { id: 7, x: 15, y: 52 },   // 180° — pointe gauche du fer à cheval
+  { id: 8, x: 85, y: 52 }    // 0°   — pointe droite du fer à cheval
 ];
 
 // Tooltip cinématique sur un siège.
@@ -589,9 +592,17 @@ export default function SecretRoom() {
             Si un autre visiteur (autre IP) est assis, on affiche son
             avatar + nickname + message. */}
         {EMPTY_SEATS.map((s) => {
-          const isUser = userSeatId === s.id;
+          // s.id est numérique (7/8), r.seatId revient stringifié depuis
+          // Redis ("7"/"8"). On stringify les 2 côtés pour être robuste.
+          const sidStr = String(s.id);
+          const isUser = String(userSeatId) === sidStr;
+          // Pattern aligné sur le bar : les entrées released restent
+          // visibles (silhouette + message lisibles jusqu'à expiration
+          // naturelle 120s) ET continuent de bloquer le siège pour les
+          // autres visiteurs. Le visiteur d'origine peut juste poster
+          // ailleurs sans 409 grâce au filtrage côté findSecretSeatForIp.
           const remote = remoteSeats.find(
-            (r) => r.seatId === s.id && !isUser
+            (r) => String(r.seatId) === sidStr && !isUser
           );
           return (
             <div
