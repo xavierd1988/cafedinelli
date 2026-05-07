@@ -494,25 +494,46 @@ export default function SecretRoom() {
     fetch("/api/secret-room", { method: "DELETE" }).catch(() => {});
   }
 
-  // Click sur un siège vide → on s'assoit (même siège qu'avant ou nouveau)
-  // et on ouvre l'input pour taper un message.
+  // ===== Pattern strict bar — 3 clics indépendants =====
+  // 1. Click siège vide → SIT (silhouette + bulle vide, PAS d'éditeur)
+  // 2. Click bulle      → OPEN EDITOR (le user peut taper)
+  // 3. Click silhouette → LEAVE local (libère le siège côté UI)
+  // Cliquer un AUTRE siège pendant que je suis assis : bloqué (comme bar).
   function takeSeat(id, e) {
     e.stopPropagation();
-    // Si je change de siège, le précédent rejoint myPastSeats — il ne
-    // m'apparaîtra plus comme "occupé" même si l'entrée released traîne
-    // encore en Redis. Si je reviens à un siège que j'avais déjà quitté,
-    // on le retire de la set (j'y suis à nouveau).
-    setMyPastSeats((prev) => {
-      const next = new Set(prev);
-      if (userSeatId !== null && userSeatId !== id) {
-        next.add(userSeatId);
-      }
-      next.delete(id);
-      return next;
-    });
+    // Déjà à un autre siège → blocked (le user doit cliquer sa
+    // silhouette pour partir avant de prendre un nouveau siège).
+    if (userSeatId !== null && userSeatId !== id) return;
+    // Déjà ici → no-op (pas de re-toggle, on clique la silhouette pour partir).
+    if (userSeatId === id) return;
     setUserSeatId(id);
+    setEditing(false);
+    setDraft("");
+  }
+
+  // Click bulle → OPEN EDITOR (input pour taper un message).
+  function openEditor(e) {
+    e?.stopPropagation();
+    if (userSeatId === null) return;
+    setDraft(userMessage || "");
     setEditing(true);
-    setDraft(userSeatId === id ? userMessage : "");
+  }
+
+  // Click silhouette = LEAVE (libère le siège côté UI). L'entrée Redis
+  // reste 120s pour que les autres voient mon dernier message + sera
+  // soft-released par le prochain POST sur un autre siège.
+  function leaveSeat(e) {
+    e?.stopPropagation();
+    if (userSeatId !== null) {
+      // Marque l'ancien siège comme "à moi mais quitté" → ne m'apparaît
+      // plus comme occupé dans MA vue (les autres le voient quand même
+      // jusqu'à expiration naturelle 120s).
+      setMyPastSeats((prev) => new Set(prev).add(userSeatId));
+    }
+    setUserSeatId(null);
+    setUserMessage("");
+    setEditing(false);
+    setDraft("");
   }
 
   function commitMessage() {
@@ -623,6 +644,11 @@ export default function SecretRoom() {
           const remote = !isPastMine && remoteSeats.find(
             (r) => String(r.seatId) === sidStr && !isUser
           );
+          // Bulle visible dans 3 cas (mêmes que le bar) :
+          //  1. j'édite (input ouvert)
+          //  2. j'ai un message actif
+          //  3. je suis assis sans encore parler (bulle vide + hint)
+          const showUserBubble = isUser && (editing || !!userMessage || userSeatId === s.id);
           return (
             <div
               key={s.id}
@@ -633,15 +659,24 @@ export default function SecretRoom() {
               }
               style={{ left: `${s.x}%`, top: `${s.y}%` }}
             >
+              {/* Le bouton = chaise + avatar/hint. Click handler change
+                  selon l'état :
+                    empty (ni user ni remote) → takeSeat (SIT)
+                    isUser                    → leaveSeat (LEAVE local)
+                    remote                    → désactivé */}
               <button
                 type="button"
                 className="sr-seat-button"
-                onClick={(e) => !remote && takeSeat(s.id, e)}
+                onClick={(e) => {
+                  if (remote) return;
+                  if (isUser) leaveSeat(e);
+                  else takeSeat(s.id, e);
+                }}
                 onPointerDown={(e) => e.stopPropagation()}
                 disabled={!!remote}
                 aria-label={
                   isUser
-                    ? "Your seat"
+                    ? "Click to leave this seat"
                     : remote
                     ? `${remote.nickname} is here`
                     : "Sit here"
@@ -660,8 +695,8 @@ export default function SecretRoom() {
                 )}
               </button>
 
-              {/* Bulle / input — au-dessus du siège, comme au bar */}
-              {isUser && editing && (
+              {/* Ma bulle (au-dessus du siège, click = OPEN EDITOR) */}
+              {showUserBubble && editing && (
                 <div
                   className="sr-seat-bubble sr-seat-bubble-input"
                   onPointerDown={(e) => e.stopPropagation()}
@@ -680,10 +715,25 @@ export default function SecretRoom() {
                   />
                 </div>
               )}
-              {isUser && !editing && userMessage && (
-                <span className="sr-seat-bubble">
+              {showUserBubble && !editing && userMessage && (
+                <span
+                  className="sr-seat-bubble"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={openEditor}
+                  role="button"
+                >
                   <em>{nickname || "anonymous"}</em>
                   <span>{userMessage}</span>
+                </span>
+              )}
+              {showUserBubble && !editing && !userMessage && (
+                <span
+                  className="sr-seat-bubble sr-seat-bubble-empty"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={openEditor}
+                  role="button"
+                >
+                  say something…
                 </span>
               )}
               {remote && remote.message && (
