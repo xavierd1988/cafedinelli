@@ -38,14 +38,15 @@ export async function GET(request) {
   // try/catch interne, mais cette ceinture+bretelles couvre le cas
   // d'un getRedis().get() inline (taxi).
   const safe = (p, fallback = null) => p.then((v) => v).catch(() => fallback);
-  const [seats, regulars, mikeRaw, eyeRaw, taxiRaw, online, secretRoom] = await Promise.all([
+  const [seats, regulars, mikeRaw, eyeRaw, taxiRaw, online, secretRoom, pixooMutedRaw] = await Promise.all([
     safe(getActiveSeats(), []),
     safe(getRegulars(), { total: 0, recent: [] }),
     safe(getMikeThread(), null),
     safe(getEyeThread(), null),
     safe(getRedis().get("cafe:taxi:summonedAt"), null),
     safe(getOnlineCount(), 1),
-    safe(getSecretRoomSeats(), [])
+    safe(getSecretRoomSeats(), []),
+    safe(getRedis().get("cafe:pixoo:muted"), 0)
   ]);
   let mike = null;
   if (mikeRaw) {
@@ -61,7 +62,8 @@ export async function GET(request) {
   // taxi : timestamp du dernier "summon-taxi" partagé (TTL 10s côté Redis).
   const taxiTs = taxiRaw ? Number(taxiRaw) : null;
   const taxi = Number.isFinite(taxiTs) ? { summonedAt: taxiTs } : null;
-  return Response.json({ seats, regulars, mike, eye, taxi, online, secretRoom });
+  const pixooMuted = pixooMutedRaw === 1 || pixooMutedRaw === true || pixooMutedRaw === "1";
+  return Response.json({ seats, regulars, mike, eye, taxi, online, secretRoom, pixooMuted });
 }
 
 export async function POST(request) {

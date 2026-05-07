@@ -1227,13 +1227,10 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
-  // Bloque la mise à jour SSE pendant qu'un toggle est en vol (évite
-  // que le snapshot suivant n'écrase l'état optimiste avant la confirmation).
   const pendingRef = useRef(false);
+  // Pour distinguer tap vs drag (même pattern que CornerCurve2 / CashRegister).
+  const downRef = useRef(null);
 
-  // Lecture initiale rapide + écoute du bus SSE (seats-remote-update).
-  // Quand quelqu'un toggle, le POST invalide le snapshot → tous les clients
-  // SSE reçoivent pixooMuted mis à jour dans le tick suivant (~1.2s).
   useEffect(() => {
     fetch("/api/pixoo")
       .then((r) => r.json())
@@ -1250,14 +1247,35 @@ function PixooMuteCat() {
     return () => window.removeEventListener("seats-remote-update", onUpdate);
   }, []);
 
-  function toggleMute(e) {
-    e.stopPropagation();
+  function toggleMute() {
     pendingRef.current = true;
-    setMuted((prev) => !prev); // mise à jour optimiste immédiate
+    setMuted((prev) => !prev);
     fetch("/api/pixoo", { method: "POST" })
       .then((r) => r.json())
-      .then((d) => { setMuted(!!d.muted); pendingRef.current = false; })
-      .catch(() => { setMuted((prev) => !prev); pendingRef.current = false; });
+      .then((d) => {
+        setMuted(!!d.muted);
+        setTimeout(() => { pendingRef.current = false; }, 2000);
+      })
+      .catch(() => {
+        setMuted((prev) => !prev);
+        pendingRef.current = false;
+      });
+  }
+
+  // PointerDown : mémorise la position de départ + lance le drag si edit mode.
+  function handlePointerDown(e) {
+    downRef.current = { x: e.clientX, y: e.clientY };
+    ds.handleDragStart(e); // no-op si !editMode
+  }
+
+  // PointerUp : si c'est un tap court sans mouvement → toggle. Sinon drag.
+  function handlePointerUp(e) {
+    const start = downRef.current;
+    downRef.current = null;
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    if (dx < 6 && dy < 6) toggleMute();
   }
 
   function handleWidthResize(e) {
@@ -1298,6 +1316,11 @@ function PixooMuteCat() {
     <div
       className="pixoo-mute-cat"
       data-file="CafeScene.jsx::PixooMuteCat"
+      title={
+        editMode
+          ? `PixooMuteCat  x:${Math.round(ds.offset.x)} y:${Math.round(ds.offset.y)}  ${Math.round(size.width)}×${Math.round(size.height)}`
+          : muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"
+      }
       style={{
         position: "absolute",
         left: 0,
@@ -1308,65 +1331,16 @@ function PixooMuteCat() {
         transformOrigin: "top left",
         pointerEvents: "auto",
         zIndex: 500,
+        cursor: "pointer",
         outline: editMode ? "1px dashed rgba(255,200,0,0.6)" : "none",
       }}
-      onPointerDown={ds.handleDragStart}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => { downRef.current = null; }}
     >
-      {/* Bouton invisible qui couvre toute la zone — useDraggable ignore les
-          clics sur <button> (vérifie e.target.tagName), donc drag et toggle
-          ne peuvent pas entrer en conflit. */}
-      <button
-        aria-label={muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"}
-        title={
-          editMode
-            ? `PixooMuteCat  x:${Math.round(ds.offset.x)} y:${Math.round(ds.offset.y)}  ${Math.round(size.width)}×${Math.round(size.height)}`
-            : muted ? "Réactiver le son Pixoo" : "Couper le son Pixoo"
-        }
-        onClick={toggleMute}
-        style={{
-          position: "absolute", inset: 0,
-          background: "none", border: "none",
-          cursor: "pointer", padding: 0,
-          zIndex: 1,
-        }}
-      />
-      {editMode && (
-        <CafeDragKnob
-          onPointerDown={(e) => { e.stopPropagation(); ds.handleDragStart(e); }}
-          dragging={ds.dragging}
-          label="PixooMuteCat"
-        />
-      )}
-      {/* Poignée resize largeur — bord droit */}
-      {editMode && (
-        <div
-          onPointerDown={handleWidthResize}
-          title="← Largeur →"
-          style={{
-            position: "absolute", right: 0, top: "50%",
-            transform: "translateY(-50%)",
-            width: 8, height: 24,
-            background: "rgba(255,200,0,0.7)",
-            cursor: "ew-resize", zIndex: 2,
-          }}
-        />
-      )}
-      {/* Poignée resize hauteur — bord bas */}
-      {editMode && (
-        <div
-          onPointerDown={handleHeightResize}
-          title="↕ Hauteur"
-          style={{
-            position: "absolute", bottom: 0, left: "50%",
-            transform: "translateX(-50%)",
-            width: 24, height: 8,
-            background: "rgba(255,200,0,0.7)",
-            cursor: "ns-resize", zIndex: 2,
-          }}
-        />
-      )}
-      {/* En edit mode non-muté : silhouette fantôme (opacity 0.25) pour le positionnement.
-          En muté : silhouette pleine, visible par tous les visiteurs. */}
+      {/* SVG directement dans le div — pas de bouton, pas de bubbling complexe.
+          En edit mode non-muté : fantôme 25% pour faciliter le positionnement.
+          En muté : silhouette pleine visible de tous. */}
       {(muted || editMode) && (
         <svg
           viewBox="0 0 54 80"
@@ -1381,6 +1355,39 @@ function PixooMuteCat() {
           <ellipse cx="28" cy="62" rx="19" ry="20" fill="#0d0b09" />
           <path d="M10 76 Q 1 64 3 50 Q 5 38 13 43" stroke="#0d0b09" strokeWidth="6" fill="none" strokeLinecap="round" />
         </svg>
+      )}
+      {editMode && (
+        <CafeDragKnob
+          onPointerDown={(e) => { e.stopPropagation(); downRef.current = null; ds.handleDragStart(e); }}
+          dragging={ds.dragging}
+          label="PixooMuteCat"
+        />
+      )}
+      {editMode && (
+        <div
+          onPointerDown={handleWidthResize}
+          title="← Largeur →"
+          style={{
+            position: "absolute", right: 0, top: "50%",
+            transform: "translateY(-50%)",
+            width: 8, height: 24,
+            background: "rgba(255,200,0,0.7)",
+            cursor: "ew-resize", zIndex: 2,
+          }}
+        />
+      )}
+      {editMode && (
+        <div
+          onPointerDown={handleHeightResize}
+          title="↕ Hauteur"
+          style={{
+            position: "absolute", bottom: 0, left: "50%",
+            transform: "translateX(-50%)",
+            width: 24, height: 8,
+            background: "rgba(255,200,0,0.7)",
+            cursor: "ns-resize", zIndex: 2,
+          }}
+        />
       )}
     </div>
   );
