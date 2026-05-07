@@ -1227,6 +1227,10 @@ function PixooMuteCat() {
   );
   const editMode = useEditMode();
   const [muted, setMuted] = useState(false);
+  // downRef : position du pointerdown pour distinguer tap (dist<8px) vs drag.
+  // On utilise onPointerUp et non onClick car handleDragStart appelle
+  // e.preventDefault() sur pointerdown → Chromium supprime l'événement click.
+  const downRef = useRef(null);
 
   useEffect(() => {
     fetch("/api/pixoo")
@@ -1291,15 +1295,23 @@ function PixooMuteCat() {
         zIndex: 500,
         outline: editMode ? "1px dashed rgba(255,200,0,0.6)" : "none",
       }}
-      onPointerDown={ds.handleDragStart}
-      onClick={(e) => {
-        /* Pas de guard getEditMode() : le toggle doit marcher même en edit
-           mode. Les navigateurs ne déclenchent pas click après un vrai drag
-           (déplacement > quelques px), donc pas de risque de toggle accidentel. */
-        e.stopPropagation();
-        fetch("/api/pixoo", { method: "POST" })
-          .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
+      onPointerDown={(e) => {
+        downRef.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+        ds.handleDragStart(e); // no-op hors edit mode ; preventDefault en edit mode
       }}
+      onPointerUp={(e) => {
+        const s = downRef.current;
+        downRef.current = null;
+        if (!s) return;
+        const dist = Math.hypot(e.clientX - s.x, e.clientY - s.y);
+        // Tap court (< 8px, < 600ms) → toggle mute, qu'on soit en edit mode ou non
+        if (dist < 8 && Date.now() - s.t < 600) {
+          e.stopPropagation();
+          fetch("/api/pixoo", { method: "POST" })
+            .then((r) => r.json()).then((d) => setMuted(!!d.muted)).catch(() => {});
+        }
+      }}
+      onPointerCancel={() => { downRef.current = null; }}
     >
       {editMode && (
         <CafeDragKnob onPointerDown={ds.handleDragStart} dragging={ds.dragging} label="PixooMuteCat" />
