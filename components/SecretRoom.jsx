@@ -409,6 +409,11 @@ function WallScreen({ open }) {
 export default function SecretRoom() {
   const [open, setOpen] = useState(false);
   const [userSeatId, setUserSeatId] = useState(null);
+  // Sièges que J'AI moi-même quittés cette session — leur entrée existe
+  // encore en Redis (released) et arrivera dans remoteSeats, mais on
+  // veut pas que JE me voie comme un autre visiteur à mon ancienne
+  // place. Pattern miroir de lastSeenTimestampRef côté bar.
+  const [myPastSeats, setMyPastSeats] = useState(() => new Set());
   // Message local : ce que TOI tu as écrit en t'asseyant. Affiché dans
   // ta bulle au-dessus du siège, persisté serveur via POST.
   const [userMessage, setUserMessage] = useState("");
@@ -493,6 +498,18 @@ export default function SecretRoom() {
   // et on ouvre l'input pour taper un message.
   function takeSeat(id, e) {
     e.stopPropagation();
+    // Si je change de siège, le précédent rejoint myPastSeats — il ne
+    // m'apparaîtra plus comme "occupé" même si l'entrée released traîne
+    // encore en Redis. Si je reviens à un siège que j'avais déjà quitté,
+    // on le retire de la set (j'y suis à nouveau).
+    setMyPastSeats((prev) => {
+      const next = new Set(prev);
+      if (userSeatId !== null && userSeatId !== id) {
+        next.add(userSeatId);
+      }
+      next.delete(id);
+      return next;
+    });
     setUserSeatId(id);
     setEditing(true);
     setDraft(userSeatId === id ? userMessage : "");
@@ -597,11 +614,13 @@ export default function SecretRoom() {
           const sidStr = String(s.id);
           const isUser = String(userSeatId) === sidStr;
           // Pattern aligné sur le bar : les entrées released restent
-          // visibles (silhouette + message lisibles jusqu'à expiration
-          // naturelle 120s) ET continuent de bloquer le siège pour les
-          // autres visiteurs. Le visiteur d'origine peut juste poster
-          // ailleurs sans 409 grâce au filtrage côté findSecretSeatForIp.
-          const remote = remoteSeats.find(
+          // visibles aux AUTRES visiteurs (silhouette + message lisibles
+          // jusqu'à expiration 120s). Mais pour MOI, mes propres
+          // anciennes entrées sont filtrées via myPastSeats — je dois
+          // pas me voir moi-même comme un autre visiteur à mon ancienne
+          // place. Pattern miroir du lastSeenTimestampRef du bar.
+          const isPastMine = myPastSeats.has(s.id);
+          const remote = !isPastMine && remoteSeats.find(
             (r) => String(r.seatId) === sidStr && !isUser
           );
           return (
