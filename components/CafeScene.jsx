@@ -1232,11 +1232,17 @@ function PixooMuteCat() {
   // e.preventDefault() sur pointerdown → Chromium supprime l'événement click.
   const downRef = useRef(null);
 
+  // Poll toutes les 3s pour que tous les visiteurs voient l'état en temps réel.
   useEffect(() => {
-    fetch("/api/pixoo")
-      .then((r) => r.json())
-      .then((d) => setMuted(!!d.muted))
-      .catch(() => {});
+    function sync() {
+      fetch("/api/pixoo")
+        .then((r) => r.json())
+        .then((d) => setMuted(!!d.muted))
+        .catch(() => {});
+    }
+    sync();
+    const id = setInterval(sync, 3000);
+    return () => clearInterval(id);
   }, []);
 
   function handleWidthResize(e) {
@@ -1344,8 +1350,16 @@ function PixooMuteCat() {
           }}
         />
       )}
+      {/* En edit mode non-muté : silhouette fantôme (opacity 0.25) pour le positionnement.
+          En muté : silhouette pleine, visible par tous les visiteurs. */}
       {(muted || editMode) && (
-        <svg viewBox="0 0 54 80" width="100%" height="100%" aria-hidden="true" style={{ display: "block", pointerEvents: "none" }}>
+        <svg
+          viewBox="0 0 54 80"
+          width="100%"
+          height="100%"
+          aria-hidden="true"
+          style={{ display: "block", pointerEvents: "none", opacity: muted ? 1 : 0.25 }}
+        >
           <path d="M14 26 L8 4 L28 18 Z" fill="#0d0b09" />
           <path d="M40 26 L48 4 L32 18 Z" fill="#0d0b09" />
           <ellipse cx="27" cy="34" rx="16" ry="14" fill="#0d0b09" />
