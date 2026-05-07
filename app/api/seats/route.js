@@ -4,7 +4,7 @@ import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
 import { recordPresence, getOnlineCount, extractIp } from "../../../lib/presenceStore.js";
 import { getSecretRoomSeats } from "../../../lib/secretRoomStore.js";
-import { invalidateCafeState } from "../../../lib/stateStore.js";
+import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 import { getRedis } from "../../../lib/redis.js";
 
 // Détection d'IP centralisée dans presenceStore : couvre cf-connecting-ip,
@@ -109,8 +109,9 @@ export async function POST(request) {
 
   const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
   const regulars = await recordRegular({ id, nickname, message });
-  // Invalide la cache snapshot pour que le prochain tick SSE voie ce
-  // nouveau message tout de suite (latence ressentie : <300ms).
-  invalidateCafeState();
+  // Hot rebuild : on remplit la cache snapshot AVANT que le SSE tick
+  // s'en rende compte → le prochain tick push direct au Pixoo (~30ms
+  // cache read) sans reconstruire le snapshot lui-même (~150ms).
+  await refreshCafeState();
   return Response.json({ ok: true, entry, regulars });
 }

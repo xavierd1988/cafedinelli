@@ -9,7 +9,7 @@ import {
   getSecretRoomSeats,
   findSecretSeatForIp
 } from "../../../lib/secretRoomStore.js";
-import { invalidateCafeState } from "../../../lib/stateStore.js";
+import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -55,7 +55,10 @@ export async function POST(request) {
   }
 
   const entry = await takeSecretSeat({ seatId, ip, nickname, message, persona });
-  invalidateCafeState();
+  // Hot rebuild : on remplit la cache snapshot AVANT que le SSE tick
+  // s'en rende compte → le prochain tick (~150ms) push direct au Pixoo
+  // sans avoir à reconstruire le snapshot lui-même.
+  await refreshCafeState();
   return Response.json({ ok: true, entry });
 }
 
