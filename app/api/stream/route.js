@@ -34,7 +34,11 @@ export const fetchCache = "force-no-store";
 
 // Intervalle entre 2 ticks de re-lecture côté serveur. Plus c'est court,
 // plus c'est réactif côté UX, mais plus c'est gourmand en Redis.
-const TICK_MS = 1200;
+// Baissé à 500ms pour que les messages bar/secret room arrivent sur le
+// Pixoo en sub-seconde. La cache cafe:state (1.2s) absorbe la majorité
+// des ticks → on ne fait pas 2.4× plus de rebuilds, juste 2.4× plus de
+// petites lectures de cache (cheap).
+const TICK_MS = 500;
 
 // Ferme proprement la connexion avant la limite Vercel pour que le
 // navigateur reconnecte cleanly. 24s de durée + reconnexion auto = pas
@@ -64,6 +68,10 @@ export async function GET(request) {
   // l'IP seule si absent (ancienne version du client).
   const url = new URL(request.url);
   const sessionId = url.searchParams.get("sid") || null;
+  // ?silent=1 → ne pas compter cette connexion comme un visiteur. Utilisé
+  // par le dashboard Pixoo pour ne pas polluer le compteur online.
+  const silent = url.searchParams.get("silent") === "1";
+  const recordPing = !silent;
   const startedAt = Date.now();
   let lastSig = "";
 
@@ -71,7 +79,7 @@ export async function GET(request) {
     async start(controller) {
       // 1. Snapshot initial (avec recordPresence à la connexion)
       try {
-        const initial = await getCafeState(ip, { recordPing: true, sessionId });
+        const initial = await getCafeState(ip, { recordPing, sessionId });
         lastSig = snapshotSignature(initial);
         controller.enqueue(sseEvent("snapshot", initial));
       } catch {
@@ -100,7 +108,7 @@ export async function GET(request) {
           // connexion, et la fenêtre de présence est de 15s alors que les
           // reconnexions SSE sont ~24s → on remet le ping dans le tick
           // pour rester "online" pendant la connexion longue.
-          const state = await getCafeState(ip, { recordPing: true, sessionId });
+          const state = await getCafeState(ip, { recordPing, sessionId });
           const sig = snapshotSignature(state);
           if (sig !== lastSig) {
             lastSig = sig;
