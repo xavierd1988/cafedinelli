@@ -8426,7 +8426,13 @@ button {
   position: absolute;
   left: 50%;
   bottom: 152px;
-  width: 100px;
+  /* La bulle s'auto-dimensionne au contenu : largeur min 100px (taille
+     "vide" lisible), max 240px (sinon ça déborde de la scène pour les
+     longs messages). Au-dessus de min-content elle grandit, le texte
+     wrappe par mots dans la limite max-width. */
+  min-width: 100px;
+  max-width: 240px;
+  width: max-content;
   min-height: 44px;
   display: flex;
   flex-direction: column;
@@ -8438,6 +8444,12 @@ button {
   font-size: 10px;
   line-height: 1.3;
   text-align: center;
+  /* Force le wrap par mot pour que la bulle reste verticale au lieu de
+     scroller / déborder horizontalement. word-break:break-word casse
+     les mots géants type "aaaaaaaaaaa" pour qu'ils tiennent dedans. */
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   background: #ffffff;
   border: 1.2px solid rgba(60, 30, 18, 0.55);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
