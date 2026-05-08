@@ -75,7 +75,26 @@ export default function Seat({ seat }) {
         ? payload
         : [];
       const mine = seats.find((s) => Number(s.id) === id);
-      if (!mine || typeof mine.timestamp !== "number") return;
+
+      // Cas "seat disparu du payload" : quelqu'un (autre IP) qui était
+      // assis là vient de cliquer sa silhouette → DELETE serveur. Si on
+      // affichait sa silhouette en remote, on la nettoie maintenant pour
+      // que le siège redevienne libre côté watcher tout de suite.
+      // Si la source courante est "local" (= moi), on touche pas — moi
+      // j'ai déjà nettoyé via handleSilhouetteClick et lastSeenTimestampRef
+      // bloque la ré-application.
+      if (!mine) {
+        if (lastSourceRef.current === "remote") {
+          clearTimeout(messageTimerRef.current);
+          clearTimeout(personTimerRef.current);
+          setActiveMessage("");
+          setActiveNickname("");
+          setSeatPersona(null);
+          lastSourceRef.current = null;
+        }
+        return;
+      }
+      if (typeof mine.timestamp !== "number") return;
       if (mine.timestamp <= lastSeenTimestampRef.current) return;
 
       lastSeenTimestampRef.current = mine.timestamp;
