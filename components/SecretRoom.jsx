@@ -519,21 +519,21 @@ export default function SecretRoom() {
     setEditing(true);
   }
 
-  // Click silhouette = LEAVE (libère le siège côté UI). L'entrée Redis
-  // reste 120s pour que les autres voient mon dernier message + sera
-  // soft-released par le prochain POST sur un autre siège.
+  // Click silhouette = LEAVE. Local clear + HARD-delete serveur pour
+  // que TOUS les autres visiteurs voient le siège libre tout de suite
+  // (pas de délai 120s).
   function leaveSeat(e) {
     e?.stopPropagation();
     if (userSeatId !== null) {
-      // Marque l'ancien siège comme "à moi mais quitté" → ne m'apparaît
-      // plus comme occupé dans MA vue (les autres le voient quand même
-      // jusqu'à expiration naturelle 120s).
       setMyPastSeats((prev) => new Set(prev).add(userSeatId));
     }
     setUserSeatId(null);
     setUserMessage("");
     setEditing(false);
     setDraft("");
+    // Fire-and-forget DELETE — le siège se libère immédiatement côté
+    // serveur, le prochain SSE tick le push à tous les clients.
+    fetch("/api/secret-room", { method: "DELETE" }).catch(() => {});
   }
 
   function commitMessage() {

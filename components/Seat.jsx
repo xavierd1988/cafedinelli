@@ -207,6 +207,10 @@ export default function Seat({ seat }) {
     // Empêche le prochain poll de re-appliquer mon propre message déjà
     // envoyé (qui reste 2 min côté serveur pour les autres visiteurs).
     lastSeenTimestampRef.current = Date.now();
+    // HARD-delete côté serveur — le siège se libère IMMÉDIATEMENT pour
+    // tous les autres visiteurs (plus de délai 120s d'expiration). C'est
+    // le comportement "fast leave" — fire-and-forget.
+    fetch("/api/seats", { method: "DELETE" }).catch(() => {});
   }
 
   function commit() {
