@@ -241,16 +241,31 @@ export async function GET(request) {
   }
   await Promise.all(Array.from({ length: SCRAPE_CONCURRENCY }, () => worker()));
 
-  // 3. Sauvegarde
+  // 3. Sauvegarde — avec garde-fou : si Amazon a tout bloqué (0 image
+  //    extraite), on NE SAUVEGARDE PAS pour éviter d'écraser un cache
+  //    précédent qui avait des images valides. L'utilisateur préfère
+  //    voir les images d'hier que 30 emojis aujourd'hui.
   const today = new Date().toISOString().slice(0, 10);
-  const saved = await saveDailyProducts({
-    date: today,
-    generatedAt: Date.now(),
-    products: enriched
-  });
+  const withImage = enriched.filter((p) => p.image).length;
+  const MIN_IMAGES_TO_SAVE = 5;
+
+  let saved = null;
+  let skippedSave = false;
+  if (withImage < MIN_IMAGES_TO_SAVE) {
+    skippedSave = true;
+    console.warn(
+      `cron/generate-products: only ${withImage}/${enriched.length} images scraped — ` +
+      `Amazon likely rate-limited. Keeping previous cache instead of overwriting.`
+    );
+  } else {
+    saved = await saveDailyProducts({
+      date: today,
+      generatedAt: Date.now(),
+      products: enriched
+    });
+  }
 
   const durationMs = Date.now() - startedAt;
-  const withImage = enriched.filter((p) => p.image).length;
   return Response.json({
     ok: true,
     date: today,
@@ -258,6 +273,10 @@ export async function GET(request) {
     withImage,
     withoutImage: enriched.length - withImage,
     durationMs,
-    saved: !!saved
+    saved: !!saved,
+    skippedSave,
+    skippedReason: skippedSave
+      ? `only ${withImage} images scraped, kept previous cache`
+      : null
   });
 }
