@@ -823,10 +823,30 @@ export default function PaperPanel() {
                 : "Full edition • USA • Collected at 10:30 AM"}
             </p>
           </div>
-          {/* Flèche blanche → en absolute dans le coin haut-droit du
-              bandeau "Today's edition" — visual cue qui pointe vers la
-              droite (le shop / la suite du café). */}
-          <span className="paper-masthead-arrow" aria-hidden="true">→</span>
+          {/* Flèche blanche → cliquable dans le coin haut-droit du
+              bandeau "Today's edition". Même comportement que la patte
+              rouge (.paper-shop-toggle-arrow) : envoie le paper en
+              position B (rabat le journal vers la droite, vitrines
+              shop visibles), ou ramène en A si déjà rabattu.
+              stopPropagation sur pointer-down pour ne pas déclencher
+              le drag du masthead pendant qu'on clique. */}
+          <button
+            type="button"
+            className="paper-masthead-arrow"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              if (shopMode) {
+                setShopMode(false);
+                try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
+              } else {
+                openShelf("toggle");
+              }
+            }}
+            aria-label={shopMode ? "Back to the paper" : "Slide the paper to the right"}
+            title={shopMode ? "Back to the paper" : "Slide to the shop"}
+          >
+            <span aria-hidden="true">{shopMode ? "←" : "→"}</span>
+          </button>
         </div>
       </header>
 
