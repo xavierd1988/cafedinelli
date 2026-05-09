@@ -823,7 +823,6 @@ export default function PaperPanel() {
                 : "Full edition • USA • Collected at 10:30 AM"}
             </p>
           </div>
-          <span className="paper-drag-hint" aria-hidden="true">✥</span>
           {/* Flèche blanche → en absolute dans le coin haut-droit du
               bandeau "Today's edition" — visual cue qui pointe vers la
               droite (le shop / la suite du café). */}

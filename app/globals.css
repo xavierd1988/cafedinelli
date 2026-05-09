@@ -7039,39 +7039,27 @@ button {
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.4);
 }
 
-/* Flèche blanche → dans le coin haut-droit du bandeau "Today's edition".
-   Petit pulse horizontal pour attirer l'œil sans agressivité. */
+/* Flèche blanche → grand format dans le coin haut-droit du bandeau
+   "Today's edition". Pulse horizontal pour attirer l'œil. */
 .paper-masthead-arrow {
   position: absolute;
-  top: 6px;
-  right: 10px;
-  font-size: 18px;
-  font-weight: 800;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  font-size: 64px;
+  font-weight: 900;
   line-height: 1;
   color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.55),
+    0 0 14px rgba(255, 255, 255, 0.18);
   user-select: none;
   pointer-events: none;
   animation: paper-masthead-arrow-nudge 2.6s ease-in-out infinite;
 }
 @keyframes paper-masthead-arrow-nudge {
-  0%, 100% { transform: translateX(0);   opacity: 0.85; }
-  50%      { transform: translateX(3px); opacity: 1; }
-}
-
-.paper-drag-hint {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(255, 184, 74, 0.18);
-  border: 1px solid rgba(255, 184, 74, 0.45);
-  color: #ffb84a;
-  font-size: 13px;
-  line-height: 1;
+  0%, 100% { transform: translate(0,    -50%); opacity: 0.9; }
+  50%      { transform: translate(8px,  -50%); opacity: 1;   }
 }
 
 .paper-masthead-emoji {
