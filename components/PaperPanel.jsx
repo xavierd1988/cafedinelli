@@ -824,6 +824,10 @@ export default function PaperPanel() {
             </p>
           </div>
           <span className="paper-drag-hint" aria-hidden="true">✥</span>
+          {/* Flèche blanche → en absolute dans le coin haut-droit du
+              bandeau "Today's edition" — visual cue qui pointe vers la
+              droite (le shop / la suite du café). */}
+          <span className="paper-masthead-arrow" aria-hidden="true">→</span>
         </div>
       </header>
 

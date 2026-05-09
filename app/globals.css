@@ -7026,6 +7026,9 @@ button {
 }
 
 .paper-masthead-capsule {
+  /* relative pour ancrer .paper-masthead-arrow en absolute dans le
+     coin haut-droit du bandeau. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -7034,6 +7037,26 @@ button {
   color: #f8fafc;
   border-radius: 10px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.4);
+}
+
+/* Flèche blanche → dans le coin haut-droit du bandeau "Today's edition".
+   Petit pulse horizontal pour attirer l'œil sans agressivité. */
+.paper-masthead-arrow {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+  user-select: none;
+  pointer-events: none;
+  animation: paper-masthead-arrow-nudge 2.6s ease-in-out infinite;
+}
+@keyframes paper-masthead-arrow-nudge {
+  0%, 100% { transform: translateX(0);   opacity: 0.85; }
+  50%      { transform: translateX(3px); opacity: 1; }
 }
 
 .paper-drag-hint {
