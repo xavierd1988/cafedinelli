@@ -7039,40 +7039,38 @@ button {
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.4);
 }
 
-/* Flèche blanche → cliquable dans le coin haut-droit du bandeau
-   "Today's edition". Click → rabat le journal en position B (même
-   handler que la patte rouge). Pulse horizontal pour attirer l'œil. */
+/* Flèche blanche → cliquable, posée dans le coin haut-droit du bandeau
+   "Today's edition". Trait fin, pas centré vertical : ancrée tout en
+   haut à droite. Click → rabat le journal en position B (même handler
+   que la patte rouge). */
 .paper-masthead-arrow {
   position: absolute;
-  top: 50%;
-  right: 16px;
-  transform: translateY(-50%);
+  top: 4px;
+  right: 8px;
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 4px 8px;
+  padding: 2px 6px;
   font-family: inherit;
-  font-size: 43px;
-  font-weight: 900;
+  font-size: 32px;
+  font-weight: 300;
   line-height: 1;
   color: #ffffff;
-  text-shadow:
-    0 2px 6px rgba(0, 0, 0, 0.55),
-    0 0 14px rgba(255, 255, 255, 0.18);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   user-select: none;
   cursor: pointer;
   animation: paper-masthead-arrow-nudge 2.6s ease-in-out infinite;
   transition: filter 200ms ease, transform 180ms ease;
 }
 .paper-masthead-arrow:hover {
-  filter: brightness(1.2) drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
+  filter: brightness(1.2) drop-shadow(0 0 6px rgba(255, 255, 255, 0.35));
 }
 .paper-masthead-arrow:active {
   filter: brightness(0.9);
 }
 @keyframes paper-masthead-arrow-nudge {
-  0%, 100% { transform: translate(0,    -50%); opacity: 0.9; }
-  50%      { transform: translate(8px,  -50%); opacity: 1;   }
+  0%, 100% { transform: translateX(0);   opacity: 0.85; }
+  50%      { transform: translateX(4px); opacity: 1;    }
 }
 
 .paper-masthead-emoji {
