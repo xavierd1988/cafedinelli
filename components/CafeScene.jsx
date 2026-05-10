@@ -771,6 +771,14 @@ function CashRegister() {
       setEditMode(!getEditMode());
       setFeedback("ok");
     }
+    // "00" → toggle ntfy mute (push iPhone). Indépendant du mute Pixoo.
+    else if (v === "00") {
+      fetch("/api/ntfy", { method: "POST" })
+        .then((r) => r.json())
+        .then((d) => setFeedback(d?.error ? "reject" : "ok"))
+        .catch(() => setFeedback("reject"));
+      setFeedback("ok");
+    }
     // 10, 20, 30, … 100 → set brightness Pixoo. On accepte tout entier
     // 0-100, mais on encourage les multiples de 10 (UX caisse simple).
     // Ex : tape "30" → brightness 30%, "100" → 100%.
