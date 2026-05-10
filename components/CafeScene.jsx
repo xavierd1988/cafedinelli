@@ -766,10 +766,30 @@ function CashRegister() {
     e?.preventDefault();
     e?.stopPropagation();
     const v = keypadValue.trim();
+    // "7" → toggle edit mode (signature historique).
     if (v === "7") {
-      // Toggle : si déjà en edit mode, désactive ; sinon active.
       setEditMode(!getEditMode());
       setFeedback("ok");
+    }
+    // 10, 20, 30, … 100 → set brightness Pixoo. On accepte tout entier
+    // 0-100, mais on encourage les multiples de 10 (UX caisse simple).
+    // Ex : tape "30" → brightness 30%, "100" → 100%.
+    else if (/^\d+$/.test(v)) {
+      const num = parseInt(v, 10);
+      if (num >= 0 && num <= 100) {
+        fetch("/api/pixoo/brightness", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ level: num })
+        })
+          .then((r) => setFeedback(r.ok ? "ok" : "reject"))
+          .catch(() => setFeedback("reject"));
+        // Optimiste : on affiche "ok" tout de suite. Le fetch corrige
+        // si erreur (~200ms), sinon UX feeling instant.
+        setFeedback("ok");
+      } else {
+        setFeedback("reject");
+      }
     } else {
       setFeedback("reject");
     }
