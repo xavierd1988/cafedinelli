@@ -127,6 +127,7 @@ export async function POST(request) {
     q === "stfu" ||
     q === "shut up";
   const isUnmuteCmd =
+    q === "000" ||
     q === "unmute" ||
     q === "wake up" ||
     q === "reveille" ||

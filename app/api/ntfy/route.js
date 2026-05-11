@@ -23,11 +23,22 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request) {
   try {
+    const url = new URL(request.url);
+    // ?set=1 → force mute ON, ?set=0 → force mute OFF.
+    // Sans ?set → toggle (comportement historique).
+    const setParam = url.searchParams.get("set");
     const redis = getRedis();
-    const v = await redis.get(KEY);
-    const nextMuted = !isMuted(v);
+    let nextMuted;
+    if (setParam === "1") {
+      nextMuted = true;
+    } else if (setParam === "0") {
+      nextMuted = false;
+    } else {
+      const v = await redis.get(KEY);
+      nextMuted = !isMuted(v);
+    }
     await redis.set(KEY, nextMuted ? 1 : 0);
     try { await invalidateCafeState(); } catch {}
     return Response.json({ muted: nextMuted });

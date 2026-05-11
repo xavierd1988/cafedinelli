@@ -771,9 +771,11 @@ function CashRegister() {
       setEditMode(!getEditMode());
       setFeedback("ok");
     }
-    // "00" → toggle ntfy mute (push iPhone). Indépendant du mute Pixoo.
-    else if (v === "00") {
-      fetch("/api/ntfy", { method: "POST" })
+    // "00" → mute ntfy/Telegram (force ON, peu importe l'état).
+    // "000" → unmute (force OFF). Symétrie volontaire avec Mike.
+    else if (v === "00" || v === "000") {
+      const setVal = v === "00" ? "1" : "0";
+      fetch(`/api/ntfy?set=${setVal}`, { method: "POST" })
         .then((r) => r.json())
         .then((d) => setFeedback(d?.error ? "reject" : "ok"))
         .catch(() => setFeedback("reject"));
