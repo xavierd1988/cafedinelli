@@ -7273,7 +7273,10 @@ button {
   background: rgba(255, 153, 0, 0.12) !important;
 }
 
-/* === Bouton "Buy it" injecté — rectangulaire, intégré au journal ======== */
+/* === Bouton "Buy it" injecté — transparent, fondu dans le papier ======= */
+/* Le paper-panel a un background #f5f7fb (blanc légèrement froid). Le
+   bouton est quasi-invisible au repos (juste un contour discret) et
+   se révèle au hover avec une teinte orange/Amazon. */
 .paper-buy-it-injected {
   display: inline-block;
   font-family: Georgia, "Times New Roman", serif;
@@ -7281,21 +7284,20 @@ button {
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #5c3a1a;
-  background: #f3ead8;
-  border: 1px solid #c8a878;
+  color: rgba(31, 41, 55, 0.85);
+  background: transparent;
+  border: 1px solid rgba(31, 41, 55, 0.22);
   border-radius: 3px;
   padding: 7px 16px;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  box-shadow: 0 1px 0 rgba(92, 58, 26, 0.08) inset;
   transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 .paper-buy-it-injected:hover {
-  background: #ff9900;
+  background: rgba(255, 153, 0, 0.92);
   color: #ffffff;
-  border-color: #d97700;
+  border-color: rgba(217, 119, 0, 0.92);
 }
 
 /* === Rangées "topic" (rangées numérotées non-Amazon) =====================
