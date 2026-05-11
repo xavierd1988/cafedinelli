@@ -76,6 +76,20 @@ export default function Seat({ seat }) {
         : [];
       const mine = seats.find((s) => Number(s.id) === id);
 
+      // ★ Réconciliation après refresh : si ce siège porte notre
+      // sessionId, on réclame le verrou local. Permet à l'user de
+      // continuer à écrire dessus sans clic supplémentaire. La session
+      // reste vivante tant que le dernier message est < 2 min (côté
+      // serveur, MAX_AGE_MS). Au-delà, le seat expire naturellement
+      // et l'user peut prendre un autre siège.
+      const mySid = typeof window !== "undefined"
+        ? window.sessionStorage.getItem("cafe-session-id")
+        : null;
+      const isMineBySession = !!(mySid && mine && mine.sessionId === mySid);
+      if (isMineBySession && getMySeat() === null) {
+        setMySeat(id);
+      }
+
       // Cas "seat disparu du payload" : quelqu'un (autre IP) qui était
       // assis là vient de cliquer sa silhouette → DELETE serveur. Si on
       // affichait sa silhouette en remote, on la nettoie maintenant pour
@@ -98,7 +112,9 @@ export default function Seat({ seat }) {
       if (mine.timestamp <= lastSeenTimestampRef.current) return;
 
       lastSeenTimestampRef.current = mine.timestamp;
-      lastSourceRef.current = "remote";
+      // Source = "local" si c'est nous (via sessionId), sinon "remote".
+      // Important pour autoriser la ré-écriture après refresh.
+      lastSourceRef.current = isMineBySession ? "local" : "remote";
       const ageMs = Date.now() - mine.timestamp;
       const messageRemaining = MESSAGE_MS - ageMs;
       const personRemaining = PERSON_MS - ageMs;

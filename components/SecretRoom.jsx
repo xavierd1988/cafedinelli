@@ -457,14 +457,28 @@ export default function SecretRoom() {
   }, [open]);
 
   // Sync des sièges secret-room via le poll global (3s).
+  // Réconciliation par sessionId : si l'un des sièges porte notre sid,
+  // on réclame le verrou local (utile après refresh).
   useEffect(() => {
     function handler(e) {
       const arr = Array.isArray(e.detail?.secretRoom) ? e.detail.secretRoom : [];
       setRemoteSeats(arr);
+      // Auto-claim après refresh : on cherche un siège avec notre session.
+      const mySid = typeof window !== "undefined"
+        ? window.sessionStorage.getItem("cafe-session-id")
+        : null;
+      if (mySid) {
+        const mine = arr.find((s) => s.sessionId === mySid);
+        if (mine && userSeatId === null) {
+          setUserSeatId(String(mine.seatId));
+          if (typeof mine.message === "string") setUserMessage(mine.message);
+        }
+      }
     }
     window.addEventListener("seats-remote-update", handler);
     return () => window.removeEventListener("seats-remote-update", handler);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userSeatId]);
 
   useEffect(() => {
     if (editing) inputRef.current?.focus();
