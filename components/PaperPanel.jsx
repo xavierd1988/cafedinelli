@@ -335,13 +335,14 @@ function enrichHtmlWithProductLinks(html, products) {
 
   walk(root);
 
-  // Marquage des rangées Amazon Top 15 : on ajoute un attribut
-  // data-amazon-product sur chaque <tr> pour que le onClick global du
-  // PaperPanel puisse détecter le clic et déclencher le highlight dans
-  // la vitrine. Plus de bouton "Buy it" (= lien hypertexte visible) :
-  // la rangée entière est cliquable, et le seul effet est un surlignage
-  // de la case correspondante dans le store (cf. cafe-highlight-product).
-  // Idempotent : si l'attribut est déjà posé, on skip.
+  // Marquage des rangées Amazon Top 15 :
+  //   1. Attribut data-amazon-product sur la <tr> → rangée cliquable.
+  //   2. Bouton visuel "Buy it" injecté dans chaque rangée — c'est un
+  //      <span> stylé en pill (PAS un <a>), donc PAS un lien hypertexte.
+  //      Il sert juste de visual cue + cible secondaire pour le clic.
+  //   3. Le texte du nom (<strong>) reste un simple bold, sans wrap
+  //      <a>. C'est le wrap topic-link qui est exclu pour les Amazon
+  //      tables (cf. isInAmazonTable).
   const headers = root.querySelectorAll("h2, h3, h4");
   headers.forEach((h) => {
     if (!/amazon/i.test(h.textContent || "")) return;
@@ -354,6 +355,21 @@ function enrichHtmlWithProductLinks(html, products) {
       const keyword = (strong?.textContent || "").trim();
       if (!keyword) return;
       tr.setAttribute("data-amazon-product", keyword);
+
+      // Réinjecte un bouton visuel "Buy it" — span pill, pas un <a>.
+      const btn = doc.createElement("span");
+      btn.className = "paper-buy-it-injected";
+      btn.textContent = "Buy it";
+      btn.setAttribute("data-product-name", keyword);
+      btn.setAttribute("role", "button");
+      btn.setAttribute("tabindex", "0");
+      const td = doc.createElement("td");
+      td.style.cssText = "padding:6px 8px; vertical-align:middle; white-space:nowrap; text-align:center;";
+      td.appendChild(btn);
+      const cells = tr.querySelectorAll(":scope > td");
+      const lastTd = cells[cells.length - 1];
+      if (lastTd) tr.insertBefore(td, lastTd);
+      else tr.appendChild(td);
     });
   });
 
