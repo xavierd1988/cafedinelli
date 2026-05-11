@@ -113,6 +113,55 @@ export async function POST(request) {
   );
   invalidateCafeState();
 
+  // 1.b — Commandes admin : Mike intercepte certains messages avant
+  // l'appel Groq. Permet de toggler le mute des notifs (ntfy + Telegram)
+  // depuis n'importe où qui parle à Mike, en plus du code "00" sur la
+  // caisse au bar. Gratuit (pas d'appel Groq).
+  const q = question.trim().toLowerCase();
+  const isMuteCmd =
+    q === "00" ||
+    q === "mute" ||
+    q === "silence" ||
+    q === "chut" ||
+    q === "tais-toi" ||
+    q === "stfu" ||
+    q === "shut up";
+  const isUnmuteCmd =
+    q === "unmute" ||
+    q === "wake up" ||
+    q === "reveille" ||
+    q === "réveille" ||
+    q === "notif on" ||
+    q === "on";
+
+  if (isMuteCmd || isUnmuteCmd) {
+    try {
+      const { getRedis } = await import("../../../lib/redis.js");
+      const redis = getRedis();
+      const cur = await redis.get("cafe:ntfy:muted");
+      const wasMuted = cur === 1 || cur === true || cur === "1";
+      const nextMuted = isUnmuteCmd ? false : true;
+      await redis.set("cafe:ntfy:muted", nextMuted ? 1 : 0);
+      const lines = nextMuted
+        ? [
+            "Notifications off. The bar's quiet again.",
+            "Got it. Silent mode on. Phone won't snitch.",
+            "Mute on. Won't hear a peep.",
+          ]
+        : [
+            "Sound's back. You'll hear the door swing.",
+            "Unmuted. Don't blame me when it pings.",
+            "Speaker live. Welcome back to the chatter.",
+          ];
+      const answer = lines[Math.floor(Math.random() * lines.length)];
+      const finalThread = await appendMikeTurn("mike", { message: answer });
+      invalidateCafeState();
+      return Response.json({ thread: finalThread });
+    } catch {
+      /* fallback: laisse Groq répondre normalement */
+    }
+  }
+
   // 2. on construit l'historique pour Groq (alternance user/assistant)
   const messages = afterUser.turns.map((t) =>
     t.role === "user"
