@@ -113,6 +113,45 @@ export async function POST(request) {
   );
   invalidateCafeState();
 
+  // 1.b — Easter egg : si l'utilisateur demande à Mike de couper / remettre
+  // les notifications (mute le bot, silence, "tais-toi", etc.), Mike toggle
+  // le flag Redis `cafe:ntfy:muted` et répond dans son ton. Pas d'appel
+  // Groq nécessaire — la commande est intent-matched par regex.
+  const lowered = question.toLowerCase();
+  const muteIntent = /\b(mute|silence|tais|shut up|stfu|coupe.{0,15}(notif|alert|son|push|sonnerie|bruit)|stop.{0,15}(notif|alert|push|son|spam)|ferme.{0,15}la|chut|pas un mot)\b/i.test(lowered);
+  const unmuteIntent = /\b(unmute|réactive|reactive|remets.{0,15}(notif|alert|son|push|sonnerie)|reprends.{0,15}(notif|alert|push|son)|reveille|wake.{0,5}up|notif.{0,5}on|on speak)\b/i.test(lowered);
+
+  if (muteIntent || unmuteIntent) {
+    try {
+      const { getRedis } = await import("../../../lib/redis.js");
+      const redis = getRedis();
+      const cur = await redis.get("cafe:ntfy:muted");
+      const isMuted = cur === 1 || cur === true || cur === "1";
+      const nextMuted = unmuteIntent ? false : (muteIntent ? true : !isMuted);
+      await redis.set("cafe:ntfy:muted", nextMuted ? 1 : 0);
+
+      const mikeLines = nextMuted
+        ? [
+            "Notifications off. The bar's quiet again.",
+            "Got it. Silent mode. Your phone won't snitch anymore.",
+            "Done. The buzz is yours alone tonight.",
+            "Mute on. Won't hear a peep from me.",
+          ]
+        : [
+            "Notifications back on. Hope you like the noise.",
+            "Sound's back. You'll hear it when the door swings.",
+            "Unmuted. Don't blame me when it pings at 3 AM.",
+            "Speaker's live again. Welcome back to the chatter.",
+          ];
+      const answer = mikeLines[Math.floor(Math.random() * mikeLines.length)];
+      const finalThread = await appendMikeTurn("mike", { message: answer });
+      invalidateCafeState();
+      return Response.json({ thread: finalThread });
+    } catch {
+      // fall through to Groq if Redis fail
+    }
+  }
+
   // 2. on construit l'historique pour Groq (alternance user/assistant)
   const messages = afterUser.turns.map((t) =>
     t.role === "user"
