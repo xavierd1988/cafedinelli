@@ -26,6 +26,10 @@ export async function GET() {
       id: `${cached.date}-${i}`,
       emoji: p.emoji || "✨",
       name: p.name,
+      // search exposé pour que les workers externes (scrape_morning.py
+      // sur eye) puissent re-scraper avec les bons keywords. Non utilisé
+      // par le rendu client, donc inoffensif.
+      search: p.search || "",
       image: p.image || null,
       asin: p.asin || null,
       amazonUrl: p.asin
