@@ -7273,26 +7273,29 @@ button {
   background: rgba(255, 153, 0, 0.12) !important;
 }
 
-/* === Bouton "Buy it" injecté — span pill, PAS un lien hypertexte ======== */
+/* === Bouton "Buy it" injecté — rectangulaire, intégré au journal ======== */
 .paper-buy-it-injected {
   display: inline-block;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 11px;
-  letter-spacing: 0.4px;
-  color: #1f2937;
-  background: #ffffff;
-  border: 1px solid rgba(31, 41, 55, 0.5);
-  border-radius: 999px;
-  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #5c3a1a;
+  background: #f3ead8;
+  border: 1px solid #c8a878;
+  border-radius: 3px;
+  padding: 7px 16px;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(92, 58, 26, 0.08) inset;
   transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
 }
 .paper-buy-it-injected:hover {
-  background: #1f2937;
+  background: #ff9900;
   color: #ffffff;
-  border-color: #1f2937;
+  border-color: #d97700;
 }
 
 /* === Rangées "topic" (rangées numérotées non-Amazon) =====================
