@@ -74,6 +74,23 @@ export default function SeatsPoller() {
     let healthTimer = null;
     let lastMessageAt = Date.now();
 
+    // Ping initial /api/visitor : déclenche la notif Telegram "nouveau
+    // visiteur" si c'est un nouveau sid. Tourne en Node runtime côté
+    // serveur → fetch Telegram fiable (contrairement à /api/stream qui
+    // est en edge runtime et où le fetch externe est parfois tronqué).
+    // Cooldown 30s côté serveur protège des reloads / rafales.
+    (async () => {
+      try {
+        const sid = getOrCreateSessionId();
+        await fetch("/api/visitor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sid }),
+          keepalive: true,
+        });
+      } catch { /* ignore */ }
+    })();
+
     function startFallbackPolling() {
       // Plan B : polling /api/seats. Plus lent, plus cher en Redis, mais
       // ça marche partout. On augmente l'intervalle pour économiser.
