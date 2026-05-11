@@ -288,11 +288,37 @@ function enrichHtmlWithProductLinks(html, products) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  // === EXCLUSION DES TABLES AMAZON ========================================
+  // On collecte AVANT walk() pour pouvoir skipper l'auto-wrapping de
+  // <strong>NomProduit</strong> en <a class="paper-link">. Demande user :
+  // les sections "AMAZON BEST SELLERS — TOP 15" et "AMAZON MOVERS & SHAKERS"
+  // ne doivent PAS avoir de lien hypertexte sur le texte ; seule la rangée
+  // entière est cliquable (cf. data-amazon-product plus bas).
+  const amzHeaders = root.querySelectorAll("h2, h3, h4");
+  const amzTables = new Set();
+  amzHeaders.forEach((h) => {
+    if (!/amazon/i.test(h.textContent || "")) return;
+    let next = h.nextElementSibling;
+    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
+    if (next) amzTables.add(next);
+  });
+  function inAmzTable(node) {
+    let p = node;
+    while (p) {
+      if (amzTables.has(p)) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
   function walk(node) {
     if (node.nodeType === 3) {
       // Text node
       const text = node.nodeValue;
       if (!text || text.trim().length === 0) return;
+      // Skip dans les tables Amazon : ces rangées ont leur propre UX
+      // (data-amazon-product + bouton Buy it), pas de lien sur le texte.
+      if (node.parentNode && inAmzTable(node.parentNode)) return;
       for (const { variant, product } of matchers) {
         if (linkedNames.has(product.name)) continue;
         const re = new RegExp(`\\b${escapeRegex(variant)}\\b`, "i");
@@ -329,6 +355,8 @@ function enrichHtmlWithProductLinks(html, products) {
     if (node.nodeType !== 1) return;
     const tag = node.tagName.toLowerCase();
     if (tag === "a" || tag === "script" || tag === "style" || tag === "code") return;
+    // Skip toute la sous-arborescence des tables Amazon
+    if (inAmzTable(node)) return;
     const children = Array.from(node.childNodes);
     for (const c of children) walk(c);
   }
