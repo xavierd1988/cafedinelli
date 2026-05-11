@@ -17,9 +17,41 @@ function getIp(request) {
   return extractIp(request);
 }
 
-// Anti-spam basique : 1 message / seconde par IP.
-const lastPost = new Map();
-const COOLDOWN_MS = 1000;
+// Anti-spam à 2 niveaux :
+//   1. Cooldown 15s par IP : empêche le spam rapide, même quand l'user
+//      change de siège après un refresh de page (ne reset pas côté serveur).
+//   2. Limite 5 messages / 10 min par IP : empêche le spam soutenu où
+//      qqun reposte tous les 15s pendant longtemps.
+// État en mémoire serverless : suffisant car Vercel garde les warm
+// instances ~5 min, et au-delà le rate limit naturel se reset (acceptable).
+const lastPost = new Map();         // ip → timestamp dernier post
+const recentPosts = new Map();      // ip → [timestamps des N derniers posts]
+const COOLDOWN_MS = 15 * 1000;      // 15s entre 2 messages
+const WINDOW_MS = 10 * 60 * 1000;   // fenêtre 10 min
+const MAX_PER_WINDOW = 5;            // max 5 messages dans la fenêtre
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  // 1. Cooldown court
+  const last = lastPost.get(ip) || 0;
+  if (now - last < COOLDOWN_MS) {
+    const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
+    return { ok: false, reason: `slow down — wait ${wait}s` };
+  }
+  // 2. Fenêtre glissante
+  const recent = (recentPosts.get(ip) || []).filter((t) => now - t < WINDOW_MS);
+  if (recent.length >= MAX_PER_WINDOW) {
+    const oldest = recent[0];
+    const wait = Math.ceil((WINDOW_MS - (now - oldest)) / 60_000);
+    return { ok: false, reason: `too many messages — wait ${wait}min` };
+  }
+  return { ok: true, now, recent };
+}
+
+function recordPost(ip, now, recent) {
+  lastPost.set(ip, now);
+  recentPosts.set(ip, [...recent, now]);
+}
 
 export async function GET(request) {
   const ip = getIp(request);
@@ -79,11 +111,11 @@ export async function GET(request) {
 
 export async function POST(request) {
   const ip = getIp(request);
-  const now = Date.now();
-  if (now - (lastPost.get(ip) || 0) < COOLDOWN_MS) {
-    return Response.json({ error: "slow down" }, { status: 429 });
+  const rate = checkRateLimit(ip);
+  if (!rate.ok) {
+    return Response.json({ error: rate.reason }, { status: 429 });
   }
-  lastPost.set(ip, now);
+  recordPost(ip, rate.now, rate.recent);
 
   let body;
   try {
