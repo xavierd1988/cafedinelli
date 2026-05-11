@@ -122,7 +122,7 @@ export async function POST(request) {
   await ntfyPush({
     title: `AU BAR — ${(nickname || "anonymous").slice(0, 30)}`,
     body: message,
-    priority: 4,
+    priority: 5,           // urgent : bypass certains DND iOS, +rapide
     tags: ["bell"],
   });
   return Response.json({ ok: true, entry, regulars });
