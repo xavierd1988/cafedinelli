@@ -2806,6 +2806,13 @@ button {
   background:
     linear-gradient(180deg, rgba(48, 28, 22, 0.92), rgba(20, 12, 10, 0.96));
 }
+/* Quand on hover un produit dans une vitrine, toute la vitrine passe
+   au-dessus des vitrines voisines. Du coup le tooltip flottant
+   au-dessus de la case peut s'afficher devant HARDWARE/GROCERY/FLORIST
+   sans être clipped ni masqué par les bords voisins. */
+.lb-shop:has(.lb-shop-product:hover) {
+  z-index: 200;
+}
 
 /* Tous les magasins poussés vers le bout de la rue (extrême gauche du
    bâtiment). MOTOS contre le bord gauche, FLORIST puis GROCERY suivent
@@ -3012,7 +3019,10 @@ button {
   box-shadow:
     inset 0 0 28px rgba(0, 0, 0, 0.7),
     inset 0 0 0 1px rgba(232, 175, 99, 0.3);
-  overflow: hidden;
+  /* overflow visible : les tooltips au hover doivent pouvoir déborder
+     hors de la fenêtre de vitrine pour s'afficher devant les vitrines
+     voisines (cf. GROCERY/FLORIST devant HARDWARE et inversement). */
+  overflow: visible;
 }
 
 /* === Produits posés sur les étagères des shops ============================
