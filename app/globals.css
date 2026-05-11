@@ -7261,15 +7261,15 @@ button {
 }
 
 /* === Rangées Amazon Top 15 entièrement cliquables ====================== */
-/* Toute <tr> qui contient un .paper-buy-it-injected reçoit un curseur
-   pointer + highlight au survol. La délégation onClick côté React simule
-   le clic sur le bouton Buy it de la rangée. */
-.paper-newsletter-html tr:has(.paper-buy-it-injected) {
+/* Toute <tr> avec data-amazon-product est cliquable. Pas de bouton ni
+   de lien hypertexte visible — juste un highlight orange au survol et
+   un clic qui surligne la case correspondante dans la vitrine du store. */
+.paper-newsletter-html tr[data-amazon-product] {
   cursor: pointer;
   transition: background 180ms ease;
 }
-.paper-newsletter-html tr:has(.paper-buy-it-injected):hover {
-  background: rgba(255, 153, 0, 0.1) !important;
+.paper-newsletter-html tr[data-amazon-product]:hover {
+  background: rgba(255, 153, 0, 0.12) !important;
 }
 
 /* === Rangées "topic" (rangées numérotées non-Amazon) =====================
@@ -7283,27 +7283,6 @@ button {
 }
 .paper-newsletter-html tr.paper-topic-row:hover {
   background: rgba(60, 40, 20, 0.08) !important;
-}
-
-/* === Bouton "Buy it" injecté dans les Top 15 Amazon ===================== */
-.paper-buy-it-injected {
-  display: inline-block;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 11px;
-  letter-spacing: 0.4px;
-  color: #1f2937;
-  background: #ffffff;
-  border: 1px solid rgba(31, 41, 55, 0.5);
-  border-radius: 999px;
-  padding: 2px 10px;
-  text-decoration: none !important;
-  white-space: nowrap;
-  transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
-}
-.paper-buy-it-injected:hover {
-  background: #1f2937;
-  color: #ffffff;
-  border-color: #1f2937;
 }
 
 /* === Liens inline dans la newsletter (mots {accolades} → Amazon) ======== */

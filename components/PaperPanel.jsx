@@ -335,10 +335,13 @@ function enrichHtmlWithProductLinks(html, products) {
 
   walk(root);
 
-  // Injection d'un bouton "Buy it" à droite de chaque ligne des tables
-  // Amazon Top 15 (best sellers + movers). On repère les <h2> contenant
-  // "AMAZON" et on accroche un <td> bouton à la fin de chaque <tr> du
-  // tableau qui suit. Idempotent : skip si déjà injecté.
+  // Marquage des rangées Amazon Top 15 : on ajoute un attribut
+  // data-amazon-product sur chaque <tr> pour que le onClick global du
+  // PaperPanel puisse détecter le clic et déclencher le highlight dans
+  // la vitrine. Plus de bouton "Buy it" (= lien hypertexte visible) :
+  // la rangée entière est cliquable, et le seul effet est un surlignage
+  // de la case correspondante dans le store (cf. cafe-highlight-product).
+  // Idempotent : si l'attribut est déjà posé, on skip.
   const headers = root.querySelectorAll("h2, h3, h4");
   headers.forEach((h) => {
     if (!/amazon/i.test(h.textContent || "")) return;
@@ -346,29 +349,11 @@ function enrichHtmlWithProductLinks(html, products) {
     while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
-      if (tr.querySelector(".paper-buy-it-injected")) return;
+      if (tr.hasAttribute("data-amazon-product")) return;
       const strong = tr.querySelector("strong");
       const keyword = (strong?.textContent || "").trim();
       if (!keyword) return;
-      const a = doc.createElement("a");
-      a.className = "paper-buy-it-injected";
-      a.href = amazonSearchUrl(keyword);
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.textContent = "Buy it";
-      a.setAttribute("data-product-name", keyword);
-      // On l'insère ENTRE la cellule produit et la cellule catégorie :
-      // nouvelle <td> placée avant la dernière <td> de la rangée.
-      const td = doc.createElement("td");
-      td.style.cssText = "padding:6px 8px; vertical-align:middle; white-space:nowrap; text-align:center;";
-      td.appendChild(a);
-      const cells = tr.querySelectorAll(":scope > td");
-      const lastTd = cells[cells.length - 1];
-      if (lastTd) {
-        tr.insertBefore(td, lastTd);
-      } else {
-        tr.appendChild(td);
-      }
+      tr.setAttribute("data-amazon-product", keyword);
     });
   });
 
@@ -867,25 +852,27 @@ export default function PaperPanel() {
               //   2. Lien non-Amazon (article source : NBC, Vogue, CNN,
               //      etc.) → on ouvre la TopicPopup avec 5 photos liées
               //      au topic + un bouton vers l'article original.
+              // 1. Rangée Amazon (data-amazon-product) → highlight produit
+              //    dans la vitrine + slide paper vers la droite. PAS de lien
+              //    hypertexte vers Amazon : juste un surlignage visuel.
+              const amazonRow = e.target.closest && e.target.closest("tr[data-amazon-product]");
+              if (amazonRow) {
+                e.preventDefault();
+                e.stopPropagation();
+                const name = (amazonRow.getAttribute("data-amazon-product") || "").trim().slice(0, 120);
+                try {
+                  window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter-row" } }));
+                  window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
+                  window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
+                } catch {}
+                return;
+              }
+
               const link = e.target.closest && e.target.closest("a");
               if (link) {
                 e.preventDefault();
                 e.stopPropagation();
                 const href = link.href || "";
-
-                // Le bouton "Buy it" injecté (paper-buy-it-injected) est
-                // le SEUL lien qui déclenche le retract + highlight de
-                // produit. Tout le reste (topics enrichis, liens email
-                // bruts, etc.) ouvre la TopicPopup.
-                if (link.classList.contains("paper-buy-it-injected")) {
-                  const name = (link.getAttribute("data-product-name") || link.textContent || "").trim().slice(0, 120);
-                  try {
-                    window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter-buy-it" } }));
-                    window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
-                    window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
-                  } catch {}
-                  return;
-                }
 
                 // Topic ou lien d'article : on ouvre la popup avec
                 // 5 photos. Si le href est déjà une recherche Amazon
@@ -900,22 +887,8 @@ export default function PaperPanel() {
                 setTopicPopup({ topic, articleHref });
                 return;
               }
-              // Clic dans une rangée Amazon (zone texte/pourcentage) sans
-              // viser un <a> directement : on dispatche les mêmes events
-              // sans simuler de clic sur le <a> (sinon ça ouvrirait Amazon).
               const tr = e.target.closest && e.target.closest("tr");
               if (!tr) return;
-              const buyLink = tr.querySelector(".paper-buy-it-injected");
-              if (buyLink) {
-                e.preventDefault();
-                const name = (buyLink.getAttribute("data-product-name") || "").trim();
-                try {
-                  window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name, source: "newsletter-row" } }));
-                  window.dispatchEvent(new CustomEvent("cafe-shop-mode-change", { detail: { open: true } }));
-                  window.dispatchEvent(new CustomEvent("cafe-highlight-product", { detail: { name } }));
-                } catch {}
-                return;
-              }
               // Clic dans une rangée "topic" non-Amazon (Top 25 Google,
               // Twitter, TikTok, etc.) hors du <a> direct : on ouvre la
               // popup avec le topic de la 2e cellule.
