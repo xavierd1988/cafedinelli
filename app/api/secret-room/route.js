@@ -12,6 +12,7 @@ import {
 } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 import { ntfyPush } from "../../../lib/ntfyPush.js";
+import { telegramPush } from "../../../lib/telegramPush.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -72,12 +73,20 @@ export async function POST(request) {
   // Push iPhone via ntfy.sh — direct depuis Vercel. Pas de message
   // vide (le seat-claim sans texte ne déclenche rien).
   if (message) {
-    await ntfyPush({
-      title: `SALON — ${(nickname || "anonymous").slice(0, 30)}`,
-      body: message,
-      priority: 5,           // urgent : bypass certains DND iOS, +rapide
-      tags: ["bell"],
-    });
+    const safeNickname = (nickname || "anonymous").slice(0, 30);
+    await Promise.all([
+      telegramPush({
+        title: `SALON — ${safeNickname}`,
+        body: message,
+        icon: "🔔",
+      }),
+      ntfyPush({
+        title: `SALON — ${safeNickname}`,
+        body: message,
+        priority: 5,
+        tags: ["bell"],
+      }),
+    ]);
   }
   return Response.json({ ok: true, entry });
 }

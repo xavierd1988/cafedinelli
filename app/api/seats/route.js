@@ -7,6 +7,7 @@ import { getSecretRoomSeats } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 import { getRedis } from "../../../lib/redis.js";
 import { ntfyPush } from "../../../lib/ntfyPush.js";
+import { telegramPush } from "../../../lib/telegramPush.js";
 
 // Détection d'IP centralisée dans presenceStore : couvre cf-connecting-ip,
 // true-client-ip, x-real-ip, x-vercel-forwarded-for et x-forwarded-for
@@ -119,12 +120,22 @@ export async function POST(request) {
   // que de passer par le dashboard Pixoo local. Fire-and-forget mais
   // on l'await pour que le serverless function ne se termine pas avant
   // la fin de la requête vers ntfy.sh (~150ms).
-  await ntfyPush({
-    title: `AU BAR — ${(nickname || "anonymous").slice(0, 30)}`,
-    body: message,
-    priority: 5,           // urgent : bypass certains DND iOS, +rapide
-    tags: ["bell"],
-  });
+  // Telegram push : ~300-500ms ressenti vs 1-3s pour ntfy.sh+APNs.
+  // En parallèle, ntfy reste actif comme fallback (no-op si pas configuré).
+  const safeNickname = (nickname || "anonymous").slice(0, 30);
+  await Promise.all([
+    telegramPush({
+      title: `AU BAR — ${safeNickname}`,
+      body: message,
+      icon: "🔔",
+    }),
+    ntfyPush({
+      title: `AU BAR — ${safeNickname}`,
+      body: message,
+      priority: 5,
+      tags: ["bell"],
+    }),
+  ]);
   return Response.json({ ok: true, entry, regulars });
 }
 
