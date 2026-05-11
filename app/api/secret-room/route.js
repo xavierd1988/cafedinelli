@@ -11,6 +11,7 @@ import {
   markSecretSeatReleased
 } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
+import { ntfyPush } from "../../../lib/ntfyPush.js";
 
 function getIp(request) {
   const fwd = request.headers.get("x-forwarded-for");
@@ -68,6 +69,16 @@ export async function POST(request) {
   // s'en rende compte → le prochain tick (~150ms) push direct au Pixoo
   // sans avoir à reconstruire le snapshot lui-même.
   await refreshCafeState();
+  // Push iPhone via ntfy.sh — direct depuis Vercel. Pas de message
+  // vide (le seat-claim sans texte ne déclenche rien).
+  if (message) {
+    await ntfyPush({
+      title: `SALON — ${(nickname || "anonymous").slice(0, 30)}`,
+      body: message,
+      priority: 4,
+      tags: ["bell"],
+    });
+  }
   return Response.json({ ok: true, entry });
 }
 

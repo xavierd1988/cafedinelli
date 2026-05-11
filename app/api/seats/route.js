@@ -6,6 +6,7 @@ import { recordPresence, getOnlineCount, extractIp } from "../../../lib/presence
 import { getSecretRoomSeats } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
 import { getRedis } from "../../../lib/redis.js";
+import { ntfyPush } from "../../../lib/ntfyPush.js";
 
 // Détection d'IP centralisée dans presenceStore : couvre cf-connecting-ip,
 // true-client-ip, x-real-ip, x-vercel-forwarded-for et x-forwarded-for
@@ -114,6 +115,16 @@ export async function POST(request) {
   // s'en rende compte → le prochain tick push direct au Pixoo (~30ms
   // cache read) sans reconstruire le snapshot lui-même (~150ms).
   await refreshCafeState();
+  // Push iPhone via ntfy.sh — directement depuis Vercel, plus rapide
+  // que de passer par le dashboard Pixoo local. Fire-and-forget mais
+  // on l'await pour que le serverless function ne se termine pas avant
+  // la fin de la requête vers ntfy.sh (~150ms).
+  await ntfyPush({
+    title: `AU BAR — ${(nickname || "anonymous").slice(0, 30)}`,
+    body: message,
+    priority: 4,
+    tags: ["bell"],
+  });
   return Response.json({ ok: true, entry, regulars });
 }
 
