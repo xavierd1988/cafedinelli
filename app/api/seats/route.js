@@ -1,4 +1,4 @@
-import { recordSeatMessage, getActiveSeats, findActiveSeatForIp, markSeatReleased, leaveSeatForIp } from "../../../lib/seatStore.js";
+import { recordSeatMessage, getActiveSeats, findActiveSeatForIp, findActiveSeatForSession, markSeatReleased, leaveSeatForIp } from "../../../lib/seatStore.js";
 import { recordRegular, getRegulars } from "../../../lib/regularsStore.js";
 import { getMikeThread } from "../../../lib/mikeThreadStore.js";
 import { getEyeThread } from "../../../lib/eyeThreadStore.js";
@@ -17,41 +17,10 @@ function getIp(request) {
   return extractIp(request);
 }
 
-// Anti-spam à 2 niveaux :
-//   1. Cooldown 15s par IP : empêche le spam rapide, même quand l'user
-//      change de siège après un refresh de page (ne reset pas côté serveur).
-//   2. Limite 5 messages / 10 min par IP : empêche le spam soutenu où
-//      qqun reposte tous les 15s pendant longtemps.
-// État en mémoire serverless : suffisant car Vercel garde les warm
-// instances ~5 min, et au-delà le rate limit naturel se reset (acceptable).
-const lastPost = new Map();         // ip → timestamp dernier post
-const recentPosts = new Map();      // ip → [timestamps des N derniers posts]
-const COOLDOWN_MS = 15 * 1000;      // 15s entre 2 messages
-const WINDOW_MS = 10 * 60 * 1000;   // fenêtre 10 min
-const MAX_PER_WINDOW = 5;            // max 5 messages dans la fenêtre
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  // 1. Cooldown court
-  const last = lastPost.get(ip) || 0;
-  if (now - last < COOLDOWN_MS) {
-    const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
-    return { ok: false, reason: `slow down — wait ${wait}s` };
-  }
-  // 2. Fenêtre glissante
-  const recent = (recentPosts.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) {
-    const oldest = recent[0];
-    const wait = Math.ceil((WINDOW_MS - (now - oldest)) / 60_000);
-    return { ok: false, reason: `too many messages — wait ${wait}min` };
-  }
-  return { ok: true, now, recent };
-}
-
-function recordPost(ip, now, recent) {
-  lastPost.set(ip, now);
-  recentPosts.set(ip, [...recent, now]);
-}
+// Anti-DDOS basique : 1 message / seconde par IP. L'anti-spam "vrai" est
+// au niveau session : 1 seat par sessionId browser (cf. POST plus bas).
+const lastPost = new Map();
+const COOLDOWN_MS = 1000;
 
 export async function GET(request) {
   const ip = getIp(request);
@@ -111,11 +80,11 @@ export async function GET(request) {
 
 export async function POST(request) {
   const ip = getIp(request);
-  const rate = checkRateLimit(ip);
-  if (!rate.ok) {
-    return Response.json({ error: rate.reason }, { status: 429 });
+  const now = Date.now();
+  if (now - (lastPost.get(ip) || 0) < COOLDOWN_MS) {
+    return Response.json({ error: "slow down" }, { status: 429 });
   }
-  recordPost(ip, rate.now, rate.recent);
+  lastPost.set(ip, now);
 
   let body;
   try {
@@ -128,11 +97,9 @@ export async function POST(request) {
   if (!Number.isInteger(id) || id < 1 || id > 6) {
     return Response.json({ error: "bad seat id" }, { status: 400 });
   }
+  const sessionId = typeof body?.sessionId === "string" ? body.sessionId.trim().slice(0, 80) : "";
   const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
   const message = typeof body?.message === "string" ? body.message.trim() : "";
-  // Persona du visiteur (gender + wardrobe). Optionnel — sera sanitizé
-  // côté seatStore. Permet à chaque client de rendre la silhouette assise
-  // avec les habits de la personne qui parle, pas du visiteur qui regarde.
   const persona = body?.persona && typeof body.persona === "object"
     ? body.persona
     : null;
@@ -140,18 +107,31 @@ export async function POST(request) {
     return Response.json({ error: "empty message" }, { status: 400 });
   }
 
-  // Si le visiteur change de siège, on ne SUPPRIME PAS son ancien
-  // message — on le marque juste "released" pour libérer le verrou IP.
-  // L'entrée garde son timestamp + son message, donc les autres
-  // visiteurs continuent de voir ce qu'il a dit pendant les ~120s
-  // restants avant expiration naturelle. Permet au visiteur de poster
-  // sur un nouveau siège sans 409 ET sans effacer ses messages déjà dits.
+  // === Verrou session ===========================================
+  // Si cette session a déjà un siège ACTIF différent → on refuse.
+  // L'utilisateur doit fermer son onglet + en ouvrir un nouveau
+  // (= nouvelle session) pour changer de siège. Le refresh ne suffit
+  // pas, car sessionStorage persiste sur refresh.
+  if (sessionId) {
+    const sessionSeat = await findActiveSeatForSession(sessionId);
+    if (sessionSeat && sessionSeat.id !== id) {
+      return Response.json({
+        error: "already_seated",
+        message: `Tu es déjà assis au siège ${sessionSeat.id}. Ouvre un nouvel onglet pour changer.`,
+        seatId: sessionSeat.id
+      }, { status: 409 });
+    }
+  }
+
+  // Soft-release sur l'IP : si une AUTRE session de la même IP avait
+  // un siège différent, on le libère pour qu'elle ne reste pas bloquée.
+  // Le message reste visible pendant les ~120s d'expiration naturelle.
   const existing = await findActiveSeatForIp(ip);
   if (existing && existing.id !== id) {
     await markSeatReleased(existing.id);
   }
 
-  const entry = await recordSeatMessage({ id, ip, nickname, message, persona });
+  const entry = await recordSeatMessage({ id, ip, sessionId, nickname, message, persona });
   const regulars = await recordRegular({ id, nickname, message });
   // Hot rebuild : on remplit la cache snapshot AVANT que le SSE tick
   // s'en rende compte → le prochain tick push direct au Pixoo (~30ms

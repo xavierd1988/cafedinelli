@@ -265,6 +265,13 @@ export default function Seat({ seat }) {
     messageTimerRef.current = setTimeout(() => setActiveMessage(""), MESSAGE_MS);
     personTimerRef.current = setTimeout(() => setActiveNickname(""), PERSON_MS);
 
+    // sessionId : identifiant de la session browser (sessionStorage, géré
+    // par SeatsPoller). Persiste au refresh, disparait à la fermeture
+    // d'onglet → permet le verrou "1 seat par session" côté serveur.
+    const sessionId = typeof window !== "undefined"
+      ? window.sessionStorage.getItem("cafe-session-id") || ""
+      : "";
+
     // Partage avec les autres clients (les visiteurs qui regardent depuis
     // ailleurs verront le message au prochain poll, sous ~3s).
     fetch("/api/seats", {
@@ -273,7 +280,7 @@ export default function Seat({ seat }) {
       // Envoie le persona courant : chaque client rendra ce siège avec
       // les habits réels de la personne qui parle, pas avec le persona du
       // visiteur qui regarde.
-      body: JSON.stringify({ id, nickname: speaker, message: trimmed, persona })
+      body: JSON.stringify({ id, nickname: speaker, message: trimmed, persona, sessionId })
     })
       .then(async (res) => {
         if (res.status === 409) {

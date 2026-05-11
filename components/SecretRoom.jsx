@@ -542,6 +542,10 @@ export default function SecretRoom() {
     setUserMessage(trimmed);
     setDraft("");
     if (!userSeatId) return;
+    // sessionId pour le verrou "1 seat par session" côté serveur.
+    const sessionId = typeof window !== "undefined"
+      ? window.sessionStorage.getItem("cafe-session-id") || ""
+      : "";
     // POST live au serveur — visible par les autres visiteurs au prochain poll.
     fetch("/api/secret-room", {
       method: "POST",
@@ -550,7 +554,8 @@ export default function SecretRoom() {
         seatId: userSeatId,
         nickname,
         message: trimmed,
-        persona
+        persona,
+        sessionId
       })
     }).catch(() => { /* silencieux */ });
   }

@@ -8,6 +8,7 @@ import {
   leaveSecretSeatForIp,
   getSecretRoomSeats,
   findSecretSeatForIp,
+  findSecretSeatForSession,
   markSecretSeatReleased
 } from "../../../lib/secretRoomStore.js";
 import { invalidateCafeState, refreshCafeState } from "../../../lib/stateStore.js";
@@ -20,34 +21,10 @@ function getIp(request) {
   return request.headers.get("x-real-ip") || "127.0.0.1";
 }
 
-// Anti-spam à 2 niveaux : cooldown 15s par IP + max 5 msg / 10 min.
-// Identique à /api/seats — voir là-bas pour les détails.
+// Anti-DDOS basique : 1 message / seconde par IP. Le vrai verrou est
+// au niveau session (cf. POST plus bas).
 const lastPost = new Map();
-const recentPosts = new Map();
-const COOLDOWN_MS = 15 * 1000;
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_PER_WINDOW = 5;
-
-function checkRateLimit(ip) {
-  const now = Date.now();
-  const last = lastPost.get(ip) || 0;
-  if (now - last < COOLDOWN_MS) {
-    const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
-    return { ok: false, reason: `slow down — wait ${wait}s` };
-  }
-  const recent = (recentPosts.get(ip) || []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) {
-    const oldest = recent[0];
-    const wait = Math.ceil((WINDOW_MS - (now - oldest)) / 60_000);
-    return { ok: false, reason: `too many messages — wait ${wait}min` };
-  }
-  return { ok: true, now, recent };
-}
-
-function recordPost(ip, now, recent) {
-  lastPost.set(ip, now);
-  recentPosts.set(ip, [...recent, now]);
-}
+const COOLDOWN_MS = 1000;
 
 export async function GET() {
   const seats = await getSecretRoomSeats();
@@ -56,11 +33,11 @@ export async function GET() {
 
 export async function POST(request) {
   const ip = getIp(request);
-  const rate = checkRateLimit(ip);
-  if (!rate.ok) {
-    return Response.json({ error: rate.reason }, { status: 429 });
+  const now = Date.now();
+  if (now - (lastPost.get(ip) || 0) < COOLDOWN_MS) {
+    return Response.json({ error: "slow down" }, { status: 429 });
   }
-  recordPost(ip, rate.now, rate.recent);
+  lastPost.set(ip, now);
 
   let body;
   try {
@@ -68,9 +45,6 @@ export async function POST(request) {
   } catch {
     return Response.json({ error: "invalid json" }, { status: 400 });
   }
-  // seatId accepté en string ou number — normalize en string pour Redis.
-  // Frontend envoie maintenant 7 / 8 (numérique) pour matcher l'archi
-  // unifiée avec le bar (sièges 1-6 + 7-8).
   const rawSeatId = body?.seatId;
   const seatId = (rawSeatId !== undefined && rawSeatId !== null)
     ? String(rawSeatId).trim()
@@ -78,20 +52,31 @@ export async function POST(request) {
   if (!seatId) {
     return Response.json({ error: "bad seat id" }, { status: 400 });
   }
+  const sessionId = typeof body?.sessionId === "string" ? body.sessionId.trim().slice(0, 80) : "";
   const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
   const message = typeof body?.message === "string" ? body.message.trim() : "";
   const persona = body?.persona && typeof body.persona === "object" ? body.persona : null;
 
-  // Soft-release : si l'IP change de siège (7 → 8 ou bar → secret),
-  // on marque l'ancien comme released SANS l'effacer. L'entrée garde
-  // son timestamp + son message → les autres visiteurs continuent de
-  // voir ce qu'il a dit pendant les ~120s restants. Identique au bar.
+  // Verrou par session browser : refresh ne libère pas le seat. Seule
+  // une nouvelle session (nouvel onglet) permet de changer.
+  if (sessionId) {
+    const sessionSeat = await findSecretSeatForSession(sessionId);
+    if (sessionSeat && sessionSeat.seatId !== seatId) {
+      return Response.json({
+        error: "already_seated",
+        message: `Tu es déjà au salon (siège ${sessionSeat.seatId}). Ouvre un nouvel onglet pour changer.`,
+        seatId: sessionSeat.seatId
+      }, { status: 409 });
+    }
+  }
+
+  // Soft-release sur l'IP (autre session de la même IP qui voudrait reseat).
   const existing = await findSecretSeatForIp(ip);
   if (existing && existing.seatId !== seatId) {
     await markSecretSeatReleased(existing.seatId);
   }
 
-  const entry = await takeSecretSeat({ seatId, ip, nickname, message, persona });
+  const entry = await takeSecretSeat({ seatId, ip, sessionId, nickname, message, persona });
   // Hot rebuild : on remplit la cache snapshot AVANT que le SSE tick
   // s'en rende compte → le prochain tick (~150ms) push direct au Pixoo
   // sans avoir à reconstruire le snapshot lui-même.
