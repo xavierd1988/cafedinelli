@@ -142,18 +142,7 @@ export async function POST(request) {
       const wasMuted = cur === 1 || cur === true || cur === "1";
       const nextMuted = isUnmuteCmd ? false : true;
       await redis.set("cafe:ntfy:muted", nextMuted ? 1 : 0);
-      const lines = nextMuted
-        ? [
-            "Notifications off. The bar's quiet again.",
-            "Got it. Silent mode on. Phone won't snitch.",
-            "Mute on. Won't hear a peep.",
-          ]
-        : [
-            "Sound's back. You'll hear the door swing.",
-            "Unmuted. Don't blame me when it pings.",
-            "Speaker live. Welcome back to the chatter.",
-          ];
-      const answer = lines[Math.floor(Math.random() * lines.length)];
+      const answer = nextMuted ? "It's muted." : "It's unmuted.";
       const finalThread = await appendMikeTurn("mike", { message: answer });
       invalidateCafeState();
       return Response.json({ thread: finalThread });
