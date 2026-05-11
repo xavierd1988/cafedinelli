@@ -23,15 +23,24 @@ const COOLDOWN_MS = 1000;
 
 export async function GET(request) {
   const ip = getIp(request);
+  const url = new URL(request.url);
   // Le client SSE/polling envoie un sessionId stable par onglet ; on
   // l'utilise comme partie de la clé présence pour distinguer 2 onglets
   // qui partagent la même IP (NAT, partage de WiFi, etc.).
-  const sid = new URL(request.url).searchParams.get("sid") || null;
+  const sid = url.searchParams.get("sid") || null;
+  // ?silent=1 → ne pas compter cette connexion comme un visiteur (le
+  // dashboard Pixoo local fait des sanity_polls toutes les 20s ; sans
+  // ce flag, sa propre IP est détectée comme "nouveau visiteur" en
+  // boucle dès que le window 15s expire → spam de notifs Telegram).
+  // Identique au flag déjà supporté par /api/stream.
+  const silent = url.searchParams.get("silent") === "1";
   // Record this poll as a presence ping AVANT de lire le compteur,
   // pour que le visiteur en cours soit déjà compté dans sa propre réponse.
-  const isNew = await recordPresence(ip, sid);
-  if (isNew) {
-    try { invalidateCafeState(); } catch {}
+  if (!silent) {
+    const isNew = await recordPresence(ip, sid);
+    if (isNew) {
+      try { invalidateCafeState(); } catch {}
+    }
   }
 
   // Helper résilient : si une promesse rejette (ex: Redis throttle),
