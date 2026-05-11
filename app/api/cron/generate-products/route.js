@@ -243,15 +243,19 @@ export async function GET(request) {
 
   // 3. Sauvegarde — avec garde-fou : si Amazon a tout bloqué (0 image
   //    extraite), on NE SAUVEGARDE PAS pour éviter d'écraser un cache
-  //    précédent qui avait des images valides. L'utilisateur préfère
-  //    voir les images d'hier que 30 emojis aujourd'hui.
+  //    précédent qui avait des images valides.
+  //
+  // EXCEPTION ?force=1 : on sauve toujours, même sans images. Sert quand
+  // on veut juste régénérer la liste Groq (avec les bons `search`) et
+  // déléguer le scraping à un worker externe (scrape_morning.py sur eye,
+  // IP résidentielle = pas blocked par Amazon).
   const today = new Date().toISOString().slice(0, 10);
   const withImage = enriched.filter((p) => p.image).length;
   const MIN_IMAGES_TO_SAVE = 5;
 
   let saved = null;
   let skippedSave = false;
-  if (withImage < MIN_IMAGES_TO_SAVE) {
+  if (!force && withImage < MIN_IMAGES_TO_SAVE) {
     skippedSave = true;
     console.warn(
       `cron/generate-products: only ${withImage}/${enriched.length} images scraped — ` +
