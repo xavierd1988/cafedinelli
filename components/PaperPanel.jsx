@@ -288,24 +288,35 @@ function enrichHtmlWithProductLinks(html, products) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  // === EXCLUSION DES TABLES AMAZON ========================================
-  // On collecte AVANT walk() pour pouvoir skipper l'auto-wrapping de
-  // <strong>NomProduit</strong> en <a class="paper-link">. Demande user :
-  // les sections "AMAZON BEST SELLERS — TOP 15" et "AMAZON MOVERS & SHAKERS"
-  // ne doivent PAS avoir de lien hypertexte sur le texte ; seule la rangée
-  // entière est cliquable (cf. data-amazon-product plus bas).
-  const amzHeaders = root.querySelectorAll("h2, h3, h4");
-  const amzTables = new Set();
-  amzHeaders.forEach((h) => {
-    if (!/amazon/i.test(h.textContent || "")) return;
-    let next = h.nextElementSibling;
-    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
-    if (next) amzTables.add(next);
-  });
-  function inAmzTable(node) {
+  // === ZONE LINKABLE : SEULEMENT "TODAY'S HEADLINES" ======================
+  // Demande user : les liens auto (paper-link vers Amazon) ne doivent
+  // apparaître QUE dans la section d'intro "TODAY'S HEADLINES". Le reste
+  // (Google Trends, X, TikTok, YouTube, Amazon tables, Insights) reste
+  // texte brut. On collecte les nodes situés entre le h2 headlines et le
+  // prochain header de même niveau.
+  const headlineNodes = new Set();
+  let inHeadlines = false;
+  let headlinesLevel = 0;
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType === 1 && /^h[1-6]$/i.test(child.tagName || "")) {
+      const lvl = parseInt(child.tagName.substring(1), 10);
+      const text = (child.textContent || "").toLowerCase();
+      if (/headlines/.test(text)) {
+        inHeadlines = true;
+        headlinesLevel = lvl;
+        // On NE process PAS le header lui-même (juste un titre).
+        continue;
+      } else if (inHeadlines && lvl <= headlinesLevel) {
+        // Header de même niveau ou supérieur → sortie de section.
+        inHeadlines = false;
+      }
+    }
+    if (inHeadlines) headlineNodes.add(child);
+  }
+  function inHeadlinesZone(node) {
     let p = node;
     while (p) {
-      if (amzTables.has(p)) return true;
+      if (headlineNodes.has(p)) return true;
       p = p.parentNode;
     }
     return false;
@@ -316,9 +327,8 @@ function enrichHtmlWithProductLinks(html, products) {
       // Text node
       const text = node.nodeValue;
       if (!text || text.trim().length === 0) return;
-      // Skip dans les tables Amazon : ces rangées ont leur propre UX
-      // (data-amazon-product + bouton Buy it), pas de lien sur le texte.
-      if (node.parentNode && inAmzTable(node.parentNode)) return;
+      // SEULE la section TODAY'S HEADLINES reçoit des liens auto.
+      if (!node.parentNode || !inHeadlinesZone(node.parentNode)) return;
       for (const { variant, product } of matchers) {
         if (linkedNames.has(product.name)) continue;
         const re = new RegExp(`\\b${escapeRegex(variant)}\\b`, "i");
@@ -355,8 +365,6 @@ function enrichHtmlWithProductLinks(html, products) {
     if (node.nodeType !== 1) return;
     const tag = node.tagName.toLowerCase();
     if (tag === "a" || tag === "script" || tag === "style" || tag === "code") return;
-    // Skip toute la sous-arborescence des tables Amazon
-    if (inAmzTable(node)) return;
     const children = Array.from(node.childNodes);
     for (const c of children) walk(c);
   }
@@ -439,23 +447,27 @@ function enrichHtmlWithProductLinks(html, products) {
   }
 
   // 1) Bold tags : titres et noms saillants ("Cinco de Mayo", "Hegseth", ...)
+  //    UNIQUEMENT dans la section TODAY'S HEADLINES (cf. demande user).
   root.querySelectorAll("strong").forEach((strong) => {
-    if (isInAmazonTable(strong)) return;
+    if (!inHeadlinesZone(strong)) return;
     wrapAsTopicLink(strong);
   });
 
   // 2) Cellules "topic" des tables ranked NON-Amazon : 2e <td> d'un <tr>
   //    dont le 1er <td> est un numéro ("1.", "2.", "12.").
+  //    Skip TOUT car les tables ranked sont hors TODAY'S HEADLINES.
+  //    On garde la classe paper-topic-row pour le styling, sans wrap link.
   root.querySelectorAll("tr").forEach((tr) => {
     if (isInAmazonTable(tr)) return;
     const cells = tr.querySelectorAll(":scope > td");
     if (cells.length < 2) return;
     const firstText = (cells[0].textContent || "").trim();
     if (!/^\d{1,3}\.?$/.test(firstText)) return;
-    const second = cells[1];
-    if (second.querySelector("a")) return;
     // On marque le <tr> pour pouvoir styler la ligne entière en hover.
     tr.classList.add("paper-topic-row");
+    if (!inHeadlinesZone(tr)) return; // pas de wrap link hors headlines
+    const second = cells[1];
+    if (second.querySelector("a")) return;
     wrapAsTopicLink(second);
   });
 
