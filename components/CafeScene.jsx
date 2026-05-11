@@ -243,34 +243,66 @@ function LeftBuilding() {
       return out;
     }
 
-    fetch("/api/newsletter")
-      .then((r) => r.json())
-      .then((data) => {
+    // On fetch TOUJOURS /api/products en parallèle de la newsletter. Si
+    // la newsletter a une section Amazon (Top 15 trends), on l'utilise
+    // EN PRIORITÉ pour le NOM des items (les vrais titres éditoriaux
+    // gardent leur charme) mais on injecte les images depuis /api/products
+    // via un fuzzy-match par tokens du nom. Les items sans match gardent
+    // leur emoji-only (comportement précédent).
+    function fuzzyMatchImage(name, apiProducts) {
+      if (!name || !Array.isArray(apiProducts)) return null;
+      const queryTokens = name.toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 3);
+      if (queryTokens.length === 0) return null;
+      let best = null;
+      let bestScore = 0;
+      for (const p of apiProducts) {
+        if (!p.image) continue;
+        const pTokens = String(p.name || "").toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter((t) => t.length >= 3);
+        let score = 0;
+        for (const q of queryTokens) {
+          if (pTokens.includes(q)) score += 2;
+          else if (pTokens.some((t) => t.includes(q) || q.includes(t))) score += 1;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          best = p;
+        }
+      }
+      // Seuil min : au moins 1 token shared (sinon trop loose, on perd
+      // la fiabilité du match)
+      return bestScore >= 2 ? best : null;
+    }
+
+    Promise.all([
+      fetch("/api/newsletter").then((r) => r.json()).catch(() => null),
+      fetch("/api/products", { cache: "no-store" }).then((r) => r.json()).catch(() => null)
+    ])
+      .then(([newsData, apiData]) => {
         if (cancelled) return;
-        const html = data?.newsletter?.html;
+        const html = newsData?.newsletter?.html;
+        const apiProducts = Array.isArray(apiData?.products) ? apiData.products : [];
         const fromNewsletter = extractFromNewsletter(html);
+
         if (fromNewsletter && fromNewsletter.length > 0) {
-          setProducts(fromNewsletter);
+          // Enrichit chaque item newsletter avec l'image scrappée
+          // correspondante (fuzzy match par nom).
+          const enriched = fromNewsletter.map((item) => {
+            const match = fuzzyMatchImage(item.name, apiProducts);
+            return match
+              ? { ...item, image: match.image, asin: match.asin }
+              : item;
+          });
+          setProducts(enriched);
           return;
         }
-        // Fallback liste curated
-        return fetch("/api/products", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((d) => {
-            if (cancelled) return;
-            if (Array.isArray(d?.products)) setProducts(d.products);
-          });
+        // Pas de newsletter : on prend direct l'API products
+        if (apiProducts.length > 0) setProducts(apiProducts);
       })
-      .catch(() => {
-        // Fallback complet en cas d'erreur réseau/newsletter
-        fetch("/api/products", { cache: "no-store" })
-          .then((r) => r.json())
-          .then((d) => {
-            if (cancelled) return;
-            if (Array.isArray(d?.products)) setProducts(d.products);
-          })
-          .catch(() => {});
-      });
+      .catch(() => { /* silencieux : on garde la liste vide */ });
     return () => { cancelled = true; };
   }, []);
 
