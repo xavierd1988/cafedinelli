@@ -409,7 +409,6 @@ function enrichHtmlWithProductLinks(html, products) {
       const td = doc.createElement("td");
       td.style.cssText = "padding:6px 8px; vertical-align:middle; white-space:nowrap; text-align:center;";
       td.appendChild(btn);
-      const cells = tr.querySelectorAll(":scope > td");
       const lastTd = cells[cells.length - 1];
       if (lastTd) tr.insertBefore(td, lastTd);
       else tr.appendChild(td);
