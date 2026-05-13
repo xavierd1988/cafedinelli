@@ -229,9 +229,20 @@ function LeftBuilding() {
         while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
         if (!next) return;
         next.querySelectorAll("tr").forEach((tr) => {
-          const strong = tr.querySelector("strong");
-          const name = (strong?.textContent || "").trim();
-          if (!name) return;
+          // Structure (validée 2026-05-13) :
+          //   <tr>
+          //     <td><strong>N</strong></td>   <- rang (1, 2, …)
+          //     <td>Apple AirPods 4 — Wireless earbuds</td>  <- NOM
+          //     <td>…</td>                    <- metric
+          //   </tr>
+          // Le NOM est dans la 2e <td>, en texte brut (pas <strong>).
+          // Avant on prenait le 1er <strong> → on récupérait le rang.
+          const cells = tr.querySelectorAll(":scope > td");
+          if (cells.length < 2) return;
+          const rawName = (cells[1].textContent || "").trim();
+          // Coupe à un éventuel séparateur "—" (description après le nom)
+          const name = rawName.split("—")[0].trim();
+          if (!name || name.length < 3) return;
           out.push({
             id: `nl-${out.length}`,
             name,
