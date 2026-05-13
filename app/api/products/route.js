@@ -32,6 +32,8 @@ export async function GET() {
       search: p.search || "",
       image: p.image || null,
       asin: p.asin || null,
+      // Prix Amazon ("$24.99"). Affiché dans le tooltip du store hover.
+      price: p.price || null,
       amazonUrl: p.asin
         ? `https://www.amazon.com/dp/${p.asin}`
         : `https://www.amazon.com/s?k=${encodeURIComponent(p.search || p.name)}`

@@ -304,7 +304,7 @@ function LeftBuilding() {
           const enriched = fromNewsletter.map((item) => {
             const match = fuzzyMatchImage(item.name, apiProducts);
             return match
-              ? { ...item, image: match.image, asin: match.asin }
+              ? { ...item, image: match.image, asin: match.asin, price: match.price }
               : item;
           });
           setProducts(enriched);
@@ -443,7 +443,9 @@ function LeftBuilding() {
           const info = productInfo[p.id] || {};
           const errored = imageErrors.has(p.id);
           const img = errored ? null : info.imageUrl;
-          const price = info.price;
+          // Le prix vient soit directement du produit (injecté depuis
+          // /api/products), soit du fetch /api/product-image (legacy).
+          const price = p.price || info.price;
           return (
             <a
               key={p.id}

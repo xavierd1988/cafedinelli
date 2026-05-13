@@ -53,7 +53,9 @@ export async function POST(request) {
     name: typeof p?.name === "string" ? p.name.slice(0, 80) : "",
     search: typeof p?.search === "string" ? p.search.slice(0, 120) : "",
     image: typeof p?.image === "string" ? p.image.slice(0, 500) : null,
-    asin: typeof p?.asin === "string" ? p.asin.slice(0, 20) : null
+    asin: typeof p?.asin === "string" ? p.asin.slice(0, 20) : null,
+    // Prix au format Amazon "$24.99" (scrappé du span a-offscreen).
+    price: typeof p?.price === "string" ? p.price.slice(0, 16) : null
   })).filter((p) => p.name);
 
   const saved = await saveDailyProducts({

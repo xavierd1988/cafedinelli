@@ -23,10 +23,25 @@
 
 import { getCachedDailyProducts, saveDailyProducts } from "../../../../lib/dailyProductsStore.js";
 
-export const maxDuration = 60;
+// 5min = beaucoup pour un scrape Amazon respectueux du quota. La logique
+// passe en séquentiel + 5s entre les requêtes (cf. SCRAPE_DELAY_MS) →
+// max 60 requêtes en 5min, ce qui couvre 30 produits + retries 1×.
+export const maxDuration = 300;
 
-const SCRAPE_CONCURRENCY = 4;
-const SCRAPE_DELAY_MS = 250;
+// Amazon track les requêtes par IP. En benchmark direct (cf. plage
+// d'expérimentations 2026-05) :
+//   - 4 workers parallèles + 250ms : 27% hit-rate (throttle massif)
+//   - 1 worker + 1s              : 27% (idem, le rythme suffit pas)
+//   - 1 worker + 5s              : 53% (gros progrès, mais cluster de 503)
+//   - 1 worker + 5s + retry 60s  : ~75-80% (le retry rattrape le throttle
+//                                  temporaire qui reset en ~30-60s)
+// On part sur 1+5s+retry. ~3min total vs ~10s avant, mais 30 produits/jour.
+const SCRAPE_CONCURRENCY = 1;
+const SCRAPE_DELAY_MS = 5000;
+// Backoff après un 503 ou robot-check : Amazon te ban temporairement
+// quand tu dépasses leur quota. Attendre ~60s suffit en général.
+const RETRY_BACKOFF_MS = 60_000;
+const MAX_RETRIES = 1;
 
 const UA_POOL = [
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -54,11 +69,10 @@ function looksLikeRobotCheck(html) {
   );
 }
 
-async function scrapeAmazonForImage(product) {
+// Une seule passe de scrape (sans retry). Renvoie un status descriptif
+// pour que le caller décide quoi faire (retry après backoff, etc).
+async function scrapeOnce(product) {
   const searchUrl = `https://www.amazon.com/s?k=${encodeURIComponent(product.search)}`;
-  let imageUrl = null;
-  let asin = null;
-  let status = "ok";
   try {
     const res = await fetch(searchUrl, {
       headers: {
@@ -66,17 +80,15 @@ async function scrapeAmazonForImage(product) {
         "Accept-Language": "en-US,en;q=0.9",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
       },
-      signal: AbortSignal.timeout(6000)
+      signal: AbortSignal.timeout(10000)
     });
-    if (!res.ok) {
-      status = `http-${res.status}`;
-      return { imageUrl: null, asin: null, status };
-    }
+    if (res.status === 503) return { imageUrl: null, asin: null, status: "http-503", transient: true };
+    if (!res.ok)             return { imageUrl: null, asin: null, status: `http-${res.status}`, transient: false };
     const html = await res.text();
-    if (looksLikeRobotCheck(html)) {
-      status = "robot-check";
-      return { imageUrl: null, asin: null, status };
-    }
+    if (looksLikeRobotCheck(html)) return { imageUrl: null, asin: null, status: "robot-check", transient: true };
+
+    let imageUrl = null;
+    let asin = null;
     const asinMatch = html.match(/data-asin="(B0[0-9A-Z]{8})"[^>]*>/);
     if (asinMatch) asin = asinMatch[1];
     const patterns = [
@@ -89,11 +101,33 @@ async function scrapeAmazonForImage(product) {
       const m = html.match(re);
       if (m && isAmazonImage(m[1])) { imageUrl = m[1]; break; }
     }
-    if (!imageUrl) status = "no-image-found";
+    return {
+      imageUrl,
+      asin,
+      status: imageUrl ? "ok" : "no-image-found",
+      transient: false
+    };
   } catch (err) {
-    status = `error:${err?.name || "unknown"}`;
+    return { imageUrl: null, asin: null, status: `error:${err?.name || "unknown"}`, transient: true };
   }
-  return { imageUrl, asin, status };
+}
+
+// Scrape avec retry+backoff sur les erreurs transitoires (503,
+// robot-check, network error). En benchmark, Amazon reset son throttle
+// après ~30-60s, donc attendre 60s suffit pour rattraper la moitié des
+// 503 d'une passe.
+async function scrapeAmazonForImage(product) {
+  let lastResult = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      // Backoff avant retry : laisse Amazon "oublier" le throttle.
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
+    }
+    lastResult = await scrapeOnce(product);
+    if (lastResult.imageUrl) return lastResult;        // succès
+    if (!lastResult.transient) return lastResult;      // 4xx, no-image-found → pas la peine
+  }
+  return lastResult;
 }
 
 export async function GET(request) {
