@@ -387,9 +387,16 @@ function enrichHtmlWithProductLinks(html, products) {
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
       if (tr.hasAttribute("data-amazon-product")) return;
-      const strong = tr.querySelector("strong");
-      const keyword = (strong?.textContent || "").trim();
-      if (!keyword) return;
+      // Nouvelle structure newsletter (2026-05-13) :
+      //   <td><strong>N</strong></td>  ← rang (1, 2, …)
+      //   <td>Apple AirPods 4 — description</td>  ← NOM
+      // Avant on prenait le 1er <strong> → c'était le rang. Maintenant
+      // on prend la 2e <td>, on coupe au "—" pour ne garder que le nom.
+      const cells = tr.querySelectorAll(":scope > td");
+      if (cells.length < 2) return;
+      const rawKeyword = (cells[1].textContent || "").trim();
+      const keyword = rawKeyword.split("—")[0].trim();
+      if (!keyword || keyword.length < 3) return;
       tr.setAttribute("data-amazon-product", keyword);
 
       // Réinjecte un bouton visuel "Buy it" — span pill, pas un <a>.
