@@ -476,7 +476,13 @@ function LeftBuilding() {
               ) : (
                 <span className="lb-shop-product-emoji" aria-hidden="true">{p.emoji}</span>
               )}
-              {/* Overlay nom + prix visible au hover (zoom géant) */}
+              {/* Badge prix toujours visible — petit overlay vert
+                  en bas de la case sur l'image. Différent du tooltip
+                  hover (qui contient nom + prix en grand). */}
+              {price && (
+                <span className="lb-shop-product-price-badge">{price}</span>
+              )}
+              {/* Overlay nom + prix au hover (tooltip floating) */}
               <span className="lb-shop-product-name">{p.name}</span>
               <span className="lb-shop-product-price">{price || "see price"}</span>
             </a>

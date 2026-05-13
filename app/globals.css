@@ -3113,6 +3113,32 @@ button {
   display: none;
 }
 
+/* === BADGE PRIX permanent en bas de chaque case ========================
+   Visible en permanence (pas besoin de hover). Petit overlay vert
+   foncé semi-transparent posé en bas de la case sur l'image. */
+.lb-shop-product-price-badge {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: 1px;
+  padding: 1px 3px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-align: center;
+  color: #1d8a3a;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
 /* === HOVER : popup FLOATING au-dessus de la case, pas de scale ==========
    Le popup est en absolute → il SORT du flux de la grille, donc il ne
    masque pas les cases voisines (on peut cliquer celle du milieu sans
