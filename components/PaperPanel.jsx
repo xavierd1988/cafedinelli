@@ -5,6 +5,8 @@ import { getModulePosition } from "../lib/modulePositions.js";
 import TopicPopup from "./TopicPopup.jsx";
 import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
 import XTrendsPopup from "./XTrendsPopup.jsx";
+import TikTokTrendsPopup from "./TikTokTrendsPopup.jsx";
+import YouTubePopup from "./YouTubePopup.jsx";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -383,9 +385,13 @@ function enrichHtmlWithProductLinks(html, products) {
     let attrName = null;
     // Section Google : "google trends" ou juste "google"
     if (/\bgoogle\b/.test(text)) attrName = "data-google-trend";
+    // Section TikTok : "tiktok" — header newsletter "🎵 TIKTOK — TOP 15"
+    else if (/\btiktok\b/.test(text)) attrName = "data-tiktok-trend";
     // Section X/Twitter : "x / twitter", "twitter", ou "x " standalone.
     // Le vrai header newsletter est "X / TWITTER — TOP 15".
     else if (/\btwitter\b/.test(text) || /\bx\s*\/\s*twitter\b/.test(text) || /(^|\W)x\s*[\/—]/.test(text)) attrName = "data-x-trend";
+    // Section YouTube : "youtube" — header newsletter "▶️ YOUTUBE — TOP 15"
+    else if (/\byoutube\b/.test(text)) attrName = "data-youtube-trend";
     if (!attrName) return;
     let next = h.nextElementSibling;
     while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
@@ -718,6 +724,8 @@ export default function PaperPanel() {
   const [topicPopup, setTopicPopup] = useState(null);
   const [googleTrend, setGoogleTrend] = useState(null);
   const [xTrend, setXTrend] = useState(null);
+  const [tiktokTrend, setTiktokTrend] = useState(null);
+  const [youtubeTrend, setYoutubeTrend] = useState(null);
 
   // Charge la newsletter du jour (postée par le script automatique).
   useEffect(() => {
@@ -968,6 +976,28 @@ export default function PaperPanel() {
                 return;
               }
 
+              // 0c. Rangée TikTok Trend → popup style TikTok
+              //    avec les 3 dernières vidéos TikTok pour ce keyword.
+              const tiktokRow = e.target.closest && e.target.closest("tr[data-tiktok-trend]");
+              if (tiktokRow) {
+                e.preventDefault();
+                e.stopPropagation();
+                const trend = (tiktokRow.getAttribute("data-tiktok-trend") || "").trim().slice(0, 120);
+                if (trend) setTiktokTrend(trend);
+                return;
+              }
+
+              // 0d. Rangée YouTube Trend → popup avec player embed YouTube
+              //    de la 1ère vidéo correspondant au keyword.
+              const youtubeRow = e.target.closest && e.target.closest("tr[data-youtube-trend]");
+              if (youtubeRow) {
+                e.preventDefault();
+                e.stopPropagation();
+                const trend = (youtubeRow.getAttribute("data-youtube-trend") || "").trim().slice(0, 120);
+                if (trend) setYoutubeTrend(trend);
+                return;
+              }
+
               // 1. Rangée Amazon (data-amazon-product) → highlight produit
               //    dans la vitrine + slide paper vers la droite. PAS de lien
               //    hypertexte vers Amazon : juste un surlignage visuel.
@@ -1090,6 +1120,18 @@ export default function PaperPanel() {
         <XTrendsPopup
           trend={xTrend}
           onClose={() => setXTrend(null)}
+        />
+      )}
+      {tiktokTrend && (
+        <TikTokTrendsPopup
+          trend={tiktokTrend}
+          onClose={() => setTiktokTrend(null)}
+        />
+      )}
+      {youtubeTrend && (
+        <YouTubePopup
+          trend={youtubeTrend}
+          onClose={() => setYoutubeTrend(null)}
         />
       )}
       {topicPopup && (
