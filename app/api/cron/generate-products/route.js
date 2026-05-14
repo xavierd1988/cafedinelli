@@ -57,6 +57,111 @@ function looksLikeRobotCheck(html) {
   );
 }
 
+// =============================================================================
+// EXTRACTION directe des produits Amazon depuis la newsletter HTML.
+// =============================================================================
+// La newsletter contient déjà 30 produits dans les sections AMAZON BEST
+// SELLERS — TOP 15 et AMAZON MOVERS & SHAKERS — TOP 15. Les frontend
+// (CafeScene, PaperPanel) matchent par nom contre ce store ; il FAUT
+// donc que les noms du store soient EXACTEMENT ceux de la newsletter
+// — sinon mismatch et la vitrine reste vide.
+//
+// Cette fonction lit le HTML, extrait les rows de <td>[1] de chaque
+// section, et retourne les noms. Si la newsletter est introuvable ou
+// n'a pas de section AMAZON, on retourne []. Le code appelant
+// fallback alors sur Groq pour générer des suggestions.
+// =============================================================================
+
+function extractAmazonItemsFromNewsletter(html) {
+  if (!html || typeof html !== "string") return [];
+  const items = [];
+  const seen = new Set();
+
+  // Capture chaque section "AMAZON ..." suivie d'une <table>
+  const sectionRe =
+    /<h[234][^>]*>[^<]*AMAZON[^<]*<\/h[234]>[\s\S]*?<table[^>]*>([\s\S]*?)<\/table>/gi;
+
+  let m;
+  while ((m = sectionRe.exec(html)) !== null) {
+    const tableHtml = m[1];
+    const rowMatches = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+    for (const row of rowMatches) {
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)];
+      if (tds.length < 2) continue;
+      let raw = tds[1][1]
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&nbsp;/g, " ")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+      // Le format est typiquement "Nom du produit — description courte"
+      let name = raw.split("—")[0].trim();
+      name = name.replace(/\s+/g, " ");
+      if (!name || name.length < 3) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(name.slice(0, 80));
+      if (items.length >= TARGET_COUNT) return items;
+    }
+  }
+  return items;
+}
+
+// Devine un emoji simple à partir du nom du produit. Si rien ne match,
+// retourne 🛒 (caddie). Liste alignée avec scrape_morning.py (eye).
+function emojiForName(name) {
+  const n = (name || "").toLowerCase();
+  const rules = [
+    [/airpod|earbud|headphone|beats|airpods/, "🎧"],
+    [/iphone|phone|samsung galaxy/, "📱"],
+    [/watch|garmin|apple watch/, "⌚"],
+    [/mug|tumbler|stanley|hydro|quencher|bottle|cup/, "☕"],
+    [/lotion|oil|serum|cream|moisturiz|olaplex|mielle|eos|kitsch/, "🧴"],
+    [/patch|cosmetic|toner|skincare|medicube/, "💄"],
+    [/ice maker|silonn|appliance/, "🧊"],
+    [/duvet|bedding|sheet|pillow|bedsure/, "🛏️"],
+    [/lego|toy|squishy|needoh|game/, "🧩"],
+    [/sunscreen|spf|neutrogena|banana boat/, "☀️"],
+    [/fan|cooling|dreo|tower|air purifier|levoit/, "🌀"],
+    [/vacuum|shark|bissell/, "🧹"],
+    [/crocs|clog|shoe|boot|sneaker/, "👟"],
+    [/card|greeting|pop.?up/, "💌"],
+    [/claritin|allergy|gummies|vitamin|supplement/, "💊"],
+    [/planner|notebook|journal/, "📒"],
+    [/scarf|silk|top|shirt|tank/, "👚"],
+    [/hat|fascinator|derby/, "🎩"],
+    [/roller|jade|gua sha/, "🪞"],
+    [/stove|fire|patio/, "🔥"],
+    [/bicycle|bike|tire/, "🚲"],
+    [/airfryer|fryer|ninja|cuisinart|toaster|crock|blender|coffee maker/, "🍳"],
+    [/mask|led mask/, "😷"],
+    [/projector|lamp|light/, "💡"],
+    [/sock|compression/, "🧦"],
+    [/selfie|monitor|vlog|mic|maybesta/, "📷"],
+    [/airtag|tracker/, "📍"],
+    [/lavalier|microphone/, "🎙️"],
+    [/tv|fire tv|chromecast|roku/, "📺"],
+    [/luggage|spinner|suitcase/, "🧳"],
+    [/power bank|charger|cable/, "🔋"],
+    [/tent|camping|coleman/, "⛺"],
+    [/kindle|book|reader/, "📖"],
+    [/mother/, "💝"]
+  ];
+  for (const [r, e] of rules) if (r.test(n)) return e;
+  return "🛒";
+}
+
+// Construit un search query Amazon à partir d'un nom : strip ponctuation,
+// max 80 chars (limite Amazon URL safe).
+function searchFromName(name) {
+  return String(name || "")
+    .replace(/[^A-Za-z0-9 ]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 80);
+}
+
 function htmlToText(html) {
   if (!html || typeof html !== "string") return "";
   return html
@@ -218,13 +323,28 @@ export async function GET(request) {
   const startedAt = Date.now();
   const newsletter = await getLatestNewsletter().catch(() => null);
 
-  // 1. Génération via Groq
+  // 1. PRIORITÉ : extraire les VRAIS noms Amazon de la newsletter HTML.
+  //    Le frontend matche les noms — si on hallucine via Groq, le store
+  //    ne matche pas la newsletter et la vitrine reste vide.
   let proposals;
-  try {
-    proposals = await generateProducts(newsletter);
-  } catch (err) {
-    console.error("cron/generate-products: groq failed:", err?.message);
-    return Response.json({ error: "groq failed", detail: err?.message }, { status: 500 });
+  let sourceUsed = "newsletter-extract";
+  const extracted = extractAmazonItemsFromNewsletter(newsletter?.html);
+  if (extracted.length >= 20) {
+    proposals = extracted.map((name) => ({
+      emoji: emojiForName(name),
+      name,
+      search: searchFromName(name)
+    }));
+  } else {
+    // 2. FALLBACK : newsletter manquante ou sans section AMAZON →
+    //    on demande à Groq de proposer des produits liés aux trends.
+    sourceUsed = "groq-fallback";
+    try {
+      proposals = await generateProducts(newsletter);
+    } catch (err) {
+      console.error("cron/generate-products: groq failed:", err?.message);
+      return Response.json({ error: "groq failed", detail: err?.message }, { status: 500 });
+    }
   }
 
   // 2. Scrape Amazon en concurrence limitée
@@ -281,6 +401,7 @@ export async function GET(request) {
     skippedSave,
     skippedReason: skippedSave
       ? `only ${withImage} images scraped, kept previous cache`
-      : null
+      : null,
+    sourceUsed
   });
 }
