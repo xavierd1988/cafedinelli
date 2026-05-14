@@ -116,7 +116,7 @@ export async function GET(request) {
       if (cached && cached.length > 0) {
         return Response.json({
           query: q,
-          items: cached.slice(0, 5),
+          items: cached.slice(0, 1),
           source: "cache",
           generatedAt: store.generatedAt
         });

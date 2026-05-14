@@ -51,7 +51,8 @@ export async function POST(request) {
     if (typeof keyword !== "string" || !Array.isArray(videos)) continue;
     const cleanKw = keyword.slice(0, 120).trim();
     if (!cleanKw) continue;
-    const cleanVids = videos.slice(0, 8).map(sanitizeVideo).filter((v) => v && v.videoId && v.title);
+    // On ne garde qu'une vidéo par trend — la popup n'affiche que la 1ère.
+    const cleanVids = videos.slice(0, 1).map(sanitizeVideo).filter((v) => v && v.videoId && v.title);
     if (cleanVids.length > 0) {
       trends[cleanKw] = cleanVids;
       kwCount++;
