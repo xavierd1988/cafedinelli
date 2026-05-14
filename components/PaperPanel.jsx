@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
 import TopicPopup from "./TopicPopup.jsx";
 import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
+import XTrendsPopup from "./XTrendsPopup.jsx";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -372,24 +373,28 @@ function enrichHtmlWithProductLinks(html, products) {
 
   walk(root);
 
-  // Marquage des rangées GOOGLE TRENDS : on tag chaque <tr> avec
-  // data-google-trend="keyword" → clic ouvre GoogleTrendsPopup avec
-  // les 5 derniers articles Google News du trend.
-  const googleHeaders = root.querySelectorAll("h2, h3, h4");
-  googleHeaders.forEach((h) => {
-    if (!/google\s+trends?/i.test(h.textContent || "")) return;
+  // Marquage des rangées GOOGLE TRENDS + X/TWITTER TRENDS. On parcourt
+  // une seule fois et on tag selon le matching header :
+  //   - section "Google Trends"   → data-google-trend (popup News)
+  //   - section "X" ou "Twitter"  → data-x-trend      (popup style X)
+  const trendHeaders = root.querySelectorAll("h2, h3, h4");
+  trendHeaders.forEach((h) => {
+    const text = (h.textContent || "").toLowerCase();
+    let attrName = null;
+    if (/google\s+trends?/.test(text)) attrName = "data-google-trend";
+    else if (/(^|\W)(x|twitter)\W.*trend/.test(text) || /trend.*(x|twitter)/.test(text)) attrName = "data-x-trend";
+    if (!attrName) return;
     let next = h.nextElementSibling;
     while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
-      if (tr.hasAttribute("data-google-trend")) return;
+      if (tr.hasAttribute(attrName)) return;
       const cells = tr.querySelectorAll(":scope > td");
       if (cells.length < 2) return;
       const raw = (cells[1].textContent || "").trim();
       const keyword = raw.split("—")[0].trim();
       if (!keyword || keyword.length < 2) return;
-      tr.setAttribute("data-google-trend", keyword);
-      // Curseur pointer + transition pour bien signaler "cliquable"
+      tr.setAttribute(attrName, keyword);
       tr.style.cursor = "pointer";
     });
   });
@@ -709,6 +714,7 @@ export default function PaperPanel() {
   // null si fermé. { topic, articleHref } si ouvert.
   const [topicPopup, setTopicPopup] = useState(null);
   const [googleTrend, setGoogleTrend] = useState(null);
+  const [xTrend, setXTrend] = useState(null);
 
   // Charge la newsletter du jour (postée par le script automatique).
   useEffect(() => {
@@ -938,8 +944,18 @@ export default function PaperPanel() {
               //   2. Lien non-Amazon (article source : NBC, Vogue, CNN,
               //      etc.) → on ouvre la TopicPopup avec 5 photos liées
               //      au topic + un bouton vers l'article original.
-              // 0. Rangée Google Trend (data-google-trend) → ouvre la popup
-              //    GoogleTrendsPopup avec les 5 derniers articles Google News.
+              // 0a. Rangée X / Twitter Trend → popup style X
+              const xRow = e.target.closest && e.target.closest("tr[data-x-trend]");
+              if (xRow) {
+                e.preventDefault();
+                e.stopPropagation();
+                const trend = (xRow.getAttribute("data-x-trend") || "").trim().slice(0, 120);
+                if (trend) setXTrend(trend);
+                return;
+              }
+
+              // 0b. Rangée Google Trend → ouvre la popup GoogleTrendsPopup
+              //    avec les 5 derniers articles Google News.
               const googleRow = e.target.closest && e.target.closest("tr[data-google-trend]");
               if (googleRow) {
                 e.preventDefault();
@@ -1065,6 +1081,12 @@ export default function PaperPanel() {
         <GoogleTrendsPopup
           trend={googleTrend}
           onClose={() => setGoogleTrend(null)}
+        />
+      )}
+      {xTrend && (
+        <XTrendsPopup
+          trend={xTrend}
+          onClose={() => setXTrend(null)}
         />
       )}
       {topicPopup && (
