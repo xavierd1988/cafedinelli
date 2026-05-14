@@ -3082,14 +3082,14 @@ button {
   position: relative;
 }
 .lb-shop-product:hover {
-  /* Zoom marqué au survol : la case explose visuellement vers le
-     spectateur. Pas d'animation au repos → l'effet est franc. */
-  transform: translateY(-2px) scale(1.6);
-  border-color: rgba(255, 240, 200, 1);
+  /* Zoom modéré + halo bleu froid au survol. Plus discret que la
+     version dorée précédente, mais clair quand on passe dessus. */
+  transform: translateY(-1px) scale(1.35);
+  border-color: rgba(140, 190, 255, 0.85);
   box-shadow:
-    inset 0 0 8px rgba(255, 200, 100, 0.5),
-    0 10px 30px rgba(0, 0, 0, 0.65),
-    0 0 32px rgba(255, 200, 100, 0.5);
+    inset 0 0 6px rgba(140, 190, 255, 0.3),
+    0 6px 18px rgba(0, 0, 0, 0.45),
+    0 0 22px rgba(80, 150, 255, 0.45);
   z-index: 50;
 }
 .lb-shop-product-emoji {
