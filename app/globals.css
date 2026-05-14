@@ -3219,33 +3219,34 @@ button {
   transition-delay: 220ms;
 }
 
-/* Cadre rouge spectaculaire sur le produit cliqué dans la newsletter.
-   Auto-disparaît ~3s + spotlight qui bloque le reste de la page. */
+/* Halo bleu spectaculaire sur le produit cliqué dans la newsletter.
+   Reprend la palette du hover bleu (rgba 80,150,255) mais amplifiée et
+   pulsée pour rester visible pendant les ~3s du spotlight. */
 .lb-shop-product.is-highlighted {
-  border-color: #ff2a1a !important;
-  outline: 4px solid #ff2a1a;
+  border-color: #6db7ff !important;
+  outline: 4px solid #3a9bff;
   outline-offset: 2px;
   box-shadow:
-    0 0 0 6px rgba(255, 60, 30, 0.55),
-    0 0 28px 12px rgba(255, 60, 30, 0.85),
-    0 0 60px 24px rgba(255, 60, 30, 0.45),
-    inset 0 0 16px rgba(255, 140, 80, 0.7);
-  animation: lb-shop-product-flash 0.7s ease-in-out infinite;
+    0 0 0 6px rgba(80, 150, 255, 0.55),
+    0 0 28px 12px rgba(80, 150, 255, 0.85),
+    0 0 60px 24px rgba(80, 150, 255, 0.45),
+    inset 0 0 16px rgba(160, 210, 255, 0.7);
+  animation: lb-shop-product-flash 0.9s ease-in-out infinite;
   z-index: 30;
   transform: scale(1.4);
 }
 .lb-shop-product.is-highlighted .lb-shop-product-emoji {
   font-size: 22px;
-  filter: drop-shadow(0 0 6px rgba(255, 60, 30, 0.9));
+  filter: drop-shadow(0 0 6px rgba(80, 150, 255, 0.9));
 }
 @keyframes lb-shop-product-flash {
   0%, 100% {
     transform: scale(1.4);
-    outline-color: #ff2a1a;
+    outline-color: #3a9bff;
   }
   50% {
     transform: scale(1.55);
-    outline-color: #ffe600;
+    outline-color: #b4dcff;
   }
 }
 
