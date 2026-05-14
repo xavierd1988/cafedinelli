@@ -3072,52 +3072,25 @@ button {
     0 1px 1px rgba(0, 0, 0, 0.35);
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
   overflow: hidden;
-  /* Animation respiration permanente : zoom marqué qui cycle.
-     Bien visible sans hover. */
-  animation: lb-shop-product-breathe 3s ease-in-out infinite;
+  /* Pas d'animation permanente. Les cases sont statiques au repos.
+     Seul le hover déclenche un gros zoom + glow. */
   transform-origin: center center;
   position: relative;
-}
-/* Délais staggered : chaque case d'une rangée pulse à un moment
-   différent, et chaque rangée décale aussi. Effet vague organique. */
-.lb-shop-product:nth-child(4n+1) { animation-delay: 0s;    }
-.lb-shop-product:nth-child(4n+2) { animation-delay: 0.4s;  }
-.lb-shop-product:nth-child(4n+3) { animation-delay: 0.8s;  }
-.lb-shop-product:nth-child(4n+4) { animation-delay: 1.2s;  }
-
-@keyframes lb-shop-product-breathe {
-  0%, 100% {
-    transform: scale(0.96);
-    box-shadow:
-      inset 0 0 4px rgba(0, 0, 0, 0.4),
-      0 1px 1px rgba(0, 0, 0, 0.35);
-    filter: brightness(0.92);
-  }
-  50% {
-    transform: scale(1.1);
-    box-shadow:
-      inset 0 0 12px rgba(255, 200, 100, 0.35),
-      0 4px 14px rgba(0, 0, 0, 0.55),
-      0 0 18px rgba(255, 200, 100, 0.3);
-    filter: brightness(1.08);
-    z-index: 3;
-  }
 }
 .lb-shop-product {
   /* Référentiel pour le popup absolute (preview au survol). */
   position: relative;
 }
 .lb-shop-product:hover {
-  /* On PAUSE l'animation de respiration et on fige sur un scale plus
-     marqué pour faire ressortir la case survolée. */
-  animation-play-state: paused;
-  transform: translateY(-1px) scale(1.12);
-  border-color: rgba(255, 240, 200, 0.95);
+  /* Zoom marqué au survol : la case explose visuellement vers le
+     spectateur. Pas d'animation au repos → l'effet est franc. */
+  transform: translateY(-2px) scale(1.6);
+  border-color: rgba(255, 240, 200, 1);
   box-shadow:
-    inset 0 0 6px rgba(255, 200, 100, 0.4),
-    0 4px 12px rgba(0, 0, 0, 0.55),
-    0 0 20px rgba(255, 200, 100, 0.25);
-  z-index: 5;
+    inset 0 0 8px rgba(255, 200, 100, 0.5),
+    0 10px 30px rgba(0, 0, 0, 0.65),
+    0 0 32px rgba(255, 200, 100, 0.5);
+  z-index: 50;
 }
 .lb-shop-product-emoji {
   font-size: 16px;
