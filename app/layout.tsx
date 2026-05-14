@@ -4,9 +4,13 @@ import AnalyticsEvents from "@/components/AnalyticsEvents";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.dinelliscafe.com"),
   title: "Dinelli's Café — The internet, freshly stocked every morning.",
   description:
     "A cinematic morning internet café for reading what matters online in five minutes.",
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export const viewport: Viewport = {
