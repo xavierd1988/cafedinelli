@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description:
     "A cinematic morning internet café for reading what matters online in five minutes.",
   alternates: {
-    canonical: "/",
+    canonical: "https://www.dinelliscafe.com/",
   },
 };
 
