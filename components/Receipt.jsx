@@ -40,6 +40,9 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
       form.reportValidity();
       return;
     }
+    trackEvent("email_signup", {
+      source: "receipt"
+    });
     trackEvent("newsletter_submit", {
       source: "receipt"
     });
