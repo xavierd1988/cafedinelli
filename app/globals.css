@@ -3072,23 +3072,36 @@ button {
     0 1px 1px rgba(0, 0, 0, 0.35);
   transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
   overflow: hidden;
-  /* Animation respiration permanente : zoom léger qui cycle. Donne de
-     la vie à la vitrine même sans interaction. Au hover, on PAUSE
-     l'animation et on applique le transform hover propre (cf bloc
-     plus bas). */
-  animation: lb-shop-product-breathe 4s ease-in-out infinite;
+  /* Animation respiration permanente : zoom marqué qui cycle.
+     Bien visible sans hover. */
+  animation: lb-shop-product-breathe 3s ease-in-out infinite;
   transform-origin: center center;
+  position: relative;
 }
-/* Délais staggered pour que les cases ne pulsent pas en sync — sinon
-   toute la vitrine bouge ensemble, l'effet est mécanique. */
+/* Délais staggered : chaque case d'une rangée pulse à un moment
+   différent, et chaque rangée décale aussi. Effet vague organique. */
 .lb-shop-product:nth-child(4n+1) { animation-delay: 0s;    }
-.lb-shop-product:nth-child(4n+2) { animation-delay: 0.9s;  }
-.lb-shop-product:nth-child(4n+3) { animation-delay: 1.7s;  }
-.lb-shop-product:nth-child(4n+4) { animation-delay: 2.6s;  }
+.lb-shop-product:nth-child(4n+2) { animation-delay: 0.4s;  }
+.lb-shop-product:nth-child(4n+3) { animation-delay: 0.8s;  }
+.lb-shop-product:nth-child(4n+4) { animation-delay: 1.2s;  }
 
 @keyframes lb-shop-product-breathe {
-  0%, 100% { transform: scale(1);    box-shadow: inset 0 0 4px rgba(0,0,0,0.4),     0 1px 1px rgba(0,0,0,0.35); }
-  50%      { transform: scale(1.04); box-shadow: inset 0 0 8px rgba(255,200,100,0.18), 0 3px 8px rgba(0,0,0,0.5); }
+  0%, 100% {
+    transform: scale(0.96);
+    box-shadow:
+      inset 0 0 4px rgba(0, 0, 0, 0.4),
+      0 1px 1px rgba(0, 0, 0, 0.35);
+    filter: brightness(0.92);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow:
+      inset 0 0 12px rgba(255, 200, 100, 0.35),
+      0 4px 14px rgba(0, 0, 0, 0.55),
+      0 0 18px rgba(255, 200, 100, 0.3);
+    filter: brightness(1.08);
+    z-index: 3;
+  }
 }
 .lb-shop-product {
   /* Référentiel pour le popup absolute (preview au survol). */
