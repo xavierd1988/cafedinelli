@@ -381,8 +381,11 @@ function enrichHtmlWithProductLinks(html, products) {
   trendHeaders.forEach((h) => {
     const text = (h.textContent || "").toLowerCase();
     let attrName = null;
-    if (/google\s+trends?/.test(text)) attrName = "data-google-trend";
-    else if (/(^|\W)(x|twitter)\W.*trend/.test(text) || /trend.*(x|twitter)/.test(text)) attrName = "data-x-trend";
+    // Section Google : "google trends" ou juste "google"
+    if (/\bgoogle\b/.test(text)) attrName = "data-google-trend";
+    // Section X/Twitter : "x / twitter", "twitter", ou "x " standalone.
+    // Le vrai header newsletter est "X / TWITTER — TOP 15".
+    else if (/\btwitter\b/.test(text) || /\bx\s*\/\s*twitter\b/.test(text) || /(^|\W)x\s*[\/—]/.test(text)) attrName = "data-x-trend";
     if (!attrName) return;
     let next = h.nextElementSibling;
     while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
