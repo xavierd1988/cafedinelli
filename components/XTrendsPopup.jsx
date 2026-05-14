@@ -1,125 +1,66 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 // =============================================================================
-// X TRENDS POPUP — option A : embed officiel X via widgets.js
+// X TRENDS POPUP — affiche 5 tweets scrapés sur "eye" pour un keyword X
 // =============================================================================
-// On charge platform.twitter.com/widgets.js et on crée une timeline
-// search via l'API window.twttr.widgets.createTimeline. C'est l'option
-// la plus "live" possible sans clé API.
+// Source : /api/x-tweets?q=KEYWORD qui lit le store Redis alimenté par
+// scrape_x.py (Playwright + compte loggué) sur "eye" chaque matin.
 //
-// Limites connues :
-//   - Adblockers / Safari Strict Tracking Prevention peuvent bloquer
-//     widgets.js (le widget reste alors vide).
-//   - X a deprecated les "search timelines" embed en 2023 ; certaines
-//     queries peuvent ne pas renvoyer de résultats.
-//
-// Fallback en cas d'échec (timeout 6s sans widget rendu) : bouton
-// direct "Open on X →" qui ouvre la page de recherche dans un onglet.
+// Si rien dans le cache (premier jour, scrape échoué) → fallback : bouton
+// direct vers x.com/search.
 // =============================================================================
 
-const WIDGETS_SRC = "https://platform.twitter.com/widgets.js";
+function timeAgo(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h}h`;
+  const days = Math.round(h / 24);
+  if (days < 7) return `${days}d`;
+  // Plus d'une semaine : date courte "May 10"
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
-function loadTwitterWidgets() {
-  return new Promise((resolve, reject) => {
-    if (typeof window === "undefined") {
-      reject(new Error("no window"));
-      return;
-    }
-    if (window.twttr && window.twttr.widgets) {
-      resolve(window.twttr);
-      return;
-    }
-    // Charge le script si pas déjà présent
-    let s = document.querySelector(`script[src="${WIDGETS_SRC}"]`);
-    if (!s) {
-      s = document.createElement("script");
-      s.src = WIDGETS_SRC;
-      s.async = true;
-      s.charset = "utf-8";
-      document.head.appendChild(s);
-    }
-    // Poll jusqu'à ce que window.twttr soit dispo (ou timeout 7s)
-    const start = Date.now();
-    const interval = setInterval(() => {
-      if (window.twttr && window.twttr.widgets) {
-        clearInterval(interval);
-        resolve(window.twttr);
-      } else if (Date.now() - start > 7000) {
-        clearInterval(interval);
-        reject(new Error("twttr load timeout"));
-      }
-    }, 150);
-  });
+function relGeneratedAt(ts) {
+  if (!ts) return "";
+  const diffMs = Date.now() - ts;
+  const h = Math.round(diffMs / 3_600_000);
+  if (h < 1) return "just now";
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return `${d}d ago`;
 }
 
 export default function XTrendsPopup({ trend, onClose }) {
-  const containerRef = useRef(null);
-  const [status, setStatus] = useState("loading"); // loading | ready | failed
+  const [items, setItems] = useState(null);
+  const [meta, setMeta] = useState({ generatedAt: null, stale: false });
+  const [err, setErr] = useState(null);
   const directSearchUrl = `https://x.com/search?q=${encodeURIComponent(trend)}&src=typed_query&f=live`;
 
   useEffect(() => {
     let cancelled = false;
-    setStatus("loading");
-
-    loadTwitterWidgets()
-      .then((twttr) => {
-        if (cancelled || !containerRef.current) return;
-        // Vide le container au cas où (re-render)
-        containerRef.current.innerHTML = "";
-        return twttr.widgets.createTimeline(
-          {
-            sourceType: "profile",
-            // Hack : pas d'API "search" pour createTimeline (deprecated).
-            // On utilise un widget de recherche manuel : on crée un
-            // <a class="twitter-timeline" href="..."> puis on demande à
-            // twttr.widgets.load() de le transformer.
-            screenName: "twitter"
-          },
-          containerRef.current,
-          { height: 520, theme: "dark", chrome: "noheader nofooter" }
-        );
-      })
-      .catch(() => {
+    setItems(null);
+    setErr(null);
+    fetch(`/api/x-tweets?q=${encodeURIComponent(trend)}`)
+      .then((r) => r.json())
+      .then((d) => {
         if (cancelled) return;
-        setStatus("failed");
+        setItems(Array.isArray(d?.items) ? d.items : []);
+        setMeta({ generatedAt: d?.generatedAt || null, stale: !!d?.stale });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setErr(e?.message || "network");
+        setItems([]);
       });
-
-    // Plan B simultané : insère un <a class="twitter-timeline"> pointant
-    // vers la search URL — c'est le pattern legacy qui marchait avant
-    // 2023. Si X le supporte encore pour le visiteur, le widget remplace
-    // automatiquement le <a> par l'iframe.
-    if (containerRef.current) {
-      containerRef.current.innerHTML = "";
-      const a = document.createElement("a");
-      a.className = "twitter-timeline";
-      a.setAttribute("data-theme", "dark");
-      a.setAttribute("data-chrome", "noheader nofooter transparent");
-      a.setAttribute("data-tweet-limit", "5");
-      a.setAttribute("data-height", "520");
-      a.href = `https://twitter.com/search?q=${encodeURIComponent(trend)}`;
-      a.textContent = `Tweets about ${trend}`;
-      containerRef.current.appendChild(a);
-
-      // Demande à twttr.widgets de scanner et transformer le <a>
-      loadTwitterWidgets()
-        .then((twttr) => {
-          if (cancelled) return;
-          twttr.widgets.load(containerRef.current);
-          // Vérifie après 6s si un iframe a été injecté
-          setTimeout(() => {
-            if (cancelled) return;
-            const iframe = containerRef.current?.querySelector("iframe");
-            setStatus(iframe ? "ready" : "failed");
-          }, 6000);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setStatus("failed");
-        });
-    }
-
     return () => { cancelled = true; };
   }, [trend]);
 
@@ -145,7 +86,14 @@ export default function XTrendsPopup({ trend, onClose }) {
         <div className="xtp-header">
           <div className="xtp-logo" aria-hidden="true">𝕏</div>
           <div className="xtp-trend-info">
-            <div className="xtp-trend-label">Live tweets</div>
+            <div className="xtp-trend-label">
+              Latest posts
+              {meta.generatedAt && (
+                <span className="xtp-freshness">
+                  · scraped {relGeneratedAt(meta.generatedAt)}
+                </span>
+              )}
+            </div>
             <div className="xtp-trend-name">{trend}</div>
           </div>
           <button
@@ -157,14 +105,21 @@ export default function XTrendsPopup({ trend, onClose }) {
         </div>
 
         <div className="xtp-body">
-          {status === "loading" && (
-            <div className="xtp-state">Loading live feed…</div>
+          {items === null && (
+            <div className="xtp-state">Loading tweets…</div>
           )}
-          {status === "failed" && (
+
+          {items !== null && items.length === 0 && (
             <div className="xtp-state">
-              <p>X widget unavailable.<br/><span style={{ opacity: 0.6, fontSize: 12 }}>
-                (X deprecated search-timeline embeds; adblockers also block widgets.js)
-              </span></p>
+              <p>
+                No tweets cached yet for this trend.
+                <br/>
+                <span style={{ opacity: 0.6, fontSize: 12 }}>
+                  {err
+                    ? "(network error)"
+                    : "Today's scrape may not have run yet — try the live link below."}
+                </span>
+              </p>
               <a
                 className="xtp-open-x"
                 href={directSearchUrl}
@@ -175,11 +130,49 @@ export default function XTrendsPopup({ trend, onClose }) {
               </a>
             </div>
           )}
-          <div
-            ref={containerRef}
-            className="xtp-timeline"
-            style={{ display: status === "ready" ? "block" : "none" }}
-          />
+
+          {items && items.length > 0 && items.map((t, i) => (
+            <a
+              key={i}
+              href={t.url || directSearchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="xtp-tweet"
+            >
+              <div className="xtp-tweet-avatar">
+                {t.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={t.avatar} alt="" loading="lazy" />
+                ) : (
+                  <div className="xtp-tweet-avatar-fallback">
+                    {(t.handle || "?").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <div className="xtp-tweet-body">
+                <div className="xtp-tweet-head">
+                  {t.name && <span className="xtp-tweet-name">{t.name}</span>}
+                  {t.handle && <span className="xtp-tweet-handle">@{t.handle}</span>}
+                  {t.date && (
+                    <>
+                      <span className="xtp-tweet-dot">·</span>
+                      <span className="xtp-tweet-date">{timeAgo(t.date)}</span>
+                    </>
+                  )}
+                </div>
+                {t.text && (
+                  <div className="xtp-tweet-text">{t.text}</div>
+                )}
+                {(t.likes || t.replies || t.reposts) && (
+                  <div className="xtp-tweet-stats">
+                    {t.replies && <span>💬 {t.replies}</span>}
+                    {t.reposts && <span>🔁 {t.reposts}</span>}
+                    {t.likes && <span>❤ {t.likes}</span>}
+                  </div>
+                )}
+              </div>
+            </a>
+          ))}
         </div>
 
         <a
@@ -188,7 +181,7 @@ export default function XTrendsPopup({ trend, onClose }) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Open on X →
+          See more on X →
         </a>
       </div>
 
@@ -245,6 +238,13 @@ export default function XTrendsPopup({ trend, onClose }) {
           text-transform: uppercase;
           font-weight: 600;
         }
+        .xtp-freshness {
+          text-transform: none;
+          letter-spacing: 0;
+          margin-left: 6px;
+          font-weight: 400;
+          color: #565a5e;
+        }
         .xtp-trend-name {
           font-size: 18px;
           font-weight: 700;
@@ -269,11 +269,13 @@ export default function XTrendsPopup({ trend, onClose }) {
           justify-content: center;
         }
         .xtp-close:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
         .xtp-body {
           flex: 1;
           overflow-y: auto;
-          padding: 0;
           min-height: 200px;
+          display: flex;
+          flex-direction: column;
         }
         .xtp-state {
           padding: 60px 24px;
@@ -284,6 +286,7 @@ export default function XTrendsPopup({ trend, onClose }) {
           align-items: center;
           gap: 18px;
           font-size: 14px;
+          margin: auto;
         }
         .xtp-open-x {
           display: inline-block;
@@ -297,14 +300,86 @@ export default function XTrendsPopup({ trend, onClose }) {
           transition: background 150ms ease;
         }
         .xtp-open-x:hover { background: #1a8cd8; }
-        .xtp-timeline {
-          padding: 0;
-          background: #000;
+
+        /* ----- Tweet card ----- */
+        .xtp-tweet {
+          display: flex;
+          gap: 12px;
+          padding: 14px 20px;
+          color: inherit;
+          text-decoration: none;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          transition: background 130ms ease;
         }
-        .xtp-timeline iframe {
-          width: 100% !important;
-          border: 0 !important;
+        .xtp-tweet:last-of-type { border-bottom: 0; }
+        .xtp-tweet:hover { background: rgba(255, 255, 255, 0.03); }
+
+        .xtp-tweet-avatar {
+          width: 44px;
+          height: 44px;
+          flex-shrink: 0;
+          border-radius: 50%;
+          overflow: hidden;
+          background: #2f3336;
         }
+        .xtp-tweet-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .xtp-tweet-avatar-fallback {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-weight: 700;
+          font-size: 18px;
+          background: linear-gradient(135deg, #1d9bf0 0%, #0a5dab 100%);
+        }
+
+        .xtp-tweet-body { flex: 1; min-width: 0; }
+        .xtp-tweet-head {
+          display: flex;
+          align-items: baseline;
+          gap: 5px;
+          flex-wrap: wrap;
+          margin-bottom: 4px;
+          font-size: 14px;
+          line-height: 1.2;
+        }
+        .xtp-tweet-name {
+          font-weight: 700;
+          color: #e7e9ea;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          max-width: 200px;
+        }
+        .xtp-tweet-handle, .xtp-tweet-dot, .xtp-tweet-date {
+          color: #71767b;
+          font-weight: 400;
+        }
+        .xtp-tweet-text {
+          font-size: 14px;
+          line-height: 1.4;
+          color: #e7e9ea;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+          margin-bottom: 6px;
+        }
+        .xtp-tweet-stats {
+          display: flex;
+          gap: 18px;
+          font-size: 12px;
+          color: #71767b;
+          margin-top: 6px;
+        }
+        .xtp-tweet-stats span { display: flex; align-items: center; gap: 4px; }
+
         .xtp-see-more {
           padding: 12px 20px;
           text-align: center;
