@@ -8,9 +8,6 @@ export const metadata: Metadata = {
   title: "Dinelli's Café — The internet, freshly stocked every morning.",
   description:
     "A cinematic morning internet café for reading what matters online in five minutes.",
-  alternates: {
-    canonical: "https://www.dinelliscafe.com/",
-  },
 };
 
 export const viewport: Viewport = {
@@ -30,8 +27,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
 
   return (
     <html lang="en">
-      {gtmId && (
-        <head>
+      <head>
+        <link rel="canonical" href="https://www.dinelliscafe.com/" />
+        {gtmId && (
           <script
             dangerouslySetInnerHTML={{
               __html:
@@ -42,8 +40,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
                 `})(window,document,'script','dataLayer','${gtmId}');`
             }}
           />
-        </head>
-      )}
+        )}
+      </head>
       <body>
         {gtmId && (
           <noscript>
