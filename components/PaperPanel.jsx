@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
 import TopicPopup from "./TopicPopup.jsx";
+import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
 
 function formatDate(iso) {
   if (!iso) return "";
@@ -371,6 +372,28 @@ function enrichHtmlWithProductLinks(html, products) {
 
   walk(root);
 
+  // Marquage des rangées GOOGLE TRENDS : on tag chaque <tr> avec
+  // data-google-trend="keyword" → clic ouvre GoogleTrendsPopup avec
+  // les 5 derniers articles Google News du trend.
+  const googleHeaders = root.querySelectorAll("h2, h3, h4");
+  googleHeaders.forEach((h) => {
+    if (!/google\s+trends?/i.test(h.textContent || "")) return;
+    let next = h.nextElementSibling;
+    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
+    if (!next) return;
+    next.querySelectorAll("tr").forEach((tr) => {
+      if (tr.hasAttribute("data-google-trend")) return;
+      const cells = tr.querySelectorAll(":scope > td");
+      if (cells.length < 2) return;
+      const raw = (cells[1].textContent || "").trim();
+      const keyword = raw.split("—")[0].trim();
+      if (!keyword || keyword.length < 2) return;
+      tr.setAttribute("data-google-trend", keyword);
+      // Curseur pointer + transition pour bien signaler "cliquable"
+      tr.style.cursor = "pointer";
+    });
+  });
+
   // Marquage des rangées Amazon Top 15 :
   //   1. Attribut data-amazon-product sur la <tr> → rangée cliquable.
   //   2. Bouton visuel "Buy it" injecté dans chaque rangée — c'est un
@@ -685,6 +708,7 @@ export default function PaperPanel() {
   // Popup ouvert quand on clique sur un lien non-Amazon dans la newsletter.
   // null si fermé. { topic, articleHref } si ouvert.
   const [topicPopup, setTopicPopup] = useState(null);
+  const [googleTrend, setGoogleTrend] = useState(null);
 
   // Charge la newsletter du jour (postée par le script automatique).
   useEffect(() => {
@@ -914,6 +938,17 @@ export default function PaperPanel() {
               //   2. Lien non-Amazon (article source : NBC, Vogue, CNN,
               //      etc.) → on ouvre la TopicPopup avec 5 photos liées
               //      au topic + un bouton vers l'article original.
+              // 0. Rangée Google Trend (data-google-trend) → ouvre la popup
+              //    GoogleTrendsPopup avec les 5 derniers articles Google News.
+              const googleRow = e.target.closest && e.target.closest("tr[data-google-trend]");
+              if (googleRow) {
+                e.preventDefault();
+                e.stopPropagation();
+                const trend = (googleRow.getAttribute("data-google-trend") || "").trim().slice(0, 120);
+                if (trend) setGoogleTrend(trend);
+                return;
+              }
+
               // 1. Rangée Amazon (data-amazon-product) → highlight produit
               //    dans la vitrine + slide paper vers la droite. PAS de lien
               //    hypertexte vers Amazon : juste un surlignage visuel.
@@ -1026,6 +1061,12 @@ export default function PaperPanel() {
       {/* Popup ouvert au clic sur un lien d'article (non-Amazon) dans la
           newsletter : 5 photos d'un produit Amazon lié au topic + lien
           vers l'article source. */}
+      {googleTrend && (
+        <GoogleTrendsPopup
+          trend={googleTrend}
+          onClose={() => setGoogleTrend(null)}
+        />
+      )}
       {topicPopup && (
         <TopicPopup
           topic={topicPopup.topic}
