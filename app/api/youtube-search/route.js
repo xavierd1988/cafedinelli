@@ -1,24 +1,20 @@
 // =============================================================================
 // /api/youtube-search?q=keyword
 // =============================================================================
-// Cherche la première vidéo YouTube pour un keyword. Pas d'API key —
-// on scrape la page youtube.com/results et on extrait le premier
-// videoRenderer du JSON `var ytInitialData = {...};` injecté dans le HTML.
+// 1. Lit d'abord le cache Redis (alimenté par scrape_youtube.py sur eye,
+//    cron 09:33). Si trouvé → renvoie jusqu'à 5 vidéos.
+// 2. Fallback live : scrape youtube.com/results et extrait la 1ère vidéo.
 //
-// Retourne : { videoId, title, channel, thumbnail, durationText }
-//
-// Utilisé par YouTubePopup : quand on clique une rangée YouTube dans
-// la newsletter, on fetch ici puis on affiche l'iframe embed officiel.
+// Retourne : { query, items: [{videoId, title, channel, thumbnail, ...}] }
 // =============================================================================
 
-export const revalidate = 1800; // 30 min cache CDN
+import { getCachedYoutube, findVideosForKeyword } from "../../../lib/youtubeStore.js";
+
+export const revalidate = 600; // 10 min cache CDN
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 " +
            "(KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 
-// Trouve le premier vidéoRenderer dans un arbre JSON YouTube (récursif).
-// Le path peut varier — on cherche la 1ère clé "videoRenderer" qui a un
-// videoId valide (11 chars alphanum + - + _).
 function findFirstVideo(node, found) {
   if (!node || typeof node !== "object" || found.value) return;
   if (Array.isArray(node)) {
@@ -52,7 +48,6 @@ function textFromRuns(obj) {
 function bestThumb(v) {
   const thumbs = v?.thumbnail?.thumbnails;
   if (!Array.isArray(thumbs) || thumbs.length === 0) return null;
-  // Prend la plus large
   let best = thumbs[0];
   for (const t of thumbs) {
     if ((t?.width || 0) > (best?.width || 0)) best = t;
@@ -60,13 +55,7 @@ function bestThumb(v) {
   return best?.url || null;
 }
 
-export async function GET(request) {
-  const url = new URL(request.url);
-  const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
-  if (!q) {
-    return Response.json({ error: "missing q" }, { status: 400 });
-  }
-
+async function fetchLiveFirst(q) {
   const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
   let html;
   try {
@@ -78,45 +67,30 @@ export async function GET(request) {
       },
       signal: AbortSignal.timeout(8000)
     });
-    if (!r.ok) {
-      return Response.json({ error: `http ${r.status}`, items: [] }, { status: 200 });
-    }
+    if (!r.ok) return [];
     html = await r.text();
-  } catch (e) {
-    return Response.json({ error: e?.message || "fetch failed", items: [] }, { status: 200 });
+  } catch {
+    return [];
   }
 
-  // Le JSON est injecté juste après `var ytInitialData = `. Le bloc
-  // se termine par `};</script>` (ou `};` + ws). On extrait jusqu'au
-  // `};` non escapé.
   const startMarker = "var ytInitialData = ";
   const idx = html.indexOf(startMarker);
-  if (idx < 0) {
-    return Response.json({ error: "no ytInitialData", items: [] }, { status: 200 });
-  }
+  if (idx < 0) return [];
   const after = html.slice(idx + startMarker.length);
-  // Trouve la fin du JSON : `};` suivi de </script> ou nouvelle ligne
   const endMatch = after.match(/};\s*<\/script>|};\s*\n/);
-  if (!endMatch) {
-    return Response.json({ error: "ytInitialData unterminated", items: [] }, { status: 200 });
-  }
+  if (!endMatch) return [];
   const jsonStr = after.slice(0, endMatch.index + 1);
 
   let data;
-  try {
-    data = JSON.parse(jsonStr);
-  } catch (e) {
-    return Response.json({ error: "json parse: " + e.message, items: [] }, { status: 200 });
-  }
+  try { data = JSON.parse(jsonStr); }
+  catch { return []; }
 
   const found = { value: null };
   findFirstVideo(data, found);
-  if (!found.value) {
-    return Response.json({ query: q, items: [] });
-  }
+  if (!found.value) return [];
 
   const v = found.value;
-  const item = {
+  return [{
     videoId: v.videoId,
     title: textFromRuns(v.title),
     channel: textFromRuns(v.ownerText) || textFromRuns(v.longBylineText) || "",
@@ -124,7 +98,35 @@ export async function GET(request) {
     durationText: textFromRuns(v.lengthText) || "",
     publishedText: textFromRuns(v.publishedTimeText) || "",
     viewsText: textFromRuns(v.shortViewCountText) || textFromRuns(v.viewCountText) || ""
-  };
+  }];
+}
 
-  return Response.json({ query: q, items: [item] });
+export async function GET(request) {
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
+  if (!q) {
+    return Response.json({ error: "missing q" }, { status: 400 });
+  }
+
+  // 1) Cache Redis : alimenté chaque matin par scrape_youtube.py sur eye.
+  try {
+    const store = await getCachedYoutube();
+    if (store) {
+      const cached = findVideosForKeyword(store, q);
+      if (cached && cached.length > 0) {
+        return Response.json({
+          query: q,
+          items: cached.slice(0, 5),
+          source: "cache",
+          generatedAt: store.generatedAt
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("youtube-search cache read:", err?.message || err);
+  }
+
+  // 2) Fallback live.
+  const items = await fetchLiveFirst(q);
+  return Response.json({ query: q, items, source: "live" });
 }

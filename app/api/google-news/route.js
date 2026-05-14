@@ -1,16 +1,17 @@
 // =============================================================================
 // /api/google-news?q=keyword
 // =============================================================================
-// Récupère les 5 derniers articles Google News pour un mot-clé.
-// Source : flux RSS Google News (gratuit, pas d'API key).
-// Format : `https://news.google.com/rss/search?q=...&hl=en-US&gl=US`
+// Retourne les 5 derniers articles Google News pour un mot-clé.
 //
-// Utilisé par GoogleTrendsPopup : quand on clique sur une rangée
-// Google Trends dans la newsletter, on affiche les 5 derniers articles
-// liés au trend avec leurs liens directs.
+// 1. Lit d'abord le cache Redis alimenté par scrape_google.py sur "eye"
+//    (cron 09:32). Si trouvé → renvoie instantanément.
+// 2. Fallback live : fetch RSS Google News si pas en cache (premier jour,
+//    scrape échoué, ou keyword absent du cache).
 // =============================================================================
 
-export const revalidate = 600; // cache 10 min côté Vercel
+import { getCachedGoogleNews, findNewsForKeyword } from "../../../lib/googleNewsStore.js";
+
+export const revalidate = 300; // 5 min cache CDN
 
 function decodeHtmlEntities(s) {
   if (!s) return "";
@@ -35,13 +36,7 @@ function pickTag(itemXml, tag) {
   return m ? decodeHtmlEntities(stripCdata(m[1])) : "";
 }
 
-export async function GET(request) {
-  const url = new URL(request.url);
-  const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
-  if (!q) {
-    return Response.json({ error: "missing q" }, { status: 400 });
-  }
-
+async function fetchLiveRss(q) {
   const rssUrl =
     `https://news.google.com/rss/search?q=${encodeURIComponent(q)}` +
     `&hl=en-US&gl=US&ceid=US:en`;
@@ -55,15 +50,12 @@ export async function GET(request) {
       },
       signal: AbortSignal.timeout(7000)
     });
-    if (!r.ok) {
-      return Response.json({ items: [], error: `rss http ${r.status}` }, { status: 200 });
-    }
+    if (!r.ok) return [];
     xml = await r.text();
-  } catch (e) {
-    return Response.json({ items: [], error: e?.message || "fetch failed" }, { status: 200 });
+  } catch {
+    return [];
   }
 
-  // Parse les <item> du RSS — max 5
   const items = [];
   const re = /<item>([\s\S]*?)<\/item>/g;
   let m;
@@ -77,6 +69,35 @@ export async function GET(request) {
       items.push({ title, link, source, pubDate });
     }
   }
+  return items;
+}
 
-  return Response.json({ query: q, items });
+export async function GET(request) {
+  const url = new URL(request.url);
+  const q = (url.searchParams.get("q") || "").trim().slice(0, 200);
+  if (!q) {
+    return Response.json({ error: "missing q" }, { status: 400 });
+  }
+
+  // 1) Cache Redis : alimenté chaque matin par scrape_google.py sur eye.
+  try {
+    const store = await getCachedGoogleNews();
+    if (store) {
+      const cached = findNewsForKeyword(store, q);
+      if (cached && cached.length > 0) {
+        return Response.json({
+          query: q,
+          items: cached.slice(0, 5),
+          source: "cache",
+          generatedAt: store.generatedAt
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("google-news cache read:", err?.message || err);
+  }
+
+  // 2) Fallback live : RSS Google News.
+  const items = await fetchLiveRss(q);
+  return Response.json({ query: q, items, source: "live" });
 }
