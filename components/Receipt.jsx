@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { useSceneScale } from "./useSceneScale.js";
+import { trackEvent } from "../lib/analytics.js";
 
 // Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
 const MODE_META = {
@@ -31,6 +32,18 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
     window.addEventListener("radio-state", handler);
     return () => window.removeEventListener("radio-state", handler);
   }, []);
+
+  function handleNewsletterSubmit(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    trackEvent("newsletter_submit", {
+      source: "receipt"
+    });
+  }
 
   return (
     <section
@@ -70,7 +83,7 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
           )}
         </div>
       )}
-      <form onSubmit={(event) => event.preventDefault()}>
+      <form onSubmit={handleNewsletterSubmit}>
         <input aria-label="Email address" placeholder="name@example.com" type="email" />
         <button type="submit">Get tomorrow’s paper</button>
       </form>

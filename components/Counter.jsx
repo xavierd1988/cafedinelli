@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Seat from "./Seat.jsx";
+import { trackEvent } from "../lib/analytics.js";
 
 export default function Counter({ seats, onDragStart, onResizeStart, transform, isDragging }) {
   const [occupiedIds, setOccupiedIds] = useState(() => new Set());
@@ -23,6 +24,12 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
   const count = occupiedIds.size;
   const total = seats.length;
   const isFull = count === total;
+
+  useEffect(() => {
+    trackEvent("counter_view", {
+      seat_total: total
+    });
+  }, [total]);
 
   return (
     <section

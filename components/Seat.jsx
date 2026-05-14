@@ -6,6 +6,7 @@ import { registerBubble, unregisterBubble } from "./bubbleManager.js";
 import { useNickname } from "./NicknameContext.jsx";
 import { getPersona, subscribePersona } from "../lib/personaStore.js";
 import { getMySeat, setMySeat } from "../lib/mySeat.js";
+import { trackEvent } from "../lib/analytics.js";
 
 // Le seat est verrouillé 2 minutes (côté serveur ET client). Pendant tout
 // ce temps la bulle reste visible — elle ne disparaît qu'au départ de la
@@ -196,6 +197,16 @@ export default function Seat({ seat }) {
     const isMine = mySeatId === id;
     const isAnotherSeatTaken = mySeatId !== null && !isMine;
     const isRemoteOccupied = showPerson && lastSourceRef.current === "remote";
+    trackEvent("counter_seat_click", {
+      seat_id: id,
+      seat_status: isRemoteOccupied
+        ? "remote_occupied"
+        : isAnotherSeatTaken
+        ? "other_local_seat_active"
+        : isMine && showPerson
+        ? "own_seat_active"
+        : "available"
+    });
 
     // Tabouret occupé par quelqu'un d'autre, ou je suis assis ailleurs : rien.
     if (isAnotherSeatTaken || isRemoteOccupied) {
@@ -316,6 +327,12 @@ export default function Seat({ seat }) {
         const data = await res.json().catch(() => null);
         if (data?.entry?.timestamp) {
           lastSeenTimestampRef.current = data.entry.timestamp;
+        }
+        if (res.ok) {
+          trackEvent("counter_message_submit", {
+            seat_id: id,
+            source: "counter"
+          });
         }
       })
       .catch(() => {});

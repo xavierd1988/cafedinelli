@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { trackAffiliateClick, trackEvent } from "../lib/analytics.js";
 import TopicPopup from "./TopicPopup.jsx";
 import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
 import XTrendsPopup from "./XTrendsPopup.jsx";
@@ -200,6 +201,11 @@ const insights = [
 // Highlight {tokens} as colored badges in body text
 function fireProductClick(label) {
   if (typeof window === "undefined") return;
+  trackAffiliateClick({
+    productName: label,
+    destinationUrl: amazonSearchUrl(label),
+    source: "paper"
+  });
   try {
     window.dispatchEvent(new CustomEvent("product_clicked", { detail: { name: label } }));
     // Tout clic sur un lien Amazon (inline ou flèche) rétracte le journal
@@ -671,6 +677,7 @@ const MIN_HEIGHT = 280;
 
 export default function PaperPanel() {
   const init = getModulePosition("PaperPanel");
+  const paperScrollTrackedRef = useRef(false);
   const [offset, setOffset] = useState(init.offset);
   const [size, setSize] = useState(init.size);
   const [dragging, setDragging] = useState(false);
@@ -775,6 +782,12 @@ export default function PaperPanel() {
     ? enrichHtmlWithProductLinks(newsletter.html, products)
     : null;
 
+  useEffect(() => {
+    trackEvent("paper_open", {
+      source: "panel_mount"
+    });
+  }, []);
+
   function getScale() {
     return Math.min(window.innerWidth / 1600, window.innerHeight / 900) || 1;
   }
@@ -840,6 +853,19 @@ export default function PaperPanel() {
     window.addEventListener("pointerup", handleUp);
   }
 
+  function handlePaperScroll(e) {
+    if (paperScrollTrackedRef.current) return;
+    const el = e.currentTarget;
+    if (!el || el.scrollHeight <= el.clientHeight) return;
+    const depth = (el.scrollTop + el.clientHeight) / el.scrollHeight;
+    if (depth >= 0.75) {
+      paperScrollTrackedRef.current = true;
+      trackEvent("paper_scroll_75", {
+        source: "paper_panel"
+      });
+    }
+  }
+
   // Slide quasi total moins 2mm (~7.56px) pour laisser un peu de
   // paper visible à droite.
   const SHOP_SLIDE_X = Math.max(900, size.width) - 7.56;
@@ -881,6 +907,7 @@ export default function PaperPanel() {
           onClick={() => {
             if (shopMode) {
               setShopMode(false);
+              trackEvent("paper_open", { source: "shop_toggle_back" });
               try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
             } else {
               openShelf("toggle");
@@ -925,6 +952,7 @@ export default function PaperPanel() {
             onClick={() => {
               if (shopMode) {
                 setShopMode(false);
+                trackEvent("paper_open", { source: "masthead_back" });
                 try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
               } else {
                 openShelf("toggle");
@@ -938,7 +966,7 @@ export default function PaperPanel() {
         </div>
       </header>
 
-      <div className="paper-scroll">
+      <div className="paper-scroll" onScroll={handlePaperScroll}>
         <div className="paper-scroll-content">
         {newsletter ? (
           <div

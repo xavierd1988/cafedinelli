@@ -15,6 +15,7 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
+import { trackAffiliateClick, trackEvent } from "../lib/analytics.js";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -428,6 +429,17 @@ function LeftBuilding() {
   const motosProducts   = products.slice(18, 30);
 
   function trackClick(p) {
+    trackEvent("shelf_product_click", {
+      product_id: p.id,
+      product_name: p.name,
+      source: "left_building_shelf"
+    });
+    trackAffiliateClick({
+      productId: p.id,
+      productName: p.name,
+      destinationUrl: p.amazonUrl,
+      source: "left_building_shelf"
+    });
     try {
       window.dispatchEvent(new CustomEvent("product_clicked", {
         detail: { id: p.id, name: p.name }
