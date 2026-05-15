@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { pickTrendName } from "../lib/newsletterParse.js";
 import {
   trackAffiliateClick,
   trackEvent,
@@ -410,14 +411,13 @@ function enrichHtmlWithProductLinks(html, products) {
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
       if (tr.hasAttribute(attrName)) return;
+      // Nom du trend trouvé par contenu (parser robuste) — voir
+      // lib/newsletterParse.js. Résiste aux changements de structure.
       const cells = tr.querySelectorAll(":scope > td");
       if (cells.length < 1) return;
-      // Newsletter mai 2026 : td[0] = "N. Nom du trend", td[1] = stats.
-      // On lit td[0] et on retire le préfixe de rang.
-      const raw = (cells[0].textContent || "")
-        .trim()
-        .replace(/^\s*\d+\s*[.):\-]\s*/, "");
-      const keyword = raw.split("—")[0].trim();
+      const keyword = pickTrendName(
+        [...cells].map((c) => c.textContent || "")
+      );
       if (!keyword || keyword.length < 2) return;
       tr.setAttribute(attrName, keyword);
       tr.style.cursor = "pointer";
@@ -440,16 +440,13 @@ function enrichHtmlWithProductLinks(html, products) {
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
       if (tr.hasAttribute("data-amazon-product")) return;
-      // Structure newsletter (mai 2026) :
-      //   <td><strong>N.</strong> Apple AirPods 4 — description</td> ← rang + NOM
-      //   <td>#1 Electronics</td>                                   ← stats
-      // On lit td[0], on retire le préfixe de rang "N.", on coupe au "—".
+      // Nom du produit trouvé par contenu (parser robuste) — voir
+      // lib/newsletterParse.js. Résiste aux changements de structure.
       const cells = tr.querySelectorAll(":scope > td");
       if (cells.length < 1) return;
-      const rawKeyword = (cells[0].textContent || "")
-        .trim()
-        .replace(/^\s*\d+\s*[.):\-]\s*/, "");
-      const keyword = rawKeyword.split("—")[0].trim();
+      const keyword = pickTrendName(
+        [...cells].map((c) => c.textContent || "")
+      );
       if (!keyword || keyword.length < 3) return;
       tr.setAttribute("data-amazon-product", keyword);
 

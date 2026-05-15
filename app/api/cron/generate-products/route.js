@@ -22,6 +22,7 @@
 import { askGroq } from "../../../../lib/groqClient.js";
 import { getLatestNewsletter } from "../../../../lib/newsletterStore.js";
 import { saveDailyProducts, getCachedDailyProducts } from "../../../../lib/dailyProductsStore.js";
+import { pickTrendName } from "../../../../lib/newsletterParse.js";
 
 // On limite la durée totale à ~50s : Vercel cron timeout généreux mais
 // garde de la marge. 30 produits × 1.5s scraping = 45s.
@@ -88,19 +89,17 @@ function extractAmazonItemsFromNewsletter(html) {
     for (const row of rowMatches) {
       const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)];
       if (tds.length < 1) continue;
-      // Newsletter mai 2026 : td[0] = "N. Nom du produit", td[1] = stats.
-      // (Ancien format : td[0] = rang, td[1] = nom.) On lit td[0], on
-      // retire le préfixe de rang "N." / "N)" / "N -".
-      let raw = tds[0][1]
-        .replace(/<[^>]+>/g, "")
-        .replace(/&amp;/g, "&")
-        .replace(/&nbsp;/g, " ")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-      raw = raw.replace(/^\s*\d+\s*[.):\-]\s*/, "");
-      // Le format est typiquement "Nom du produit — description courte"
-      let name = raw.split("—")[0].trim();
-      name = name.replace(/\s+/g, " ");
+      // Nom du produit trouvé par contenu (parser robuste) — voir
+      // lib/newsletterParse.js. Résiste aux changements de structure.
+      const cellTexts = tds.map((mm) =>
+        mm[1]
+          .replace(/<[^>]+>/g, "")
+          .replace(/&amp;/g, "&")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+      );
+      const name = pickTrendName(cellTexts);
       if (!name || name.length < 3) continue;
       const key = name.toLowerCase();
       if (seen.has(key)) continue;

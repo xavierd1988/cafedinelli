@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
+import { pickTrendName } from "../lib/newsletterParse.js";
 import { getEditMode, setEditMode, useEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
@@ -248,15 +249,13 @@ function LeftBuilding() {
           //     <td><strong>N.</strong> Apple AirPods 4 — earbuds</td> <- rang + NOM
           //     <td>2M+ searches</td>                                  <- stats
           //   </tr>
-          // Newsletter mai 2026 : le NOM est dans la 1re <td>, préfixé
-          // par le rang ("N."). On retire ce préfixe.
+          // Le nom est trouvé par contenu (parser robuste, voir
+          // lib/newsletterParse.js) — résiste aux changements de structure.
           const cells = tr.querySelectorAll(":scope > td");
           if (cells.length < 1) return;
-          const rawName = (cells[0].textContent || "")
-            .trim()
-            .replace(/^\s*\d+\s*[.):\-]\s*/, "");
-          // Coupe à un éventuel séparateur "—" (description après le nom)
-          const name = rawName.split("—")[0].trim();
+          const name = pickTrendName(
+            [...cells].map((c) => c.textContent || "")
+          );
           if (!name || name.length < 3) return;
           out.push({
             id: `nl-${out.length}`,
