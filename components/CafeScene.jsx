@@ -15,7 +15,7 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
-import { trackAffiliateClick, trackEvent } from "../lib/analytics.js";
+import { trackAffiliateClick, trackEvent, trackMetaEvent } from "../lib/analytics.js";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -323,6 +323,14 @@ function LeftBuilding() {
     window.addEventListener("cafe-shop-mode-change", handler);
     return () => window.removeEventListener("cafe-shop-mode-change", handler);
   }, []);
+
+  useEffect(() => {
+    if (!shopMode) return;
+    trackMetaEvent("track", "ViewContent", {
+      content_name: "On the Shelf",
+      content_category: "Shelf"
+    });
+  }, [shopMode]);
 
   // Highlight : matche le nom reçu de la newsletter contre nos produits.
   // Match fuzzy : on cherche le produit dont le nom partage le plus de
