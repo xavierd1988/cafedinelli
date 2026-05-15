@@ -18,33 +18,41 @@ When everything is aligned, all four popups (Amazon highlight, Google News, YouT
 
 ## Timing (Eastern time)
 
+The source newsletter typically arrives via webhook **around 09:49 EDT**
+(it's a morning briefing that covers the previous day, titled "Wednesday"
+on Thursday for example). The entire pipeline runs **after** that to
+ensure today's content is in Redis.
+
 ```
-09:00 EDT  /api/cron/generate-products fires on Vercel (cron 13:00 UTC)
-           ─ reads newsletter from Redis
-           ─ EXTRACTS the 30 Amazon names directly from the newsletter HTML
-             (sections AMAZON BEST SELLERS + AMAZON MOVERS & SHAKERS)
-           ─ if newsletter is missing or has no AMAZON section, falls back
-             to Groq hallucination — names may not match the visible newsletter
-           ─ tries to scrape Amazon from Vercel IP → usually blocked,
-             so withImage=0 most of the time
-           ─ saves to Redis (skipped if <5 images AND no ?force=1)
+~09:49 EDT  Newsletter arrives via webhook → POST /api/newsletter
+            Stored in Redis under newsletter:latest.
 
-09:15 EDT  scrape_morning.py on eye (LaunchAgent)
-           ─ retries newsletter fetch up to 3× with 60s between (Vercel
-             may still be deploying)
-           ─ scrapes Amazon from residential IP — much higher success
-           ─ POSTS to /api/cron/update-products → REPLACES the store
+10:00 EDT   /api/cron/generate-products fires on Vercel (cron 14:00 UTC)
+            ─ reads newsletter from Redis
+            ─ EXTRACTS the 30 Amazon names directly from the newsletter HTML
+              (sections AMAZON BEST SELLERS + AMAZON MOVERS & SHAKERS)
+            ─ if newsletter is missing or has no AMAZON section, falls back
+              to Groq hallucination — names may not match the visible newsletter
+            ─ tries to scrape Amazon from Vercel IP → usually blocked,
+              so withImage=0 most of the time
+            ─ saves to Redis (skipped if <5 images AND no ?force=1)
 
-09:17 EDT  scrape_google.py on eye → fills cafe:google:news:daily
-09:18 EDT  scrape_youtube.py on eye → fills cafe:youtube:daily
-09:20 EDT  scrape_x.py on eye → fills cafe:x:tweets:daily (needs
-           x_storage_state.json with logged-in cookies)
+10:15 EDT   scrape_morning.py on eye (LaunchAgent)
+            ─ retries newsletter fetch up to 3× with 60s between (Vercel
+              may still be deploying)
+            ─ scrapes Amazon from residential IP — much higher success
+            ─ POSTS to /api/cron/update-products → REPLACES the store
 
-10:00, 10:15, 10:30, 10:45, 11:00 EDT
-           scrape_retry on eye — re-scrapes products that have no image
-           (Amazon sometimes 503s on first try)
+10:17 EDT   scrape_google.py on eye → fills cafe:google:news:daily
+10:18 EDT   scrape_youtube.py on eye → fills cafe:youtube:daily
+10:20 EDT   scrape_x.py on eye → fills cafe:x:tweets:daily (needs
+            x_storage_state.json with logged-in cookies)
 
-11:32 EDT  Claude scheduled task — reports on the morning's state
+10:45, 11:00, 11:15, 11:30, 11:45 EDT
+            scrape_retry on eye — re-scrapes products that have no image
+            (Amazon sometimes 503s on first try)
+
+12:00 EDT   Claude scheduled task — reports on the morning's state
 ```
 
 ---
@@ -71,7 +79,8 @@ When everything is aligned, all four popups (Amazon highlight, Google News, YouT
 **Fixes applied:**
 - `/api/cron/generate-products` now **extracts names directly from the newsletter** HTML (first), and only falls back to Groq if there's no AMAZON section. Same logic as `scrape_morning.py`.
 - `scrape_morning.py`, `scrape_google.py`, `scrape_youtube.py` now **retry the newsletter fetch 3×** with 60s between attempts, instead of failing on the first error.
-- Eye LaunchAgents moved from 09:05/07/08/10 to **09:15/17/18/20** — 15 min margin after the Vercel cron.
+- **Vercel cron moved from 13:00 UTC (09:00 EDT) to 14:00 UTC (10:00 EDT)** so it fires *after* the daily newsletter webhook arrival (typically ~09:49 EDT).
+- **Eye LaunchAgents shifted by +1h** — main scrapes now at 10:15–10:20, retries at 10:45–11:45. This guarantees today's newsletter is in Redis before any scrape reads it.
 
 ---
 
@@ -120,11 +129,11 @@ scrape_morning takes ~10 min, the others ~2-3 min.
 ### On eye (~/pixoo-dashboard)
 | File | LaunchAgent | Schedule |
 |---|---|---|
-| `scrape_morning.py` | `com.dinellis.scrape-morning` | 09:15 EDT |
-| `scrape_google.py` | `com.dinellis.scrape-google` | 09:17 EDT |
-| `scrape_youtube.py` | `com.dinellis.scrape-youtube` | 09:18 EDT |
-| `scrape_x.py` | `com.dinellis.scrape-x` | 09:20 EDT |
-| `scrape_retry.py` | `com.dinellis.scrape-retry-1000` etc. | 10:00, 10:15, 10:30, 10:45, 11:00 EDT |
+| `scrape_morning.py` | `com.dinellis.scrape-morning` | 10:15 EDT |
+| `scrape_google.py` | `com.dinellis.scrape-google` | 10:17 EDT |
+| `scrape_youtube.py` | `com.dinellis.scrape-youtube` | 10:18 EDT |
+| `scrape_x.py` | `com.dinellis.scrape-x` | 10:20 EDT |
+| `scrape_retry.py` | `com.dinellis.scrape-retry-*` | 10:45, 11:00, 11:15, 11:30, 11:45 EDT |
 | `dashboard.py` | `com.dinellis.pixoo-dashboard` | KeepAlive 24/7 |
 
 LaunchAgent plists live in `~/Library/LaunchAgents/com.dinellis.*.plist`. Reload after editing:
