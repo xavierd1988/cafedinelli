@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { useSceneScale } from "./useSceneScale.js";
-import { trackEvent } from "../lib/analytics.js";
+import { trackNewsletterSubmit } from "../lib/analytics.js";
 
 // Cycle 3 états : AUTO (suit l'heure) → NIGHT (forcé nuit) → DAY (forcé jour) → AUTO
 const MODE_META = {
@@ -40,12 +40,7 @@ export default function Receipt({ forceMode = null, onCycleForceMode }) {
       form.reportValidity();
       return;
     }
-    trackEvent("email_signup", {
-      source: "receipt"
-    });
-    trackEvent("newsletter_submit", {
-      source: "receipt"
-    });
+    trackNewsletterSubmit({ source: "receipt" });
   }
 
   return (

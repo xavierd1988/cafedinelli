@@ -15,7 +15,7 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
-import { trackAffiliateClick, trackEvent, trackMetaEvent } from "../lib/analytics.js";
+import { trackAffiliateClick, trackEvent, trackShelfView } from "../lib/analytics.js";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -326,10 +326,7 @@ function LeftBuilding() {
 
   useEffect(() => {
     if (!shopMode) return;
-    trackMetaEvent("track", "ViewContent", {
-      content_name: "On the Shelf",
-      content_category: "Shelf"
-    });
+    trackShelfView({ source: "left_building_shelf" });
   }, [shopMode]);
 
   // Highlight : matche le nom reçu de la newsletter contre nos produits.

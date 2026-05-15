@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { trackAffiliateClick, trackEvent } from "../lib/analytics.js";
+import { trackAffiliateClick, trackEvent, trackPaperView } from "../lib/analytics.js";
 import TopicPopup from "./TopicPopup.jsx";
 import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
 import XTrendsPopup from "./XTrendsPopup.jsx";
@@ -783,9 +783,7 @@ export default function PaperPanel() {
     : null;
 
   useEffect(() => {
-    trackEvent("paper_open", {
-      source: "panel_mount"
-    });
+    trackPaperView({ source: "panel_mount" });
   }, []);
 
   function getScale() {

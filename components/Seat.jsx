@@ -6,7 +6,7 @@ import { registerBubble, unregisterBubble } from "./bubbleManager.js";
 import { useNickname } from "./NicknameContext.jsx";
 import { getPersona, subscribePersona } from "../lib/personaStore.js";
 import { getMySeat, setMySeat } from "../lib/mySeat.js";
-import { trackEvent, trackMetaEvent } from "../lib/analytics.js";
+import { trackEvent, trackSeatTaken } from "../lib/analytics.js";
 
 // Le seat est verrouillé 2 minutes (côté serveur ET client). Pendant tout
 // ce temps la bulle reste visible — elle ne disparaît qu'au départ de la
@@ -226,7 +226,7 @@ export default function Seat({ seat }) {
       setActiveNickname(nickname || "anonymous");
     }
     setMySeat(id);
-    trackMetaEvent("trackCustom", "SeatTaken");
+    trackSeatTaken({ seatId: id, source: "counter" });
     lastSourceRef.current = "local";
     // Reset des timers : on est frais, pas en train d'expirer.
     clearTimeout(messageTimerRef.current);
