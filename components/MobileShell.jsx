@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNickname } from "./NicknameContext.jsx";
 import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
-import { trackEvent } from "../lib/analytics.js";
+import { trackEvent, trackSeatTaken } from "../lib/analytics.js";
 
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
 const RECENT_LOCAL_TTL_MS = 6000;
@@ -184,6 +184,7 @@ export default function MobileShell() {
           seat_id: data.entry.id,
           source: "mobile_counter"
         });
+        trackSeatTaken({ seatId: data.entry.id, source: "mobile_counter" });
       }
       if (data?.entry?.timestamp) {
         seenTimestampsRef.current.add(data.entry.timestamp);

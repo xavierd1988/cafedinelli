@@ -226,7 +226,6 @@ export default function Seat({ seat }) {
       setActiveNickname(nickname || "anonymous");
     }
     setMySeat(id);
-    trackSeatTaken({ seatId: id, source: "counter" });
     lastSourceRef.current = "local";
     // Reset des timers : on est frais, pas en train d'expirer.
     clearTimeout(messageTimerRef.current);
@@ -334,6 +333,7 @@ export default function Seat({ seat }) {
             seat_id: id,
             source: "counter"
           });
+          trackSeatTaken({ seatId: id, source: "counter" });
         }
       })
       .catch(() => {});
