@@ -411,8 +411,12 @@ function enrichHtmlWithProductLinks(html, products) {
     next.querySelectorAll("tr").forEach((tr) => {
       if (tr.hasAttribute(attrName)) return;
       const cells = tr.querySelectorAll(":scope > td");
-      if (cells.length < 2) return;
-      const raw = (cells[1].textContent || "").trim();
+      if (cells.length < 1) return;
+      // Newsletter mai 2026 : td[0] = "N. Nom du trend", td[1] = stats.
+      // On lit td[0] et on retire le préfixe de rang.
+      const raw = (cells[0].textContent || "")
+        .trim()
+        .replace(/^\s*\d+\s*[.):\-]\s*/, "");
       const keyword = raw.split("—")[0].trim();
       if (!keyword || keyword.length < 2) return;
       tr.setAttribute(attrName, keyword);
@@ -436,14 +440,15 @@ function enrichHtmlWithProductLinks(html, products) {
     if (!next) return;
     next.querySelectorAll("tr").forEach((tr) => {
       if (tr.hasAttribute("data-amazon-product")) return;
-      // Nouvelle structure newsletter (2026-05-13) :
-      //   <td><strong>N</strong></td>  ← rang (1, 2, …)
-      //   <td>Apple AirPods 4 — description</td>  ← NOM
-      // Avant on prenait le 1er <strong> → c'était le rang. Maintenant
-      // on prend la 2e <td>, on coupe au "—" pour ne garder que le nom.
+      // Structure newsletter (mai 2026) :
+      //   <td><strong>N.</strong> Apple AirPods 4 — description</td> ← rang + NOM
+      //   <td>#1 Electronics</td>                                   ← stats
+      // On lit td[0], on retire le préfixe de rang "N.", on coupe au "—".
       const cells = tr.querySelectorAll(":scope > td");
-      if (cells.length < 2) return;
-      const rawKeyword = (cells[1].textContent || "").trim();
+      if (cells.length < 1) return;
+      const rawKeyword = (cells[0].textContent || "")
+        .trim()
+        .replace(/^\s*\d+\s*[.):\-]\s*/, "");
       const keyword = rawKeyword.split("—")[0].trim();
       if (!keyword || keyword.length < 3) return;
       tr.setAttribute("data-amazon-product", keyword);
@@ -508,16 +513,17 @@ function enrichHtmlWithProductLinks(html, products) {
     wrapAsTopicLink(strong);
   });
 
-  // 2) Cellules "topic" des tables ranked NON-Amazon : 2e <td> d'un <tr>
-  //    dont le 1er <td> est un numéro ("1.", "2.", "12.").
+  // 2) Cellules "topic" des tables ranked NON-Amazon : <tr> dont le
+  //    1er <td> commence par un numéro de rang ("1.", "2.", "12.").
+  //    Newsletter mai 2026 : td[0] = "N. Nom du trend" (rang + nom collés).
   //    Skip TOUT car les tables ranked sont hors TODAY'S HEADLINES.
   //    On garde la classe paper-topic-row pour le styling, sans wrap link.
   root.querySelectorAll("tr").forEach((tr) => {
     if (isInAmazonTable(tr)) return;
     const cells = tr.querySelectorAll(":scope > td");
-    if (cells.length < 2) return;
+    if (cells.length < 1) return;
     const firstText = (cells[0].textContent || "").trim();
-    if (!/^\d{1,3}\.?$/.test(firstText)) return;
+    if (!/^\d{1,3}\s*[.):\-]/.test(firstText)) return;
     // On marque le <tr> pour pouvoir styler la ligne entière en hover.
     tr.classList.add("paper-topic-row");
     if (!inHeadlinesZone(tr)) return; // pas de wrap link hors headlines

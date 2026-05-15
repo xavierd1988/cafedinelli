@@ -245,15 +245,16 @@ function LeftBuilding() {
         next.querySelectorAll("tr").forEach((tr) => {
           // Structure (validée 2026-05-13) :
           //   <tr>
-          //     <td><strong>N</strong></td>   <- rang (1, 2, …)
-          //     <td>Apple AirPods 4 — Wireless earbuds</td>  <- NOM
-          //     <td>…</td>                    <- metric
+          //     <td><strong>N.</strong> Apple AirPods 4 — earbuds</td> <- rang + NOM
+          //     <td>2M+ searches</td>                                  <- stats
           //   </tr>
-          // Le NOM est dans la 2e <td>, en texte brut (pas <strong>).
-          // Avant on prenait le 1er <strong> → on récupérait le rang.
+          // Newsletter mai 2026 : le NOM est dans la 1re <td>, préfixé
+          // par le rang ("N."). On retire ce préfixe.
           const cells = tr.querySelectorAll(":scope > td");
-          if (cells.length < 2) return;
-          const rawName = (cells[1].textContent || "").trim();
+          if (cells.length < 1) return;
+          const rawName = (cells[0].textContent || "")
+            .trim()
+            .replace(/^\s*\d+\s*[.):\-]\s*/, "");
           // Coupe à un éventuel séparateur "—" (description après le nom)
           const name = rawName.split("—")[0].trim();
           if (!name || name.length < 3) return;
