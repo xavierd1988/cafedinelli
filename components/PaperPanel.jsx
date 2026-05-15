@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { trackAffiliateClick, trackEvent, trackPaperView } from "../lib/analytics.js";
+import {
+  trackAffiliateClick,
+  trackEvent,
+  trackPaperToggle,
+  trackPaperView,
+  trackScrollDepth
+} from "../lib/analytics.js";
 import TopicPopup from "./TopicPopup.jsx";
 import GoogleTrendsPopup from "./GoogleTrendsPopup.jsx";
 import XTrendsPopup from "./XTrendsPopup.jsx";
@@ -677,7 +683,8 @@ const MIN_HEIGHT = 280;
 
 export default function PaperPanel() {
   const init = getModulePosition("PaperPanel");
-  const paperScrollTrackedRef = useRef(false);
+  const paperScrollDepthsRef = useRef(new Set());
+  const paperScrollLegacy75Ref = useRef(false);
   const [offset, setOffset] = useState(init.offset);
   const [size, setSize] = useState(init.size);
   const [dragging, setDragging] = useState(false);
@@ -852,15 +859,30 @@ export default function PaperPanel() {
   }
 
   function handlePaperScroll(e) {
-    if (paperScrollTrackedRef.current) return;
     const el = e.currentTarget;
     if (!el || el.scrollHeight <= el.clientHeight) return;
     const depth = (el.scrollTop + el.clientHeight) / el.scrollHeight;
-    if (depth >= 0.75) {
-      paperScrollTrackedRef.current = true;
-      trackEvent("paper_scroll_75", {
-        source: "paper_panel"
-      });
+    const percent = Math.floor(depth * 100);
+    [25, 50, 75, 90].forEach((threshold) => {
+      if (percent < threshold || paperScrollDepthsRef.current.has(threshold)) return;
+      paperScrollDepthsRef.current.add(threshold);
+      trackScrollDepth({ percent: threshold, source: "paper_panel" });
+    });
+    if (percent >= 75 && !paperScrollLegacy75Ref.current) {
+      paperScrollLegacy75Ref.current = true;
+      trackEvent("paper_scroll_75", { source: "paper_panel" });
+    }
+  }
+
+  function togglePaper(source) {
+    if (shopMode) {
+      setShopMode(false);
+      trackPaperToggle({ state: "open", source });
+      trackEvent("paper_open", { source });
+      try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
+    } else {
+      trackPaperToggle({ state: "closed", source });
+      openShelf(source);
     }
   }
 
@@ -902,15 +924,7 @@ export default function PaperPanel() {
         <button
           type="button"
           className="paper-shop-toggle-arrow"
-          onClick={() => {
-            if (shopMode) {
-              setShopMode(false);
-              trackEvent("paper_open", { source: "shop_toggle_back" });
-              try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
-            } else {
-              openShelf("toggle");
-            }
-          }}
+          onClick={() => togglePaper(shopMode ? "shop_toggle_back" : "shop_toggle")}
           aria-label={shopMode ? "Back to the paper (position A)" : "Send the paper to the right (position B)"}
           title={shopMode ? "Back to the paper" : "Send to position B"}
         >
@@ -947,15 +961,7 @@ export default function PaperPanel() {
             type="button"
             className="paper-masthead-arrow"
             onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              if (shopMode) {
-                setShopMode(false);
-                trackEvent("paper_open", { source: "masthead_back" });
-                try { window.dispatchEvent(new CustomEvent("back_to_paper_clicked")); } catch {}
-              } else {
-                openShelf("toggle");
-              }
-            }}
+            onClick={() => togglePaper(shopMode ? "masthead_back" : "masthead_toggle")}
             aria-label={shopMode ? "Back to the paper" : "Slide the paper to the right"}
             title={shopMode ? "Back to the paper" : "Slide to the shop"}
           >

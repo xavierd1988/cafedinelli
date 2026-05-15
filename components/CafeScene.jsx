@@ -15,7 +15,14 @@ import PaperPanel from "./PaperPanel.jsx";
 import ShelfPanel from "./ShelfPanel.jsx";
 import { useDraggable } from "./useDraggable.js";
 import { useDragScale } from "./useDragScale.js";
-import { trackAffiliateClick, trackEvent, trackShelfView } from "../lib/analytics.js";
+import {
+  trackAffiliateClick,
+  trackAmazonProductClick,
+  trackCafeSceneHover,
+  trackEvent,
+  trackProductHover,
+  trackShelfView
+} from "../lib/analytics.js";
 
 function CafeChildResize({ onPointerDown }) {
   return (
@@ -178,6 +185,12 @@ function LeftBuilding() {
   // ID du produit à highlighter (entouré rouge dans la vitrine) après un
   // clic sur le bouton Buy it / la rangée correspondante côté newsletter.
   const [highlightedId, setHighlightedId] = useState(null);
+  const productHoverTimersRef = useRef(new Map());
+
+  useEffect(() => () => {
+    productHoverTimersRef.current.forEach((timer) => clearTimeout(timer));
+    productHoverTimersRef.current.clear();
+  }, []);
 
   // Charge les produits dans les vitrines : on essaie d'abord d'extraire
   // les Amazon Top 15 (Best Sellers + Movers) de la newsletter du jour
@@ -433,10 +446,27 @@ function LeftBuilding() {
   const floristProducts = products.slice(12, 18);
   const motosProducts   = products.slice(18, 30);
 
-  function trackClick(p) {
+  function getProductLabel(p) {
+    return p.label || p.badge || p.category || (String(p.id || "").startsWith("nl-") ? "Trending" : "");
+  }
+
+  function getEditionDate() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function trackClick(p, position) {
+    trackAmazonProductClick({
+      productName: p.name,
+      productPosition: position,
+      productLabel: getProductLabel(p),
+      productUrl: p.amazonUrl,
+      editionDate: getEditionDate(),
+      source: "left_building_shelf"
+    });
     trackEvent("shelf_product_click", {
       product_id: p.id,
       product_name: p.name,
+      product_position: position,
       source: "left_building_shelf"
     });
     trackAffiliateClick({
@@ -452,14 +482,38 @@ function LeftBuilding() {
     } catch {}
   }
 
-  function ShopProductCells({ items, className = "" }) {
+  function startProductHover(p, position) {
+    const key = p.id || position;
+    if (productHoverTimersRef.current.has(key)) return;
+    const timer = setTimeout(() => {
+      productHoverTimersRef.current.delete(key);
+      trackProductHover({
+        productName: p.name,
+        productPosition: position,
+        productLabel: getProductLabel(p),
+        source: "left_building_shelf"
+      });
+    }, 800);
+    productHoverTimersRef.current.set(key, timer);
+  }
+
+  function cancelProductHover(p, position) {
+    const key = p.id || position;
+    const timer = productHoverTimersRef.current.get(key);
+    if (!timer) return;
+    clearTimeout(timer);
+    productHoverTimersRef.current.delete(key);
+  }
+
+  function ShopProductCells({ items, className = "", startPosition = 1 }) {
     if (!items.length) return null;
     return (
       <div className={`lb-shop-products ${shopMode ? "is-visible" : ""} ${className}`}>
-        {items.map((p) => {
+        {items.map((p, index) => {
           const info = productInfo[p.id] || {};
           const errored = imageErrors.has(p.id);
           const img = errored ? null : info.imageUrl;
+          const position = startPosition + index;
           // Le prix vient soit directement du produit (injecté depuis
           // /api/products), soit du fetch /api/product-image (legacy).
           const price = p.price || info.price;
@@ -471,7 +525,9 @@ function LeftBuilding() {
               rel="noopener noreferrer"
               className={`lb-shop-product${p.id === highlightedId ? " is-highlighted" : ""}${img ? " has-image" : ""}`}
               title={p.name}
-              onClick={() => trackClick(p)}
+              onClick={() => trackClick(p, position)}
+              onPointerEnter={() => startProductHover(p, position)}
+              onPointerLeave={() => cancelProductHover(p, position)}
             >
               {img ? (
                 <img
@@ -562,7 +618,7 @@ function LeftBuilding() {
           <span className="lb-shop-glow" />
           <span className="lb-shop-shelf lb-shop-shelf-top" />
           <span className="lb-shop-shelf lb-shop-shelf-mid" />
-          {ShopProductCells({ items: groceryProducts })}
+          {ShopProductCells({ items: groceryProducts, startPosition: 1 })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -573,7 +629,7 @@ function LeftBuilding() {
           <span className="lb-shop-glow" />
           <span className="lb-shop-shelf lb-shop-shelf-top" />
           <span className="lb-shop-shelf lb-shop-shelf-mid" />
-          {ShopProductCells({ items: floristProducts })}
+          {ShopProductCells({ items: floristProducts, startPosition: 13 })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -598,7 +654,7 @@ function LeftBuilding() {
         <div className="lb-shop-sign">HARDWARE</div>
         <div className="lb-shop-window">
           <span className="lb-shop-glow" />
-          {ShopProductCells({ items: motosProducts })}
+          {ShopProductCells({ items: motosProducts, startPosition: 19 })}
         </div>
         <div className="lb-shop-base" />
       </div>
@@ -1493,12 +1549,42 @@ function PixooMuteCat() {
 
 export default function CafeScene({ seats }) {
   const scale = useSceneScale();
+  const sceneHoverTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    clearTimeout(sceneHoverTimerRef.current);
+  }, []);
+
+  function isVisualSceneTarget(target) {
+    if (!target || typeof target.closest !== "function") return false;
+    return !target.closest(".paper-panel, .receipt, .weather-clock, .shelf-panel, .counter-zone, .seat-cell");
+  }
+
+  function handleScenePointerOver(e) {
+    if (!isVisualSceneTarget(e.target)) {
+      clearTimeout(sceneHoverTimerRef.current);
+      sceneHoverTimerRef.current = null;
+      return;
+    }
+    if (sceneHoverTimerRef.current) return;
+    sceneHoverTimerRef.current = setTimeout(() => {
+      sceneHoverTimerRef.current = null;
+      trackCafeSceneHover({ source: "scene_stage" });
+    }, 1000);
+  }
+
+  function clearSceneHoverTimer() {
+    clearTimeout(sceneHoverTimerRef.current);
+    sceneHoverTimerRef.current = null;
+  }
 
   return (
     <div className="scene-viewport" data-file="CafeScene.jsx::scene-viewport">
       <div
         className="scene-stage"
         style={{ transform: `translate(-50%, -50%) scale(${scale})` }}
+        onPointerOver={handleScenePointerOver}
+        onPointerLeave={clearSceneHoverTimer}
       >
         <div className="night-sky" />
         <div className="street-haze" />

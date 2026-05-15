@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Seat from "./Seat.jsx";
-import { trackEvent } from "../lib/analytics.js";
+import { trackCounterHover, trackEvent } from "../lib/analytics.js";
 
 export default function Counter({ seats, onDragStart, onResizeStart, transform, isDragging }) {
   const [occupiedIds, setOccupiedIds] = useState(() => new Set());
+  const hoverTimerRef = useRef(null);
 
   useEffect(() => {
     function handler(e) {
@@ -31,6 +32,23 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
     });
   }, [total]);
 
+  useEffect(() => () => {
+    clearTimeout(hoverTimerRef.current);
+  }, []);
+
+  function startCounterHover() {
+    if (hoverTimerRef.current) return;
+    hoverTimerRef.current = setTimeout(() => {
+      hoverTimerRef.current = null;
+      trackCounterHover({ source: "counter_zone" });
+    }, 800);
+  }
+
+  function clearCounterHover() {
+    clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }
+
   return (
     <section
       className="counter-zone"
@@ -38,6 +56,8 @@ export default function Counter({ seats, onDragStart, onResizeStart, transform, 
       aria-labelledby="counter-title"
       data-file="Counter.jsx"
       style={{ transform, transformOrigin: "center center" }}
+      onPointerEnter={startCounterHover}
+      onPointerLeave={clearCounterHover}
     >
       <div
         className={`counter-copy is-drag-handle${isDragging ? " is-dragging" : ""}`}
