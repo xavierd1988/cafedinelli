@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackMetaEvent } from "../lib/analytics.js";
 
 // "On the shelf" : 30 articles café/cosy posés en cases derrière le journal,
 // rafraîchis chaque matin à 9h00 via /api/products (cf. lib/productsStore.js
@@ -54,7 +55,13 @@ export default function Shelf() {
   }, []);
 
   useEffect(() => {
-    if (visible) fire("shelf_revealed");
+    if (visible) {
+      fire("shelf_revealed");
+      trackMetaEvent("track", "ViewContent", {
+        content_name: "On the Shelf",
+        content_category: "Shelf"
+      });
+    }
   }, [visible]);
 
   function onProductClick(p) {
