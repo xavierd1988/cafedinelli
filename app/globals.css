@@ -53,6 +53,41 @@ button {
   transform: translate(5mm, 1cm);
 }
 
+.site-legal-footer {
+  position: fixed;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(10px, env(safe-area-inset-bottom));
+  z-index: 95;
+  max-width: min(520px, calc(100vw - 28px));
+  padding: 7px 10px;
+  border: 1px solid rgba(248, 232, 199, 0.14);
+  border-radius: 6px;
+  background: rgba(7, 5, 5, 0.54);
+  color: rgba(248, 232, 199, 0.68);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.site-legal-footer p {
+  margin: 0;
+}
+
+.site-legal-footer a {
+  color: rgba(248, 232, 199, 0.82);
+  text-decoration: none;
+}
+
+.site-legal-footer a:hover,
+.site-legal-footer a:focus-visible {
+  color: #f8e8c7;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* === MOBILE / DESKTOP SWAP =================================================
    En desktop on rend le café Hopper complet (.desktop-shell).
    En mobile on rend une version empilée (.m-shell : newsletter / chat / mike).
@@ -71,6 +106,27 @@ button {
   }
   .desktop-shell { display: none !important; }
   .m-shell { display: flex; flex-direction: column; }
+  .site-legal-footer {
+    position: static;
+    width: min(720px, 100%);
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 18px 16px calc(104px + env(safe-area-inset-bottom));
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0;
+    background: #0a0606;
+    color: rgba(245, 230, 197, 0.48);
+    font-size: 11px;
+    line-height: 1.6;
+    text-align: center;
+    text-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .site-legal-footer a {
+    color: rgba(245, 230, 197, 0.68);
+  }
 }
 
 .m-shell {

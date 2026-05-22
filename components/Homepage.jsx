@@ -75,6 +75,12 @@ export default function Homepage() {
             "secret-room-open" (intérieur de CafeDoor en état ouvert) n'est
             pas cliqué. Top-level pour passer au-dessus de tous les modules. */}
         <SecretRoom />
+        <footer className="site-legal-footer" aria-label="Site operator and contact">
+          <p>
+            Dinelli’s Café is operated by ITHAC LLC ·{" "}
+            <a href="mailto:hello@dinelliscafe.com">hello@dinelliscafe.com</a>
+          </p>
+        </footer>
         {editMode && <ModuleNameBadge />}
         {/* Bouton save : caché en mode figé, visible uniquement en edit mode. */}
         {editMode && <PositionExporter />}
