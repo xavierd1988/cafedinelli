@@ -1,7 +1,8 @@
 // =============================================================================
 // CRON : génération quotidienne des produits du jour
 // =============================================================================
-// Déclenché par Vercel chaque matin à 9h UTC (vercel.json).
+// Déclenché par Vercel à 14h et 15h UTC ; seule l'exécution de 10h
+// America/New_York travaille, pour suivre les changements d'heure.
 //
 // Étapes :
 //   1. Lit la newsletter du jour (Redis "newsletter:latest")
@@ -16,7 +17,7 @@
 // déclenche le cron à la main et fasse exploser nos appels Groq.
 //
 // Manuel : on peut aussi le déclencher avec un GET classique pour tester
-// (?force=1 pour bypasser le check d'âge).
+// (?force=1 pour bypasser les contrôles de date et régénérer manuellement).
 // =============================================================================
 
 import { askGroq } from "../../../../lib/groqClient.js";
@@ -31,6 +32,22 @@ export const maxDuration = 60;
 const TARGET_COUNT = 30;
 const SCRAPE_CONCURRENCY = 4;
 const SCRAPE_DELAY_MS = 250;
+
+const newYorkClock = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  hourCycle: "h23"
+});
+
+function getNewYorkClock(now) {
+  const parts = Object.fromEntries(
+    newYorkClock.formatToParts(now).map(({ type, value }) => [type, value])
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+}
 
 const UA_POOL = [
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -307,12 +324,29 @@ export async function GET(request) {
 
   const url = new URL(request.url);
   const force = url.searchParams.get("force") === "1";
+  const { date: today, hour } = getNewYorkClock(new Date());
+  const scheduled = (request.headers.get("user-agent") || "").startsWith("vercel-cron/");
+
+  // Vercel programme en UTC. Les deux candidats couvrent EST et EDT ;
+  // ignorer l'autre heure sans toucher aux déclenchements manuels.
+  if (!force && scheduled && hour !== 10) {
+    return Response.json({ skipped: true, reason: "outside 10 AM America/New_York", date: today });
+  }
+
+  const newsletter = await getLatestNewsletter().catch(() => null);
+  if (!force && (newsletter?.date !== today || typeof newsletter?.html !== "string" || !newsletter.html.trim())) {
+    return Response.json({
+      skipped: true,
+      reason: "today's newsletter is not available",
+      date: today,
+      newsletterDate: newsletter?.date || null
+    });
+  }
 
   // Évite les doubles-runs : si on a déjà généré aujourd'hui, on no-op
   // sauf ?force=1.
   if (!force) {
     const cached = await getCachedDailyProducts();
-    const today = new Date().toISOString().slice(0, 10);
     if (cached && cached.date === today) {
       return Response.json({
         skipped: true,
@@ -324,7 +358,6 @@ export async function GET(request) {
   }
 
   const startedAt = Date.now();
-  const newsletter = await getLatestNewsletter().catch(() => null);
 
   // 1. PRIORITÉ : extraire les VRAIS noms Amazon de la newsletter HTML.
   //    Le frontend matche les noms — si on hallucine via Groq, le store
@@ -372,7 +405,6 @@ export async function GET(request) {
   // on veut juste régénérer la liste Groq (avec les bons `search`) et
   // déléguer le scraping à un worker externe (scrape_morning.py sur eye,
   // IP résidentielle = pas blocked par Amazon).
-  const today = new Date().toISOString().slice(0, 10);
   const withImage = enriched.filter((p) => p.image).length;
   const MIN_IMAGES_TO_SAVE = 5;
 

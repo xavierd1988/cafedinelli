@@ -16,43 +16,44 @@ When everything is aligned, all four popups (Amazon highlight, Google News, YouT
 
 ---
 
-## Timing (Eastern time)
+## Timing (America/New_York, including daylight-saving changes)
 
-The source newsletter typically arrives via webhook **around 09:49 EDT**
-(it's a morning briefing that covers the previous day, titled "Wednesday"
-on Thursday for example). The entire pipeline runs **after** that to
-ensure today's content is in Redis.
+The newsletter task starts at **09:30 New York time** and typically publishes
+via webhook around **09:49**, dated with the current New York calendar day.
+The product pipeline is scheduled after that expected publication time.
 
 ```
-~09:49 EDT  Newsletter arrives via webhook → POST /api/newsletter
+~09:49 local Newsletter arrives via webhook → POST /api/newsletter
             Stored in Redis under newsletter:latest.
 
-10:00 EDT   /api/cron/generate-products fires on Vercel (cron 14:00 UTC)
+10:00 local /api/cron/generate-products fires on Vercel
+            (14:00 and 15:00 UTC candidates; only the 10:00 local run works)
             ─ reads newsletter from Redis
+            ─ skips if the newsletter is missing or its date is not today
             ─ EXTRACTS the 30 Amazon names directly from the newsletter HTML
               (sections AMAZON BEST SELLERS + AMAZON MOVERS & SHAKERS)
-            ─ if newsletter is missing or has no AMAZON section, falls back
+            ─ if the current newsletter has no AMAZON section, falls back
               to Groq hallucination — names may not match the visible newsletter
             ─ tries to scrape Amazon from Vercel IP → usually blocked,
               so withImage=0 most of the time
             ─ saves to Redis (skipped if <5 images AND no ?force=1)
 
-10:15 EDT   scrape_morning.py on eye (LaunchAgent)
+10:15 local scrape_morning.py on eye (LaunchAgent)
             ─ retries newsletter fetch up to 3× with 60s between (Vercel
               may still be deploying)
             ─ scrapes Amazon from residential IP — much higher success
             ─ POSTS to /api/cron/update-products → REPLACES the store
 
-10:17 EDT   scrape_google.py on eye → fills cafe:google:news:daily
-10:18 EDT   scrape_youtube.py on eye → fills cafe:youtube:daily
-10:20 EDT   scrape_x.py on eye → fills cafe:x:tweets:daily (needs
+10:17 local scrape_google.py on eye → fills cafe:google:news:daily
+10:18 local scrape_youtube.py on eye → fills cafe:youtube:daily
+10:20 local scrape_x.py on eye → fills cafe:x:tweets:daily (needs
             x_storage_state.json with logged-in cookies)
 
-10:45, 11:00, 11:15, 11:30, 11:45 EDT
+10:45, 11:00, 11:15, 11:30, 11:45 local
             scrape_retry on eye — re-scrapes products that have no image
             (Amazon sometimes 503s on first try)
 
-12:00 EDT   Claude scheduled task — reports on the morning's state
+12:00 local Claude scheduled task — reports on the morning's state
 ```
 
 ---
@@ -60,8 +61,9 @@ ensure today's content is in Redis.
 ## Why this exact order matters
 
 - **`generate-products` (Vercel) before `scrape_morning` (eye)** : Vercel writes the initial product list. Eye then **overwrites** with images. If eye ran first, there'd be nothing to enrich.
-- **`scrape_morning` is the source of truth for names** : Vercel falls back to Groq hallucination when the newsletter is missing, which produces names that won't match the visible newsletter. Eye's script always extracts the real names from the newsletter HTML, then POSTs them back, replacing the Groq output.
-- **15-min margin between Vercel cron (09:00) and eye scrape (09:15)** : the Vercel cron writes to Redis and the new deployment, plus Edge/CDN warmup, can take a few minutes. The 3× retry inside the Python scripts (60s between) covers the rest.
+- **Vercel uses UTC, the café uses New York time** : the cron runs at 14:00 and 15:00 UTC and the handler accepts only the 10 AM local invocation. This keeps it after the 9:30 newsletter task in both EST and EDT. Automatic generation requires today's newsletter; it never relabels yesterday's input as today's products. Manual `?force=1` retains the explicit regeneration override.
+- **`scrape_morning` is the source of truth for names** : Vercel can fall back to Groq suggestions when the current newsletter has no usable AMAZON section. Eye's script extracts names from the newsletter HTML, then POSTs them back with images.
+- **15-min margin between Vercel cron (10:00) and eye scrape (10:15)** : the Vercel cron writes to Redis and the new deployment, plus Edge/CDN warmup, can take a few minutes. The 3× retry inside the Python scripts (60s between) covers transient delays.
 
 ---
 
@@ -114,7 +116,7 @@ scrape_morning takes ~10 min, the others ~2-3 min.
 ### On Vercel (web app)
 | File | Role |
 |---|---|
-| `vercel.json` | Defines the daily cron at `0 13 * * *` UTC |
+| `vercel.json` | Defines UTC candidates at `0 14,15 * * *`; handler gates to 10 AM New York |
 | `/api/cron/generate-products` | Daily product list generator (newsletter-extract first, Groq fallback) |
 | `/api/cron/update-products` | Eye POSTs the enriched product list here (Bearer auth) |
 | `/api/cron/update-google-news` | Eye POSTs the 25 Google trend articles |
