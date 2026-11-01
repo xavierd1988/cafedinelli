@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { pickTrendName } from "../lib/newsletterParse.js";
+import { getNewsletterEdition } from "../lib/newsletterEdition.js";
 import {
   trackAffiliateClick,
   trackEvent,
@@ -16,24 +17,17 @@ import XTrendsPopup from "./XTrendsPopup.jsx";
 import TikTokTrendsPopup from "./TikTokTrendsPopup.jsx";
 import YouTubePopup from "./YouTubePopup.jsx";
 
-function formatDate(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric"
-  });
-}
-
 // Heure de réception (ex: "10:42 AM") — pour la ligne meta sous le titre.
 function formatTime(iso) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 }
 
 const dailyStories = [
@@ -735,6 +729,7 @@ export default function PaperPanel() {
     return () => window.removeEventListener("cafe-shop-mode-close", onClose);
   }, []);
   const [newsletter, setNewsletter] = useState(null);
+  const [newsletterLoading, setNewsletterLoading] = useState(true);
   const [products, setProducts] = useState([]);
   // Popup ouvert quand on clique sur un lien non-Amazon dans la newsletter.
   // null si fermé. { topic, articleHref } si ouvert.
@@ -744,7 +739,7 @@ export default function PaperPanel() {
   const [tiktokTrend, setTiktokTrend] = useState(null);
   const [youtubeTrend, setYoutubeTrend] = useState(null);
 
-  // Charge la newsletter du jour (postée par le script automatique).
+  // Charge la dernière édition publiée, qui peut dater d'un jour précédent.
   useEffect(() => {
     let cancelled = false;
     fetch("/api/newsletter")
@@ -752,7 +747,10 @@ export default function PaperPanel() {
       .then((data) => {
         if (!cancelled) setNewsletter(data?.newsletter || null);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setNewsletterLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -771,20 +769,20 @@ export default function PaperPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  // Date affichée dans le masthead. Calculée CÔTÉ CLIENT uniquement pour
-  // contourner le cache CDN/SSR qui pouvait figer "Tuesday" pour tous les
-  // visiteurs jusqu'au prochain build. Refresh toutes les 60s au cas où
-  // la session traverse minuit. SSR renvoie une chaîne vide → la place
-  // est gardée par "&nbsp;" dans le JSX.
-  const [todayStr, setTodayStr] = useState("");
+  // Le client vérifie la fraîcheur en heure de New York, même après minuit.
+  // La date affichée reste toujours celle de l'édition réellement publiée.
+  const [editionNow, setEditionNow] = useState(null);
   useEffect(() => {
     function tick() {
-      setTodayStr(formatDate(new Date().toISOString()));
+      setEditionNow(Date.now());
     }
     tick();
     const id = setInterval(tick, 60000);
     return () => clearInterval(id);
   }, []);
+  const edition = getNewsletterEdition(newsletter, editionNow);
+  const editionStatus = newsletterLoading ? "Loading latest edition…" : edition.statusLabel;
+  const receivedTime = formatTime(newsletter?.receivedAt);
 
   // Newsletter HTML enrichi de liens Amazon autour des produits du jour.
   // Recalculé seulement quand la newsletter ou la liste produits change.
@@ -942,15 +940,10 @@ export default function PaperPanel() {
         <div className="paper-masthead-capsule">
           <span className="paper-masthead-emoji">📊</span>
           <div>
-            <h2 id="paper-title">{newsletter?.subject || "Today's trend digest"}</h2>
-            {/* La date affichée est toujours AUJOURD'HUI (vue du lecteur),
-                pas la date de la newsletter — sinon on garde "lundi 4" en
-                français pendant que tout le monde est mardi. */}
-            <p className="paper-date">{todayStr || " "}</p>
-            <p className="paper-meta">
-              {newsletter
-                ? `Today's edition • received at ${formatTime(newsletter.receivedAt)}`
-                : "Full edition • USA • Collected at 10:30 AM"}
+            <h2 id="paper-title">{newsletter?.subject || "Trend digest"}</h2>
+            <p className="paper-date">{edition.dateLabel || " "}</p>
+            <p className="paper-meta" role="status">
+              {editionStatus}{newsletter && receivedTime ? ` • received at ${receivedTime}` : ""}
             </p>
           </div>
           {/* Flèche blanche → cliquable dans le coin haut-droit du
@@ -1087,51 +1080,7 @@ export default function PaperPanel() {
             }}
           />
         ) : (
-          <>
-            {sections.map((section) => (
-          <article className={`paper-card paper-card--${section.color}`} key={section.id}>
-            <header className="paper-card-head">
-              <span className="paper-card-icon" aria-hidden="true">{section.icon}</span>
-              <h3>{section.title}</h3>
-            </header>
-            {section.kind === "stories" ? (
-              <div className="paper-stories">
-                {section.data.map((story) => (
-                  <div className="paper-story" key={story.title}>
-                    <div className="paper-story-head">
-                      <span className="paper-story-icon" aria-hidden="true">{story.icon}</span>
-                      <strong>{story.title}</strong>
-                    </div>
-                    <p><HighlightedBody text={story.body} /></p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <RankedList rows={section.data} kind={section.kind} />
-            )}
-          </article>
-        ))}
-
-        <article className="paper-card paper-card--purple paper-card--insights">
-          <header className="paper-card-head">
-            <span className="paper-card-icon" aria-hidden="true">💡</span>
-            <h3>Insights du jour</h3>
-          </header>
-          <div className="paper-stories">
-            {insights.map((insight) => (
-              <div className="paper-story" key={insight.title}>
-                <div className="paper-story-head">
-                  <span className="paper-story-icon" aria-hidden="true">{insight.icon}</span>
-                  <strong>{insight.title}</strong>
-                </div>
-                <p><HighlightedBody text={insight.body} /></p>
-              </div>
-            ))}
-          </div>
-        </article>
-
-            <p className="paper-footer">Rapport généré automatiquement • xavier.dinelli@gmail.com</p>
-          </>
+          <p className="paper-footer">{editionStatus}</p>
         )}
         </div>
       </div>

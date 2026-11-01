@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNickname } from "./NicknameContext.jsx";
 import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
 import { trackEvent, trackSeatTaken } from "../lib/analytics.js";
+import { getNewsletterEdition } from "../lib/newsletterEdition.js";
 
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
 const RECENT_LOCAL_TTL_MS = 6000;
@@ -23,6 +24,8 @@ export default function MobileShell() {
   const { nickname, setNickname } = useNickname();
   const [nickDraft, setNickDraft] = useState("");
   const [newsletter, setNewsletter] = useState(null);
+  const [newsletterLoading, setNewsletterLoading] = useState(true);
+  const [editionNow, setEditionNow] = useState(null);
   const [chatDraft, setChatDraft] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [mikeQ, setMikeQ] = useState("");
@@ -67,13 +70,29 @@ export default function MobileShell() {
     setNickDraft(nickname);
   }, [nickname]);
 
-  // newsletter du jour
+  // La dernière édition peut être antérieure à aujourd'hui.
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/newsletter")
       .then((r) => r.json())
-      .then((d) => setNewsletter(d?.newsletter || null))
-      .catch(() => {});
+      .then((d) => {
+        if (!cancelled) setNewsletter(d?.newsletter || null);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setNewsletterLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const tick = () => setEditionNow(Date.now());
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
+  const edition = getNewsletterEdition(newsletter, editionNow);
+  const editionStatus = newsletterLoading ? "Loading latest edition…" : edition.statusLabel;
 
   // Polling chat partagé : à chaque update, on spawn une montgolfière pour
   // les nouveaux messages uniquement, et on sync le thread Mike.
@@ -394,16 +413,17 @@ export default function MobileShell() {
       <main className="m-content">
         <section className="m-section m-newsletter">
           <h2 className="m-section-title">
-            {newsletter?.subject || "Today's digest"}
+            {newsletter?.subject || "Trend digest"}
           </h2>
+          <p className="m-empty" role="status">
+            {edition.dateLabel ? `${edition.dateLabel} • ` : ""}{editionStatus}
+          </p>
           {newsletter ? (
             <div
               className="m-newsletter-html"
               dangerouslySetInnerHTML={{ __html: newsletter.html }}
             />
-          ) : (
-            <p className="m-empty">No newsletter today yet.</p>
-          )}
+          ) : null}
         </section>
 
         {/* Espace pour que le contenu ne soit pas mangé par la barre chat */}
