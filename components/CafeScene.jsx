@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { getAmazonNewsletterNames } from "../lib/newsletterParse.js";
+import { fetchFreshSources, startVisibleRefresh } from "../lib/visibleRefresh.js";
 import { getEditMode, setEditMode, useEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
@@ -198,8 +199,6 @@ function LeftBuilding() {
   // pour que chaque clic dans la newsletter ait son pendant exact dans
   // les vitrines. Fallback : la liste curated /api/products.
   useEffect(() => {
-    let cancelled = false;
-
     function emojiFor(name) {
       const n = name.toLowerCase();
       if (/(watch|series|garmin|apple watch)/.test(n)) return "⌚";
@@ -235,7 +234,8 @@ function LeftBuilding() {
 
     function extractFromNewsletter(html) {
       return getAmazonNewsletterNames(html).map((name, index) => ({
-        id: `nl-${index}`,
+        // A new product at the same rank must not reuse yesterday's image cache.
+        id: `nl-${index}-${encodeURIComponent(name)}`,
         name,
         emoji: emojiFor(name),
         amazonUrl: amazonUrlFor(name)
@@ -276,33 +276,40 @@ function LeftBuilding() {
       return bestScore >= 2 ? best : null;
     }
 
-    Promise.all([
-      fetch("/api/newsletter").then((r) => r.json()).catch(() => null),
-      fetch("/api/products", { cache: "no-store" }).then((r) => r.json()).catch(() => null)
-    ])
-      .then(([newsData, apiData]) => {
-        if (cancelled) return;
-        const html = newsData?.newsletter?.html;
-        const apiProducts = Array.isArray(apiData?.products) ? apiData.products : [];
-        const fromNewsletter = extractFromNewsletter(html);
+    return startVisibleRefresh(async (signal) => {
+      const [newsResult, apiResult] = await fetchFreshSources([
+        "/api/newsletter", "/api/products"
+      ], signal);
+      if (signal.aborted) return;
+      const newsData = newsResult.status === "fulfilled" ? newsResult.value : null;
+      const apiData = apiResult.status === "fulfilled" ? apiResult.value : null;
+      const html = newsData?.newsletter?.html;
+      const apiProducts = Array.isArray(apiData?.products) ? apiData.products : [];
+      const fromNewsletter = extractFromNewsletter(html);
 
-        if (fromNewsletter && fromNewsletter.length > 0) {
-          // Enrichit chaque item newsletter avec l'image scrappée
-          // correspondante (fuzzy match par nom).
+      if (fromNewsletter && fromNewsletter.length > 0) {
+        // Enrichit chaque item newsletter avec l'image scrappée
+        // correspondante (fuzzy match par nom).
+        setProducts((previous) => {
+          const imageSource = apiProducts.length > 0 ? apiProducts : previous;
           const enriched = fromNewsletter.map((item) => {
-            const match = fuzzyMatchImage(item.name, apiProducts);
+            const match = fuzzyMatchImage(item.name, imageSource);
             return match
               ? { ...item, image: match.image, asin: match.asin, price: match.price }
               : item;
           });
-          setProducts(enriched);
-          return;
-        }
-        // Pas de newsletter : on prend direct l'API products
-        if (apiProducts.length > 0) setProducts(apiProducts);
-      })
-      .catch(() => { /* silencieux : on garde la liste vide */ });
-    return () => { cancelled = true; };
+          return JSON.stringify(previous) === JSON.stringify(enriched) ? previous : enriched;
+        });
+        return;
+      }
+      // Pas de newsletter au premier chargement : on prend l'API products.
+      // Une réponse vide temporaire ne remplace pas une vitrine déjà chargée.
+      if (apiProducts.length > 0) {
+        setProducts((previous) => !html && previous.length > 0
+          ? previous
+          : JSON.stringify(previous) === JSON.stringify(apiProducts) ? previous : apiProducts);
+      }
+    });
   }, []);
 
   useEffect(() => {

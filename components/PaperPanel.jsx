@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { markNewsletterRows } from "../lib/newsletterParse.js";
 import { getNewsletterEdition } from "../lib/newsletterEdition.js";
+import { fetchFreshJson, startVisibleRefresh } from "../lib/visibleRefresh.js";
 import {
   trackAffiliateClick,
   trackEvent,
@@ -674,32 +675,29 @@ export default function PaperPanel() {
 
   // Charge la dernière édition publiée, qui peut dater d'un jour précédent.
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/newsletter")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled) setNewsletter(data?.newsletter || null);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setNewsletterLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    return startVisibleRefresh(async (signal) => {
+      try {
+        const data = await fetchFreshJson("/api/newsletter", signal);
+        if (!signal.aborted && data?.newsletter) {
+          setNewsletter((previous) => JSON.stringify(previous) === JSON.stringify(data.newsletter)
+            ? previous : data.newsletter);
+        }
+      } finally {
+        if (!signal.aborted) setNewsletterLoading(false);
+      }
+    });
   }, []);
 
   // Charge les 30 produits du jour pour pouvoir injecter des liens Amazon
   // dans le texte HTML de la newsletter (même logique que LeftBuilding).
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/products", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((data) => {
-        if (!cancelled && Array.isArray(data?.products)) setProducts(data.products);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    return startVisibleRefresh(async (signal) => {
+      const data = await fetchFreshJson("/api/products", signal);
+      if (!signal.aborted && Array.isArray(data?.products)) {
+        setProducts((previous) => JSON.stringify(previous) === JSON.stringify(data.products)
+          ? previous : data.products);
+      }
+    });
   }, []);
 
   // Le client vérifie la fraîcheur en heure de New York, même après minuit.

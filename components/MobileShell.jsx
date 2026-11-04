@@ -5,6 +5,7 @@ import { useNickname } from "./NicknameContext.jsx";
 import { isMuted, setMuted, subscribeMuted } from "../lib/sounds.js";
 import { trackEvent, trackSeatTaken } from "../lib/analytics.js";
 import { getNewsletterEdition } from "../lib/newsletterEdition.js";
+import { fetchFreshJson, startVisibleRefresh } from "../lib/visibleRefresh.js";
 
 const MIKE_MENTION = /(^|[^a-z])mike\b|@mike/i;
 const RECENT_LOCAL_TTL_MS = 6000;
@@ -72,17 +73,17 @@ export default function MobileShell() {
 
   // La dernière édition peut être antérieure à aujourd'hui.
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/newsletter")
-      .then((r) => r.json())
-      .then((d) => {
-        if (!cancelled) setNewsletter(d?.newsletter || null);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setNewsletterLoading(false);
-      });
-    return () => { cancelled = true; };
+    return startVisibleRefresh(async (signal) => {
+      try {
+        const data = await fetchFreshJson("/api/newsletter", signal);
+        if (!signal.aborted && data?.newsletter) {
+          setNewsletter((previous) => JSON.stringify(previous) === JSON.stringify(data.newsletter)
+            ? previous : data.newsletter);
+        }
+      } finally {
+        if (!signal.aborted) setNewsletterLoading(false);
+      }
+    });
   }, []);
 
   useEffect(() => {
