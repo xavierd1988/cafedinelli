@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { pickTrendName } from "../lib/newsletterParse.js";
+import { getAmazonNewsletterNames } from "../lib/newsletterParse.js";
 import { getEditMode, setEditMode, useEditMode } from "../lib/editMode.js";
 import { useSceneScale } from "./useSceneScale.js";
 import BlackBackdrop from "./BlackBackdrop.jsx";
@@ -234,38 +234,12 @@ function LeftBuilding() {
     }
 
     function extractFromNewsletter(html) {
-      if (!html || typeof DOMParser === "undefined") return null;
-      const doc = new DOMParser().parseFromString(`<div>${html}</div>`, "text/html");
-      const out = [];
-      const headers = doc.querySelectorAll("h2, h3, h4");
-      headers.forEach((h) => {
-        if (!/amazon/i.test(h.textContent || "")) return;
-        let next = h.nextElementSibling;
-        while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
-        if (!next) return;
-        next.querySelectorAll("tr").forEach((tr) => {
-          // Structure (validée 2026-05-13) :
-          //   <tr>
-          //     <td><strong>N.</strong> Apple AirPods 4 — earbuds</td> <- rang + NOM
-          //     <td>2M+ searches</td>                                  <- stats
-          //   </tr>
-          // Le nom est trouvé par contenu (parser robuste, voir
-          // lib/newsletterParse.js) — résiste aux changements de structure.
-          const cells = tr.querySelectorAll(":scope > td");
-          if (cells.length < 1) return;
-          const name = pickTrendName(
-            [...cells].map((c) => c.textContent || "")
-          );
-          if (!name || name.length < 3) return;
-          out.push({
-            id: `nl-${out.length}`,
-            name,
-            emoji: emojiFor(name),
-            amazonUrl: amazonUrlFor(name)
-          });
-        });
-      });
-      return out;
+      return getAmazonNewsletterNames(html).map((name, index) => ({
+        id: `nl-${index}`,
+        name,
+        emoji: emojiFor(name),
+        amazonUrl: amazonUrlFor(name)
+      }));
     }
 
     // On fetch TOUJOURS /api/products en parallèle de la newsletter. Si

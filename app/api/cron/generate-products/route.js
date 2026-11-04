@@ -23,7 +23,7 @@
 import { askGroq } from "../../../../lib/groqClient.js";
 import { getLatestNewsletter } from "../../../../lib/newsletterStore.js";
 import { saveDailyProducts, getCachedDailyProducts } from "../../../../lib/dailyProductsStore.js";
-import { pickTrendName } from "../../../../lib/newsletterParse.js";
+import { getAmazonNewsletterNames } from "../../../../lib/newsletterParse.js";
 
 // On limite la durée totale à ~50s : Vercel cron timeout généreux mais
 // garde de la marge. 30 produits × 1.5s scraping = 45s.
@@ -84,48 +84,14 @@ function looksLikeRobotCheck(html) {
 // donc que les noms du store soient EXACTEMENT ceux de la newsletter
 // — sinon mismatch et la vitrine reste vide.
 //
-// Cette fonction lit le HTML, extrait les rows de <td>[1] de chaque
-// section, et retourne les noms. Si la newsletter est introuvable ou
+// Cette fonction lit les rangées de tableaux ou de cartes de chaque
+// section Amazon et retourne les noms. Si la newsletter est introuvable ou
 // n'a pas de section AMAZON, on retourne []. Le code appelant
 // fallback alors sur Groq pour générer des suggestions.
 // =============================================================================
 
 function extractAmazonItemsFromNewsletter(html) {
-  if (!html || typeof html !== "string") return [];
-  const items = [];
-  const seen = new Set();
-
-  // Capture chaque section "AMAZON ..." suivie d'une <table>
-  const sectionRe =
-    /<h[234][^>]*>[^<]*AMAZON[^<]*<\/h[234]>[\s\S]*?<table[^>]*>([\s\S]*?)<\/table>/gi;
-
-  let m;
-  while ((m = sectionRe.exec(html)) !== null) {
-    const tableHtml = m[1];
-    const rowMatches = tableHtml.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
-    for (const row of rowMatches) {
-      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)];
-      if (tds.length < 1) continue;
-      // Nom du produit trouvé par contenu (parser robuste) — voir
-      // lib/newsletterParse.js. Résiste aux changements de structure.
-      const cellTexts = tds.map((mm) =>
-        mm[1]
-          .replace(/<[^>]+>/g, "")
-          .replace(/&amp;/g, "&")
-          .replace(/&nbsp;/g, " ")
-          .replace(/&quot;/g, '"')
-          .replace(/&#39;/g, "'")
-      );
-      const name = pickTrendName(cellTexts);
-      if (!name || name.length < 3) continue;
-      const key = name.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      items.push(name.slice(0, 80));
-      if (items.length >= TARGET_COUNT) return items;
-    }
-  }
-  return items;
+  return getAmazonNewsletterNames(html, TARGET_COUNT);
 }
 
 // Devine un emoji simple à partir du nom du produit. Si rien ne match,

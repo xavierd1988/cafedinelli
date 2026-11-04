@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { getModulePosition } from "../lib/modulePositions.js";
-import { pickTrendName } from "../lib/newsletterParse.js";
+import { markNewsletterRows } from "../lib/newsletterParse.js";
 import { getNewsletterEdition } from "../lib/newsletterEdition.js";
 import {
   trackAffiliateClick,
@@ -234,7 +234,7 @@ function enrichHtmlWithProductLinks(html, products) {
   if (typeof window === "undefined" || typeof DOMParser === "undefined") return html;
 
   const parser = new DOMParser();
-  const doc = parser.parseFromString(`<div id="root">${html}</div>`, "text/html");
+  const doc = parser.parseFromString(`<div id="root">${markNewsletterRows(html)}</div>`, "text/html");
   const root = doc.getElementById("root");
   if (!root) return html;
 
@@ -382,82 +382,30 @@ function enrichHtmlWithProductLinks(html, products) {
 
   walk(root);
 
-  // Marquage des rangées GOOGLE TRENDS + X/TWITTER TRENDS. On parcourt
-  // une seule fois et on tag selon le matching header :
-  //   - section "Google Trends"   → data-google-trend (popup News)
-  //   - section "X" ou "Twitter"  → data-x-trend      (popup style X)
-  const trendHeaders = root.querySelectorAll("h2, h3, h4");
-  trendHeaders.forEach((h) => {
-    const text = (h.textContent || "").toLowerCase();
-    let attrName = null;
-    // Section Google : "google trends" ou juste "google"
-    if (/\bgoogle\b/.test(text)) attrName = "data-google-trend";
-    // Section TikTok : "tiktok" — header newsletter "🎵 TIKTOK — TOP 15"
-    else if (/\btiktok\b/.test(text)) attrName = "data-tiktok-trend";
-    // Section X/Twitter : "x / twitter", "twitter", ou "x " standalone.
-    // Le vrai header newsletter est "X / TWITTER — TOP 15".
-    else if (/\btwitter\b/.test(text) || /\bx\s*\/\s*twitter\b/.test(text) || /(^|\W)x\s*[\/—]/.test(text)) attrName = "data-x-trend";
-    // Section YouTube : "youtube" — header newsletter "▶️ YOUTUBE — TOP 15"
-    else if (/\byoutube\b/.test(text)) attrName = "data-youtube-trend";
-    if (!attrName) return;
-    let next = h.nextElementSibling;
-    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
-    if (!next) return;
-    next.querySelectorAll("tr").forEach((tr) => {
-      if (tr.hasAttribute(attrName)) return;
-      // Nom du trend trouvé par contenu (parser robuste) — voir
-      // lib/newsletterParse.js. Résiste aux changements de structure.
-      const cells = tr.querySelectorAll(":scope > td");
-      if (cells.length < 1) return;
-      const keyword = pickTrendName(
-        [...cells].map((c) => c.textContent || "")
-      );
-      if (!keyword || keyword.length < 2) return;
-      tr.setAttribute(attrName, keyword);
-      tr.style.cursor = "pointer";
-    });
-  });
-
-  // Marquage des rangées Amazon Top 15 :
-  //   1. Attribut data-amazon-product sur la <tr> → rangée cliquable.
-  //   2. Bouton visuel "Buy it" injecté dans chaque rangée — c'est un
-  //      <span> stylé en pill (PAS un <a>), donc PAS un lien hypertexte.
-  //      Il sert juste de visual cue + cible secondaire pour le clic.
-  //   3. Le texte du nom (<strong>) reste un simple bold, sans wrap
-  //      <a>. C'est le wrap topic-link qui est exclu pour les Amazon
-  //      tables (cf. isInAmazonTable).
-  const headers = root.querySelectorAll("h2, h3, h4");
-  headers.forEach((h) => {
-    if (!/amazon/i.test(h.textContent || "")) return;
-    let next = h.nextElementSibling;
-    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
-    if (!next) return;
-    next.querySelectorAll("tr").forEach((tr) => {
-      if (tr.hasAttribute("data-amazon-product")) return;
-      // Nom du produit trouvé par contenu (parser robuste) — voir
-      // lib/newsletterParse.js. Résiste aux changements de structure.
-      const cells = tr.querySelectorAll(":scope > td");
-      if (cells.length < 1) return;
-      const keyword = pickTrendName(
-        [...cells].map((c) => c.textContent || "")
-      );
-      if (!keyword || keyword.length < 3) return;
-      tr.setAttribute("data-amazon-product", keyword);
-
-      // Réinjecte un bouton visuel "Buy it" — span pill, pas un <a>.
-      const btn = doc.createElement("span");
-      btn.className = "paper-buy-it-injected";
-      btn.textContent = "Buy it";
-      btn.setAttribute("data-product-name", keyword);
-      btn.setAttribute("role", "button");
-      btn.setAttribute("tabindex", "0");
+  // The shared parser marks both table and card rows. Keep each edition's
+  // layout and add its existing Amazon action without inserting table cells
+  // inside card containers.
+  root.querySelectorAll("[data-amazon-product]").forEach((row) => {
+    if (row.querySelector(".paper-buy-it-injected")) return;
+    const keyword = row.getAttribute("data-amazon-product");
+    const btn = doc.createElement("span");
+    btn.className = "paper-buy-it-injected";
+    btn.textContent = "Buy it";
+    btn.setAttribute("data-product-name", keyword);
+    btn.setAttribute("role", "button");
+    btn.setAttribute("tabindex", "0");
+    if (row.tagName === "TR") {
       const td = doc.createElement("td");
       td.style.cssText = "padding:6px 8px; vertical-align:middle; white-space:nowrap; text-align:center;";
       td.appendChild(btn);
-      const lastTd = cells[cells.length - 1];
-      if (lastTd) tr.insertBefore(td, lastTd);
-      else tr.appendChild(td);
-    });
+      const cells = row.querySelectorAll(":scope > td");
+      row.insertBefore(td, cells[cells.length - 1] || null);
+    } else {
+      row.appendChild(btn);
+    }
+  });
+  root.querySelectorAll("[data-google-trend], [data-tiktok-trend], [data-x-trend], [data-youtube-trend]").forEach((row) => {
+    row.style.cursor = "pointer";
   });
 
   // === Pass topic-link ====================================================
@@ -478,23 +426,8 @@ function enrichHtmlWithProductLinks(html, products) {
     node.appendChild(a);
   }
 
-  // Collecte des tables Amazon (celles qui suivent un header "AMAZON ...").
-  // On les exclut du topic-link wrap pour ne pas dupliquer l'UX avec le
-  // bouton Buy-it qu'on a déjà injecté plus haut.
-  const amazonTables = new Set();
-  headers.forEach((h) => {
-    if (!/amazon/i.test(h.textContent || "")) return;
-    let next = h.nextElementSibling;
-    while (next && next.tagName !== "TABLE") next = next.nextElementSibling;
-    if (next) amazonTables.add(next);
-  });
-  function isInAmazonTable(node) {
-    let p = node.parentNode;
-    while (p) {
-      if (amazonTables.has(p)) return true;
-      p = p.parentNode;
-    }
-    return false;
+  function isInAmazonRow(node) {
+    return Boolean(node.closest("[data-amazon-product]"));
   }
 
   // 1) Bold tags : titres et noms saillants ("Cinco de Mayo", "Hegseth", ...)
@@ -510,7 +443,7 @@ function enrichHtmlWithProductLinks(html, products) {
   //    Skip TOUT car les tables ranked sont hors TODAY'S HEADLINES.
   //    On garde la classe paper-topic-row pour le styling, sans wrap link.
   root.querySelectorAll("tr").forEach((tr) => {
-    if (isInAmazonTable(tr)) return;
+    if (isInAmazonRow(tr)) return;
     const cells = tr.querySelectorAll(":scope > td");
     if (cells.length < 1) return;
     const firstText = (cells[0].textContent || "").trim();
@@ -984,7 +917,7 @@ export default function PaperPanel() {
               //      etc.) → on ouvre la TopicPopup avec 5 photos liées
               //      au topic + un bouton vers l'article original.
               // 0a. Rangée X / Twitter Trend → popup style X
-              const xRow = e.target.closest && e.target.closest("tr[data-x-trend]");
+              const xRow = e.target.closest && e.target.closest("[data-x-trend]");
               if (xRow) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -995,7 +928,7 @@ export default function PaperPanel() {
 
               // 0b. Rangée Google Trend → ouvre la popup GoogleTrendsPopup
               //    avec les 5 derniers articles Google News.
-              const googleRow = e.target.closest && e.target.closest("tr[data-google-trend]");
+              const googleRow = e.target.closest && e.target.closest("[data-google-trend]");
               if (googleRow) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1006,7 +939,7 @@ export default function PaperPanel() {
 
               // 0c. Rangée TikTok Trend → popup style TikTok
               //    avec les 3 dernières vidéos TikTok pour ce keyword.
-              const tiktokRow = e.target.closest && e.target.closest("tr[data-tiktok-trend]");
+              const tiktokRow = e.target.closest && e.target.closest("[data-tiktok-trend]");
               if (tiktokRow) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1017,7 +950,7 @@ export default function PaperPanel() {
 
               // 0d. Rangée YouTube Trend → popup avec player embed YouTube
               //    de la 1ère vidéo correspondant au keyword.
-              const youtubeRow = e.target.closest && e.target.closest("tr[data-youtube-trend]");
+              const youtubeRow = e.target.closest && e.target.closest("[data-youtube-trend]");
               if (youtubeRow) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1029,7 +962,7 @@ export default function PaperPanel() {
               // 1. Rangée Amazon (data-amazon-product) → highlight produit
               //    dans la vitrine + slide paper vers la droite. PAS de lien
               //    hypertexte vers Amazon : juste un surlignage visuel.
-              const amazonRow = e.target.closest && e.target.closest("tr[data-amazon-product]");
+              const amazonRow = e.target.closest && e.target.closest("[data-amazon-product]");
               if (amazonRow) {
                 e.preventDefault();
                 e.stopPropagation();

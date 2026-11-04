@@ -7364,15 +7364,15 @@ button {
 }
 
 /* === Rangées Amazon Top 15 entièrement cliquables ====================== */
-/* Toute <tr> avec data-amazon-product est cliquable. Pas de lien hyper-
+/* Toute rangée avec data-amazon-product est cliquable. Pas de lien hyper-
    texte sur le texte du produit — juste un highlight orange au survol
    et un clic (n'importe où sur la rangée OU sur le bouton "Buy it"
    injecté) qui surligne la case dans la vitrine du store. */
-.paper-newsletter-html tr[data-amazon-product] {
+.paper-newsletter-html [data-amazon-product] {
   cursor: pointer;
   transition: background 180ms ease;
 }
-.paper-newsletter-html tr[data-amazon-product]:hover {
+.paper-newsletter-html [data-amazon-product]:hover {
   background: rgba(255, 153, 0, 0.12) !important;
 }
 
