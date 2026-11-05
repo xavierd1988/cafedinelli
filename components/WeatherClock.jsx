@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useDraggable } from "./useDraggable.js";
 import { getModulePosition } from "../lib/modulePositions.js";
 import { useSceneScale } from "./useSceneScale.js";
-
-const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+import { forecastDay, formatWeatherClock } from "../lib/weatherClockTime.js";
 
 // WMO weather codes → pixel emoji + text colour
 const WMO = {
@@ -33,16 +32,12 @@ const WMO = {
   99: { icon: "⛈", color: "#ff6b6b" }
 };
 
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-
 function lookupWmo(code) {
   return WMO[code] || WMO[0];
 }
 
 export default function WeatherClock() {
-  const [time, setTime] = useState(() => new Date());
+  const [time, setTime] = useState(null);
   const [weather, setWeather] = useState(null);
   const [error, setError] = useState(null);
   const init = getModulePosition("WeatherClock");
@@ -55,7 +50,9 @@ export default function WeatherClock() {
 
   // tick clock every 20s (avoid every-second re-render thrash)
   useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 20 * 1000);
+    const tick = () => setTime(new Date());
+    tick();
+    const id = setInterval(tick, 20 * 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -79,7 +76,8 @@ export default function WeatherClock() {
           lows: data.daily.temperature_2m_min.map(Math.round),
           codes: data.daily.weathercode,
           dates: data.daily.time,
-          city
+          city,
+          timeZone: tz
         });
         setError(null);
       } catch (err) {
@@ -104,21 +102,15 @@ export default function WeatherClock() {
     };
   }, []);
 
-  const dateStr = `${pad(time.getDate())}-${pad(time.getMonth() + 1)}`;
-  const h24 = time.getHours();
-  const ampm = h24 >= 12 ? "PM" : "AM";
-  const h12 = h24 % 12 || 12;
-  const timeStr = `${h12}:${pad(time.getMinutes())} ${ampm}`;
-  const dayStr = DAYS[time.getDay()];
+  const { date: dateStr, time: timeStr, day: dayStr } = formatWeatherClock(time, weather?.timeZone);
 
   const current = weather ? lookupWmo(weather.code) : null;
 
   const forecast = [];
   if (weather) {
     for (let i = 1; i <= 4 && i < weather.dates.length; i++) {
-      const d = new Date(weather.dates[i]);
       forecast.push({
-        day: DAYS[d.getDay()],
+        day: forecastDay(weather.dates[i]),
         icon: lookupWmo(weather.codes[i]).icon,
         high: weather.highs[i],
         low: weather.lows[i]

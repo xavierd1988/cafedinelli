@@ -43,15 +43,24 @@ export async function POST(request) {
   const subject = typeof body?.subject === "string"
     ? body.subject.trim().slice(0, 200)
     : "";
-  const date = typeof body?.date === "string"
-    ? body.date.slice(0, 32)
-    : new Date().toISOString().slice(0, 10);
+  const receivedAt = new Date();
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(receivedAt).map(({ type, value }) => [type, value]));
+  const today = `${parts.year}-${parts.month}-${parts.day}`;
+  const date = body?.date === undefined ? today : body.date;
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return Response.json({ error: "invalid edition date; use YYYY-MM-DD" }, { status: 400 });
+  }
+  if (date !== today) {
+    return Response.json({ error: "edition date must be today in America/New_York", expectedDate: today }, { status: 409 });
+  }
 
   const entry = {
     subject,
     date,
     html: extractBody(html),
-    receivedAt: new Date().toISOString()
+    receivedAt: receivedAt.toISOString()
   };
   await saveNewsletter(entry);
   return Response.json({ ok: true, entry: { subject, date, receivedAt: entry.receivedAt } });

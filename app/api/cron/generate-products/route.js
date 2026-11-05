@@ -6,21 +6,20 @@
 //
 // Étapes :
 //   1. Lit la newsletter du jour (Redis "newsletter:latest")
-//   2. Demande à Groq de proposer 30 produits Amazon liés aux trends
-//      → JSON [{ emoji, name, search }, ...]
+//   2. Extrait au maximum 30 noms des sections Amazon de la newsletter
+//      → aucun remplissage généré si la liste est partielle ou absente
 //   3. Pour chaque produit, scrape Amazon (page recherche) pour récupérer
 //      ASIN + image principale
 //   4. Sauvegarde le tout dans dailyProductsStore (Redis 26h TTL)
 //
 // Sécurité : Vercel inclut `Authorization: Bearer <CRON_SECRET>` quand
 // configuré. On vérifie ce header en prod pour éviter qu'un attaquant
-// déclenche le cron à la main et fasse exploser nos appels Groq.
+// déclenche le cron à la main et multiplie les requêtes Amazon.
 //
 // Manuel : on peut aussi le déclencher avec un GET classique pour tester
-// (?force=1 pour bypasser les contrôles de date et régénérer manuellement).
+// (?force=1 pour régénérer, sans contourner la date ou la source du jour).
 // =============================================================================
 
-import { askGroq } from "../../../../lib/groqClient.js";
 import { getLatestNewsletter } from "../../../../lib/newsletterStore.js";
 import { saveDailyProducts, getCachedDailyProducts } from "../../../../lib/dailyProductsStore.js";
 import { getAmazonNewsletterNames } from "../../../../lib/newsletterParse.js";
@@ -86,8 +85,8 @@ function looksLikeRobotCheck(html) {
 //
 // Cette fonction lit les rangées de tableaux ou de cartes de chaque
 // section Amazon et retourne les noms. Si la newsletter est introuvable ou
-// n'a pas de section AMAZON, on retourne []. Le code appelant
-// fallback alors sur Groq pour générer des suggestions.
+// n'a pas de section AMAZON, on retourne [] et la collecte est ignorée.
+// Ces noms proviennent du digest ; leur présence ne certifie pas sa source.
 // =============================================================================
 
 function extractAmazonItemsFromNewsletter(html) {
@@ -146,95 +145,6 @@ function searchFromName(name) {
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 80);
-}
-
-function htmlToText(html) {
-  if (!html || typeof html !== "string") return "";
-  return html
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<br\s*\/?>(?!\s*<)/gi, "\n")
-    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{2,}/g, "\n\n")
-    .trim();
-}
-
-const SYSTEM_PROMPT = `You are a curator for Dinelli's Café, a morning internet café that serves a daily news digest.
-
-You will be given today's newsletter (the "morning digest"). Your job: propose ${TARGET_COUNT} Amazon-shoppable products that connect to the trends, stories, and themes of the digest.
-
-REQUIREMENTS
-- Exactly ${TARGET_COUNT} items. Not more, not less.
-- VARIED categories: food, beauty, home, books, gadgets, kids, fashion, kitchen, wellness, etc. Don't pile up 10 mugs.
-- Each item must be a REAL, mainstream, currently-on-Amazon product (not invented brand names).
-- Tie each item to a thread in the digest when possible (e.g. Met Gala → fascinators, allergy peak → Claritin, Mother's Day → pop-up cards).
-- Some can be timeless cozy-café staples (notebook, candle, mug) for the rest of the catalog.
-
-OUTPUT FORMAT — STRICT JSON, no prose, no markdown fences:
-[
-  { "emoji": "🌸", "name": "Mother's Day pop-up card", "search": "mothers day pop up card 3D" },
-  { "emoji": "🪖", "name": "Big derby fascinator hat", "search": "kentucky derby fascinator hat women" },
-  ...
-]
-
-emoji: a single, fitting emoji for the product
-name:  short, displayable name (max 40 chars)
-search: 3-7 keywords joined by spaces (NOT plus signs), specific enough that Amazon's first result is the right product
-
-OUTPUT ONLY THE JSON ARRAY. No explanation, no preamble, no closing words.`;
-
-async function generateProducts(newsletter) {
-  const newsText = newsletter ? htmlToText(newsletter.html).slice(0, 3500) : "";
-  const userPrompt = newsText
-    ? `Today's digest:\n\n---\n${newsletter?.subject ? `Subject: ${newsletter.subject}\n` : ""}${newsText}\n---\n\nGenerate the ${TARGET_COUNT} products now.`
-    : `No newsletter available today. Generate ${TARGET_COUNT} timeless cozy-café products instead.`;
-
-  const raw = await askGroq({
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: userPrompt }],
-    maxTokens: 3500,
-    temperature: 0.85
-  });
-
-  // Tente d'extraire le JSON même si le modèle ajoute des fences
-  let jsonText = raw.trim();
-  const fence = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-  if (fence) jsonText = fence[1];
-  const firstBracket = jsonText.indexOf("[");
-  const lastBracket = jsonText.lastIndexOf("]");
-  if (firstBracket >= 0 && lastBracket > firstBracket) {
-    jsonText = jsonText.slice(firstBracket, lastBracket + 1);
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonText);
-  } catch (e) {
-    throw new Error(`Groq returned invalid JSON: ${e.message}`);
-  }
-  if (!Array.isArray(parsed)) {
-    throw new Error("Groq output is not an array");
-  }
-  return parsed
-    .filter((p) => p && typeof p.name === "string" && typeof p.search === "string")
-    .slice(0, TARGET_COUNT)
-    .map((p) => ({
-      emoji: typeof p.emoji === "string" ? p.emoji : "✨",
-      name: p.name.slice(0, 60),
-      search: p.search
-        .replace(/[^A-Za-z0-9 ]+/g, " ")
-        .trim()
-        .replace(/\s+/g, " ")
-        .slice(0, 80)
-    }));
 }
 
 async function scrapeAmazonForImage(product) {
@@ -300,7 +210,7 @@ export async function GET(request) {
   }
 
   const newsletter = await getLatestNewsletter().catch(() => null);
-  if (!force && (newsletter?.date !== today || typeof newsletter?.html !== "string" || !newsletter.html.trim())) {
+  if (newsletter?.date !== today || typeof newsletter?.html !== "string" || !newsletter.html.trim()) {
     return Response.json({
       skipped: true,
       reason: "today's newsletter is not available",
@@ -325,29 +235,18 @@ export async function GET(request) {
 
   const startedAt = Date.now();
 
-  // 1. PRIORITÉ : extraire les VRAIS noms Amazon de la newsletter HTML.
-  //    Le frontend matche les noms — si on hallucine via Groq, le store
-  //    ne matche pas la newsletter et la vitrine reste vide.
-  let proposals;
-  let sourceUsed = "newsletter-extract";
-  const extracted = extractAmazonItemsFromNewsletter(newsletter?.html);
-  if (extracted.length >= 20) {
-    proposals = extracted.map((name) => ({
-      emoji: emojiForName(name),
-      name,
-      search: searchFromName(name)
-    }));
-  } else {
-    // 2. FALLBACK : newsletter manquante ou sans section AMAZON →
-    //    on demande à Groq de proposer des produits liés aux trends.
-    sourceUsed = "groq-fallback";
-    try {
-      proposals = await generateProducts(newsletter);
-    } catch (err) {
-      console.error("cron/generate-products: groq failed:", err?.message);
-      return Response.json({ error: "groq failed", detail: err?.message }, { status: 500 });
-    }
+  // Utiliser uniquement les noms présents dans le digest du jour.
+  // Une liste partielle reste partielle ; une source absente ne crée aucun produit.
+  const sourceUsed = "newsletter-extract";
+  const extracted = extractAmazonItemsFromNewsletter(newsletter.html);
+  if (extracted.length === 0) {
+    return Response.json({
+      skipped: true, saved: false, reason: "no Amazon products in today's newsletter", date: today
+    });
   }
+  const proposals = extracted.map((name) => ({
+    emoji: emojiForName(name), name, search: searchFromName(name)
+  }));
 
   // 2. Scrape Amazon en concurrence limitée
   const enriched = [];
@@ -363,16 +262,23 @@ export async function GET(request) {
   }
   await Promise.all(Array.from({ length: SCRAPE_CONCURRENCY }, () => worker()));
 
+  const publishDate = getNewYorkClock(new Date()).date;
+  if (publishDate !== today) {
+    return Response.json({
+      skipped: true, saved: false, reason: "New York date changed during collection", date: publishDate
+    });
+  }
+
   // 3. Sauvegarde — avec garde-fou : si Amazon a tout bloqué (0 image
   //    extraite), on NE SAUVEGARDE PAS pour éviter d'écraser un cache
   //    précédent qui avait des images valides.
   //
   // EXCEPTION ?force=1 : on sauve toujours, même sans images. Sert quand
-  // on veut juste régénérer la liste Groq (avec les bons `search`) et
+  // on veut régénérer les noms du digest (avec les bons `search`) et
   // déléguer le scraping à un worker externe (scrape_morning.py sur eye,
   // IP résidentielle = pas blocked par Amazon).
   const withImage = enriched.filter((p) => p.image).length;
-  const MIN_IMAGES_TO_SAVE = 5;
+  const MIN_IMAGES_TO_SAVE = Math.min(5, enriched.length);
 
   let saved = null;
   let skippedSave = false;
@@ -383,16 +289,24 @@ export async function GET(request) {
       `Amazon likely rate-limited. Keeping previous cache instead of overwriting.`
     );
   } else {
-    saved = await saveDailyProducts({
-      date: today,
-      generatedAt: Date.now(),
-      products: enriched
-    });
+    try {
+      saved = await saveDailyProducts({
+        date: today,
+        generatedAt: Date.now(),
+        products: enriched
+      });
+    } catch {
+      return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+    }
+    if (!saved) {
+      return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+    }
   }
 
   const durationMs = Date.now() - startedAt;
   return Response.json({
-    ok: true,
+    ok: !skippedSave,
+    skipped: skippedSave,
     date: today,
     count: enriched.length,
     withImage,

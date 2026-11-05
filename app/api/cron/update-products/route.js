@@ -58,15 +58,27 @@ export async function POST(request) {
     price: typeof p?.price === "string" ? p.price.slice(0, 16) : null
   })).filter((p) => p.name);
 
-  const saved = await saveDailyProducts({
+  if (sanitized.length === 0) {
+    return Response.json({ error: "no valid products" }, { status: 400 });
+  }
+
+  let saved;
+  try {
+    saved = await saveDailyProducts({
     date,
     generatedAt: Date.now(),
     products: sanitized
   });
+  } catch {
+    return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+  }
+  if (!saved) {
+    return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+  }
 
   return Response.json({
     ok: true,
-    saved: !!saved,
+    saved: true,
     date,
     count: sanitized.length,
     withImage: sanitized.filter((p) => p.image).length

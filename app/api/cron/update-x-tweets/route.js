@@ -75,15 +75,23 @@ export async function POST(request) {
   }
 
   const date = body.date || new Date().toISOString().slice(0, 10);
-  const saved = await saveXTweets({
+  let saved;
+  try {
+    saved = await saveXTweets({
     date,
     generatedAt: Date.now(),
     trends
   });
+  } catch {
+    return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+  }
+  if (!saved) {
+    return Response.json({ ok: false, saved: false, error: "persistence unavailable" }, { status: 503 });
+  }
 
   return Response.json({
     ok: true,
-    saved: !!saved,
+    saved: true,
     date,
     keywords: Object.keys(trends).length,
     totalTweets: Object.values(trends).reduce((s, a) => s + a.length, 0)
